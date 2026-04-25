@@ -2,8 +2,9 @@
 
 **Author**: Unlimab
 **Date**: 25/04/2026
-**Status**: Draft
+**Status**: v0.1 Deployed
 **Version**: 0.2
+**URL**: https://doit.jst4.fun
 
 ---
 
@@ -20,7 +21,7 @@
 ### 1.2 Background
 
 - Plan đã được thiết kế đầy đủ dưới dạng markdown (weekly-plan.md) bao gồm: daily template cố định, weekly rotating slots, evening menu flexible, evening anchor, và upgrade path.
-- Bản MVP v0.1 đã build dưới dạng React artifact trên Claude.ai, đang hoạt động với real-time slot detection và 3 views (Today/Week/Plan).
+- Bản MVP v0.1 đã build dưới dạng React artifact trên Claude.ai, sau đó chuyển thành Vite React app standalone, deploy trên Cloudflare Pages.
 - Vấn đề phát sinh: khung giờ hardcode không phù hợp khi user cần điều chỉnh theo thực tế (dậy sớm/muộn hơn, thêm buffer di chuyển giữa các slot, thay đổi độ dài session).
 
 ### 1.3 Assumptions & Hypotheses
@@ -37,7 +38,7 @@
 ### 2.1 Objectives
 
 - **Primary**: Mở app → biết ngay "bây giờ làm gì" trong < 3 giây.
-- **Secondary**: User tự điều chỉnh được khung giờ mà không cần rebuild artifact.
+- **Secondary**: User tự điều chỉnh được khung giờ mà không cần rebuild.
 
 ### 2.2 Success Metrics
 
@@ -61,29 +62,29 @@ Số ngày liên tiếp user mở dashboard check lịch (proxy cho habit adopti
 
 ### 3.2 User Stories
 
-| ID | Priority | User Story | Acceptance Criteria |
-|----|----------|------------|---------------------|
-| US-1 | P0 | Là user, tao muốn mở app và thấy ngay slot hiện tại được highlight theo giờ thật | Giờ real-time, update mỗi 30s, slot hiện tại có visual indicator rõ ràng |
-| US-2 | P0 | Là user, tao muốn chọn ngày trong tuần (T2-CN) để xem rotating + evening menu của ngày đó | Day selector 7 nút, tap = switch, ngày hiện tại đánh dấu riêng |
-| US-3 | P0 | Là user, tao muốn thấy daily template áp dụng cho mọi ngày với rotating thay đổi theo ngày | Daily template cố định + rotating/evening/work blocks thay đổi theo ngày đã chọn |
-| US-4 | P0 | Là user, tao muốn chỉnh giờ bắt đầu/kết thúc của từng slot (ví dụ: đi bộ 5:15-6:45 thay vì 5:30-7:00) | Tap vào giờ của slot → input field → save → persist qua sessions |
-| US-5 | P0 | Là user, tao muốn thêm/xoá/rename slot tuỳ ý (ví dụ: thêm "Di chuyển ra quán cafe 15p" sau thiền) | Nút thêm slot, chọn vị trí, nhập tên + giờ + type. Xoá/rename slot đã có |
-| US-6 | P1 | Là user, tao muốn thấy rõ đâu là BIG goal, đâu là SMALL goal | Badge BIG/SMALL trên mỗi slot, color-coded theo type |
-| US-7 | P1 | Là user, tao muốn tap vào rotating/evening slot và thấy tất cả unique activities để biết options | Expand panel hiện danh sách activities + ngày nào chạy cái nào, highlight ngày đang xem |
-| US-8 | P1 | Là user, tao muốn xem tổng quan tuần dạng grid | Tab Tuần: 4 section (rotating, work1, work2, tối), tap ngày → jump Today view |
-| US-9 | P1 | Là user, tao muốn xem philosophy, goals, upgrade path | Tab Tổng quan: accordion sections |
-| US-10 | P2 | Là user, tao muốn reset về lịch mặc định nếu chỉnh sai | Nút "Reset về mặc định" trong Settings, confirm trước khi reset |
+| ID | Priority | User Story | Acceptance Criteria | Status |
+|----|----------|------------|---------------------|--------|
+| US-1 | P0 | Là user, tao muốn mở app và thấy ngay slot hiện tại được highlight theo giờ thật | Giờ real-time, update mỗi 30s, slot hiện tại có visual indicator rõ ràng | ✅ v0.1 |
+| US-2 | P0 | Là user, tao muốn chọn ngày trong tuần (T2-CN) để xem rotating + evening menu của ngày đó | Day selector 7 nút, tap = switch, ngày hiện tại đánh dấu riêng | ✅ v0.1 |
+| US-3 | P0 | Là user, tao muốn thấy daily template áp dụng cho mọi ngày với rotating thay đổi theo ngày | Daily template cố định + rotating/evening/work blocks thay đổi theo ngày đã chọn | ✅ v0.1 |
+| US-4 | P0 | Là user, tao muốn chỉnh giờ bắt đầu/kết thúc của từng slot | Tap vào giờ của slot → input field → save → persist qua sessions | 🔲 v0.2 |
+| US-5 | P0 | Là user, tao muốn thêm/xoá/rename slot tuỳ ý | Nút thêm slot, chọn vị trí, nhập tên + giờ + type. Xoá/rename slot đã có | 🔲 v0.2 |
+| US-6 | P1 | Là user, tao muốn thấy rõ đâu là BIG goal, đâu là SMALL goal | Badge BIG/SMALL trên mỗi slot, color-coded theo type | ✅ v0.1 |
+| US-7 | P1 | Là user, tao muốn tap vào rotating/evening slot và thấy tất cả unique activities | Expand panel hiện danh sách activities + highlight ngày đang xem | ✅ v0.1 |
+| US-8 | P1 | Là user, tao muốn xem tổng quan tuần dạng grid | Tab Tuần: 4 section, tap ngày → jump Today view | ✅ v0.1 |
+| US-9 | P1 | Là user, tao muốn xem philosophy, goals, upgrade path | Tab Tổng quan: accordion sections | ✅ v0.1 |
+| US-10 | P2 | Là user, tao muốn reset về lịch mặc định nếu chỉnh sai | Nút "Reset về mặc định", confirm trước khi reset | 🔲 v0.2 |
 
 ### 3.3 Scope
 
 **IN SCOPE (v0.2)**:
-- Real-time slot detection (đã có)
-- Day selector T2-CN (đã có)
-- 3 views: Today / Tuần / Tổng quan (đã có)
-- Expand rotating/evening/anchor/work slots (đã có)
+- ~~Real-time slot detection~~ ✅
+- ~~Day selector T2-CN~~ ✅
+- ~~3 views: Today / Tuần / Tổng quan~~ ✅
+- ~~Expand rotating/evening/anchor/work slots~~ ✅
 - Custom time: chỉnh giờ start/end mỗi slot
 - Custom slots: thêm/xoá/rename slot (ví dụ: thêm "Di chuyển" 15p)
-- Persist custom settings qua sessions (artifact persistent storage)
+- Persist custom settings qua sessions (localStorage)
 - Reset to default
 
 **OUT OF SCOPE (v0.2)**:
@@ -105,8 +106,8 @@ Số ngày liên tiếp user mở dashboard check lịch (proxy cho habit adopti
 - Slot đã qua mờ đi (opacity thấp)
 - Day selector (CN-T2-T3-T4-T5-T6-T7) ở trên
 - Tap slot expandable → chi tiết rotating/evening/anchor/work
-- Tap giờ của slot → edit mode (input start/end time)
-- Nút "+" giữa 2 slot → thêm slot mới
+- Tap giờ của slot → edit mode (input start/end time) [v0.2]
+- Nút "+" giữa 2 slot → thêm slot mới [v0.2]
 
 **Week View**
 - 4 section dọc: Rotating, Work Block 1, Work Block 2, Buổi tối
@@ -117,7 +118,7 @@ Số ngày liên tiếp user mở dashboard check lịch (proxy cho habit adopti
 - Accordion: Triết lý, Big Goals, Small Goals, Evening Anchor, Khi nào Upgrade
 - Static reference, không cần edit
 
-### 4.2 Edit Time Flow
+### 4.2 Edit Time Flow (v0.2)
 
 ```
 User tap vào "05:30 - 07:00" trên slot Đi bộ
@@ -125,17 +126,17 @@ User tap vào "05:30 - 07:00" trên slot Đi bộ
   → User chỉnh thành [05:15] [06:45]
   → Tap ngoài hoặc bấm ✓ → save
   → Slot tiếp theo tự động suggest adjust (06:45 thay vì 07:00)
-  → Persist vào storage
+  → Persist vào localStorage
 ```
 
-### 4.3 Add Slot Flow
+### 4.3 Add Slot Flow (v0.2)
 
 ```
 User tap nút "+" giữa slot Thiền và slot Vẽ
   → Modal nhỏ: Tên slot, Start time, End time, Type (big/small/life)
   → Ví dụ: "Di chuyển ra cafe", 08:00-08:15, life
   → Save → slot mới xuất hiện trong timeline
-  → Persist vào storage
+  → Persist vào localStorage
 ```
 
 ### 4.4 Aha Moments
@@ -155,16 +156,36 @@ User tap nút "+" giữa slot Thiền và slot Vẽ
 
 | Layer | Choice | Lý do |
 |-------|--------|-------|
-| Frontend | React artifact (.jsx) | Chạy trực tiếp trong Claude.ai, không deploy riêng |
-| Styling | Tailwind + inline styles | Có sẵn trong artifact environment |
-| State | useState + useReducer | Quản lý schedule state + edit state |
-| Persistence | window.storage API (artifact persistent storage) | Lưu custom times/slots qua sessions, key-value store |
+| Frontend | React (Vite) | Build nhanh, HMR, deploy static dễ |
+| Styling | Inline styles | Đơn giản, không cần CSS framework, dark theme hardcoded |
+| Fonts | Google Fonts CDN | Crimson Pro (serif) + JetBrains Mono (monospace) |
+| State | useState + useCallback | Quản lý schedule state + view state |
+| Persistence | localStorage | Lưu custom times/slots qua sessions (v0.2) |
 | Time | JavaScript Date + setInterval 30s | Real-time slot detection |
+| Hosting | Cloudflare Pages | Free tier, auto-deploy từ GitHub |
+| Domain | doit.jst4.fun | Custom domain trên Cloudflare |
 
-### 5.2 Data Model
+### 5.2 Project Structure
 
 ```
-Key: "schedule-config"
+doit/
+├── src/
+│   ├── App.jsx          ← source code chính (single-file app)
+│   ├── main.jsx         ← React entry point
+│   └── index.css        ← minimal global reset
+├── weekly-life-dashboard.jsx  ← bản gốc standalone (reference)
+├── index.html
+├── vite.config.js
+├── package.json
+├── CLAUDE.md            ← project config cho Claude Code
+├── CLOUDFLARE_PAGES_SETUP.md  ← hướng dẫn deploy
+└── PRD-weekly-life-dashboard.md  ← file này
+```
+
+### 5.3 Data Model (v0.2)
+
+```
+localStorage key: "schedule-config"
 Value: {
   version: "0.2",
   customSlots: [
@@ -186,19 +207,23 @@ Value: {
       icon: "☕",
       isCustom: true   // slot user thêm mới
     },
-    // ...
-  ],
-  // Rotating và evening giữ nguyên logic theo ngày,
-  // không cần custom vì đã có map cố định
+  ]
 }
 ```
 
-### 5.3 Storage Strategy
+### 5.4 Storage Strategy
 
 - **Read on mount**: load "schedule-config" → nếu có thì dùng custom, nếu không thì dùng default
 - **Write on change**: mỗi lần user edit time hoặc add/remove slot → save toàn bộ config
 - **Reset**: xoá key "schedule-config" → revert về DAILY_TEMPLATE mặc định
 - **Migration**: check version field, nếu cũ hơn thì merge với default mới
+
+### 5.5 Deploy
+
+- **Auto-deploy**: push lên `main` → Cloudflare Pages tự build (`npm run build`) → deploy `dist/`
+- **Domain**: `doit.jst4.fun` (CNAME → `doit-65z.pages.dev`)
+- **GitHub repo**: `thanhnt1021/doit`
+- Chi tiết: xem `CLOUDFLARE_PAGES_SETUP.md`
 
 ---
 
@@ -209,20 +234,21 @@ Value: {
 | Risk | Impact | Likelihood | Mitigation |
 |------|--------|------------|------------|
 | User chỉnh giờ overlap giữa 2 slots | Med | High | Validate: không cho end > start của slot sau, warning nếu gap < 0 |
-| Artifact persistent storage mất data | Med | Low | Có nút Export config (copy JSON), nút Reset về default |
+| localStorage bị xoá (clear browser data) | Med | Low | Có nút Export config (copy JSON), nút Reset về default |
 | Performance trên mobile với nhiều slot | Low | Low | Giữ component nhẹ, không animation nặng, max ~20 slots |
-| User quên link artifact | Med | Med | Bookmark hoặc add to home screen |
 
 ### 6.2 Open Questions
 
 - [ ] Có cần cho user custom rotating map (đổi ngày tập Calisthenics) hay giữ cố định?
 - [ ] Có cần export/import config để backup?
 - [ ] Khi nào thêm completion tracking (v0.3)?
+- [ ] Có cần PWA (install to home screen, offline support)?
 
 ### 6.3 Dependencies
 
-- Claude.ai artifact environment (React + persistent storage API)
+- Cloudflare Pages (hosting)
 - Google Fonts CDN (Crimson Pro, JetBrains Mono)
+- GitHub `thanhnt1021/doit` (source code)
 
 ---
 
@@ -230,7 +256,8 @@ Value: {
 
 | Phase | Deliverable | Status |
 |-------|------------|--------|
-| v0.1 | Core dashboard: real-time, 3 views, expand slots, day selector | ✅ Done |
-| v0.2 | Custom time + add/remove slots + persistent storage | 🔲 Next |
+| v0.1 | Core dashboard: real-time, 3 views, expand slots, day selector | ✅ Done — deployed tại doit.jst4.fun |
+| v0.2 | Custom time + add/remove slots + localStorage persistence | 🔲 Next |
 | v0.3 | Completion tracking (check-off daily anchors) | 🔲 Future |
 | v0.4 | Custom rotating map + statistics/streaks | 🔲 Future |
+| v0.5 | PWA: install to home screen, offline support | 🔲 Future |
