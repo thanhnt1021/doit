@@ -1,3 +1,41 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #0d0d0d;
+  --color-surface: #121411;
+  --color-surface-container: #1e201d;
+  --color-surface-container-low: #1a1c19;
+  --color-surface-container-high: #282b27;
+  --color-surface-bright: #373a36;
+
+  --color-on-surface: #e2e3dd;
+  --color-on-surface-variant: #c2c9be;
+  --color-on-bg: #e2e3dd;
+
+  --color-primary: #aad8a9;
+  --color-primary-container: #8fbc8f;
+  --color-on-primary: #0e3817;
+
+  --color-secondary: #b8c8da;
+  --color-secondary-container: #394857;
+
+  --color-tertiary: #e7c79e;
+  --color-tertiary-container: #caac85;
+
+  --color-outline: #8c9389;
+  --color-outline-variant: #424940;
+
+  --color-slate: #708090;
+  --color-tan: #d2b48c;
+  --color-sage: #8fbc8f;
+
+  --color-error: #ffb4ab;
+
+  --font-family-display: "Crimson Pro", Georgia, serif;
+  --font-family-body: "Crimson Pro", Georgia, serif;
+  --font-family-mono: "JetBrains Mono", monospace;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -5,7 +43,29 @@
 }
 
 body {
-  background: #0d0d0d;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  font-family: "Crimson Pro", Georgia, serif;
+  min-height: 100dvh;
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+}
+
+.glass-card {
+  background: rgba(26, 26, 26, 0.6);
+  backdrop-filter: blur(20px);
+  border: 0.5px solid rgba(112, 128, 144, 0.3);
+  border-top: 1px solid rgba(112, 128, 144, 0.4);
+}
+
+.sacred-progress {
+  height: 2px;
+  background: #8fbc8f;
+  box-shadow: 0 0 8px rgba(143, 188, 143, 0.4);
+}
+
+.slot-active-bar {
+  width: 3px;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
 }
