@@ -41,8 +41,7 @@
   /* TIMER */
   .modes{display:flex;flex-wrap:wrap;gap:7px;justify-content:center}
   .mode{font:500 13px var(--sans);color:var(--muted);background:var(--surface2);border:1px solid var(--line);
-    border-radius:999px;padding:10px 14px;cursor:pointer;min-height:40px;display:inline-flex;align-items:center;
-    touch-action:manipulation;-webkit-user-select:none;user-select:none;transition:color .2s,border-color .2s,background .2s}
+    border-radius:999px;padding:10px 14px;min-height:40px;display:inline-flex;align-items:center;cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none;transition:color .2s,border-color .2s,background .2s}
   .mode:hover{color:var(--text)}
   .mode.is-active{color:#0E1417;background:var(--text);border-color:var(--text);font-weight:700}
   .mode-meta{text-align:center;color:var(--muted);font-size:13px;margin-top:12px}
@@ -84,8 +83,7 @@
   .reps{text-align:center;color:var(--muted);font-size:13px;margin-top:12px}
   .reps span{font-family:var(--mono);color:var(--text)}
   .controls{display:flex;gap:10px;margin-top:14px}
-  .btn{flex:1;font:700 15px var(--sans);padding:14px;border-radius:13px;cursor:pointer;
-    min-height:50px;touch-action:manipulation;-webkit-user-select:none;user-select:none;
+  .btn{flex:1;font:700 15px var(--sans);padding:14px;border-radius:13px;min-height:50px;cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none;
     background:var(--surface2);color:var(--text);border:1px solid var(--line);transition:filter .2s}
   .btn:hover{filter:brightness(1.12)}
   .btn-primary{background:var(--release);color:#06201E;border-color:transparent}
@@ -104,8 +102,7 @@
   .today .theme{color:var(--muted);font-size:13px;margin-bottom:13px}
   .chips{display:flex;flex-wrap:wrap;gap:8px}
   .chip{font:600 14px var(--sans);color:var(--text);background:var(--surface2);border:1px solid var(--line);
-    border-radius:11px;padding:11px 14px;cursor:pointer;min-height:42px;display:inline-flex;align-items:center;
-    touch-action:manipulation;-webkit-user-select:none;user-select:none;transition:border-color .2s}
+    border-radius:11px;padding:11px 14px;min-height:42px;display:inline-flex;align-items:center;cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none;transition:border-color .2s}
   .chip:hover{border-color:var(--release)}
   .chip b{font-family:var(--mono);font-weight:700;color:var(--release);font-size:12px;margin-left:5px}
   .rest-tag{color:var(--muted);font-size:14px;font-style:italic}
@@ -118,10 +115,20 @@
   .wday.is-today .dlabel{color:var(--release)}
   .wday .dex{display:flex;flex-wrap:wrap;gap:6px}
   .mini{font:600 12px var(--sans);color:var(--text);background:var(--surface2);border:1px solid var(--line);
-    border-radius:8px;padding:8px 11px;cursor:pointer;min-height:36px;display:inline-flex;align-items:center;
-    touch-action:manipulation;-webkit-user-select:none;user-select:none;transition:border-color .2s}
+    border-radius:8px;padding:8px 11px;min-height:36px;display:inline-flex;align-items:center;cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none;transition:border-color .2s}
   .mini:hover{border-color:var(--release)}
   .mini b{font-family:var(--mono);color:var(--release);font-weight:700;font-size:11px;margin-left:4px}
+
+  /* MORNING / EVENING SLOTS */
+  .slot-h{font:700 11px var(--mono);text-transform:uppercase;letter-spacing:.1em;margin-bottom:7px}
+  .slot-h.am{color:var(--exhale)} .slot-h.pm{color:var(--reverse)}
+  .pm-card{background:var(--surface);border:1px solid rgba(154,166,240,.3);border-radius:13px;padding:13px 15px}
+  .pm-card .pmt{font:700 10px var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--reverse)}
+  .pm-card .pmn{font-size:16px;font-weight:800;margin:3px 0 5px}
+  .pm-card .pmc{font-size:13.5px;color:#C8D2D0}
+  .pm-rest{font-size:13.5px;color:var(--muted);font-style:italic}
+  .wpm{margin-top:7px;font:600 11.5px var(--sans);color:var(--reverse)}
+  .when-badge{display:inline-flex;gap:7px;align-items:center;font:700 11px var(--mono);text-transform:uppercase;letter-spacing:.05em;color:#0A0E2A;background:var(--reverse);border-radius:9px;padding:6px 12px;margin-bottom:14px}
 
   /* FIND MUSCLE */
   .two{display:grid;gap:14px}
@@ -145,6 +152,10 @@
   .ex p{font-size:14px;color:var(--muted)}
   .ex .dose{margin-top:8px;font-size:13px;color:var(--text);font-weight:500}
   .ex .go{margin-top:10px;font:700 11px var(--mono);letter-spacing:.06em;color:var(--c,var(--release))}
+  .ex-link{display:inline-block;margin-top:12px;font:700 12px var(--sans);color:#0E1417;background:var(--release);border-radius:9px;padding:8px 13px;text-decoration:none}
+  .ex-link:hover{filter:brightness(1.08)}
+  .pm-link{display:inline-block;margin-top:11px;font:700 12px var(--sans);color:#0A0E2A;background:var(--reverse);border-radius:9px;padding:8px 13px;text-decoration:none}
+  .find-link{display:inline-block;margin-top:14px;font:700 12px var(--sans);color:#0E1417;background:var(--release);border-radius:9px;padding:9px 14px;text-decoration:none}
 
   /* TIMELINE */
   .timeline{list-style:none;position:relative;padding-left:8px}
@@ -177,7 +188,7 @@
   <header class="hero">
     <p class="eyebrow">Sàn chậu · Kiểm soát · Trọn đời</p>
     <h1>Kegel</h1>
-    <p class="lede">Tập theo nhịp, theo lịch, theo lộ trình. Giữ lâu hơn giờ và khỏe mạnh về sau.</p>
+    <p class="lede">Tập theo nhịp, theo tư thế, kiểm soát lên đỉnh. Giữ lâu hơn và khỏe về sau.</p>
   </header>
 
   <!-- TIMER -->
@@ -220,7 +231,7 @@
   <section class="block">
     <p class="eyebrow">Lịch tập</p>
     <h2>Buổi hôm nay & cả tuần</h2>
-    <p class="lead">Bấm 1 bài bất kỳ là nó nhảy lên đồng hồ ở trên để tập ngay.</p>
+    <p class="lead"><b style="color:var(--text)">Sáng</b>: siết cơ theo đồng hồ (mọi nơi). <b style="color:var(--text)">Tối</b>: tập theo tư thế trên giường, hoặc start-stop. Đây là nơi cho biết ngày nào làm gì.</p>
     <div class="today" id="todayBox"></div>
     <div class="week" id="weekBox"></div>
   </section>
@@ -249,6 +260,7 @@
         </ul>
       </div>
     </div>
+    <a class="find-link" href="https://www.youtube.com/results?search_query=how+to+find+pelvic+floor+muscles+men" target="_blank" rel="noopener">▶ Xem cách tìm đúng cơ</a>
   </section>
 
   <!-- EXERCISES -->
@@ -262,37 +274,101 @@
         <p>Siết lên rồi giữ vài giây, thả hẳn. Xây lực cơ bản.</p>
         <p class="dose">Giữ 5 giây / thả 5 giây · 10 lần. Thở ra khi siết, hít vào khi thả.</p>
         <p class="go">BẤM ĐỂ TẬP →</p>
+        <a class="ex-link" href="https://www.youtube.com/results?search_query=kegel+exercise+men+how+to" target="_blank" rel="noopener">▶ Xem mẫu</a>
       </div>
       <div class="ex" style="--c:var(--engage)" data-load data-mode="long" tabindex="0" role="button">
         <span class="tag">Sức bền</span><h3>Siết giữ dài</h3>
         <p>Như trên nhưng giữ lâu hơn. Tăng sức bền để duy trì lâu.</p>
         <p class="dose">Giữ 10 giây / thả 10 giây · 10 lần. Thở chậm đều, đừng nín hơi.</p>
         <p class="go">BẤM ĐỂ TẬP →</p>
+        <a class="ex-link" href="https://www.youtube.com/results?search_query=long+kegel+hold+exercise" target="_blank" rel="noopener">▶ Xem mẫu</a>
       </div>
       <div class="ex" style="--c:var(--engage)" data-load data-mode="quick" tabindex="0" role="button">
         <span class="tag">Phản xạ</span><h3>Siết nhanh</h3>
         <p>Siết-thả thật nhanh liên tục. Luyện phản xạ chặn nhanh khi cần.</p>
         <p class="dose">1 giây siết / 1 giây thả · 20 lần. Thở tự nhiên.</p>
         <p class="go">BẤM ĐỂ TẬP →</p>
+        <a class="ex-link" href="https://www.youtube.com/results?search_query=quick+flick+kegels" target="_blank" rel="noopener">▶ Xem mẫu</a>
       </div>
       <div class="ex" style="--c:var(--reverse)" data-load data-mode="reverse" tabindex="0" role="button">
         <span class="tag">Chìa khoá</span><h3>Reverse kegel</h3>
         <p>Thả lỏng và đẩy nhẹ sàn chậu xuống. Giúp giữ lâu, chống quá căng.</p>
         <p class="dose">Đẩy 5 giây / trung tính 5 giây · 10 lần. Hít vào khi đẩy xuống.</p>
         <p class="go">BẤM ĐỂ TẬP →</p>
+        <a class="ex-link" href="https://www.youtube.com/results?search_query=reverse+kegel+men" target="_blank" rel="noopener">▶ Xem mẫu</a>
       </div>
       <div class="ex" style="--c:var(--release)" data-load data-mode="elevator" tabindex="0" role="button">
         <span class="tag">Kiểm soát</span><h3>Thang máy</h3>
         <p>Siết lên theo 3 tầng, giữ mỗi tầng, rồi hạ từng tầng. Kiểm soát tinh vi.</p>
         <p class="dose">Lên 3 tầng, giữ, hạ dần · 4 lần. Thở ra khi lên, hít vào khi hạ.</p>
         <p class="go">BẤM ĐỂ TẬP →</p>
+        <a class="ex-link" href="https://www.youtube.com/results?search_query=elevator+kegel+exercise" target="_blank" rel="noopener">▶ Xem mẫu</a>
       </div>
       <div class="ex" style="--c:var(--release)" data-load data-mode="breath" tabindex="0" role="button">
         <span class="tag">Áp dụng</span><h3>Phối thở</h3>
         <p>Giữ siết qua 4 nhịp thở mà không buông. Kỹ năng giữ nhịp liên tục không mỏi.</p>
         <p class="dose">Hít 4 nhịp rồi thở 4 nhịp, giữ siết suốt · 3 lần.</p>
         <p class="go">BẤM ĐỂ TẬP →</p>
+        <a class="ex-link" href="https://www.youtube.com/results?search_query=kegel+breathing+coordination" target="_blank" rel="noopener">▶ Xem mẫu</a>
       </div>
+    </div>
+  </section>
+
+  <!-- FUNCTIONAL POSITIONS (Gabay) -->
+  <section class="block">
+    <p class="eyebrow">Tập theo tư thế</p>
+    <h2>Sàn chậu trong tư thế thật</h2>
+    <p class="when-badge">🌙 Khi nào · Tối T2 / T5 / T7 · trên giường · ~10 phút</p>
+    <p class="lead">Siết sàn chậu ngay trong 3 tư thế, kèm chuyển động. Luyện <b style="color:var(--text)">sức bền</b> (đây mới là cái giúp giữ lâu). Lịch ở trên xoay vòng 3 tư thế cho mày, đây là cách làm từng tư thế:</p>
+
+    <div class="ex-grid">
+      <div class="ex" style="--c:var(--release)">
+        <span class="tag">Tối T2 · nằm ngửa</span><h3>Tư thế 1</h3>
+        <p class="dose">Nằm ngửa gối co, siết 5s/thả 5s + nâng-hạ hông. Khó dần: 1 chân duỗi → 2 chân duỗi đẩy gót.</p>
+        <a class="ex-link" href="https://www.youtube.com/results?search_query=kegel+exercises+men+lying+down" target="_blank" rel="noopener">▶ Xem mẫu</a>
+      </div>
+      <div class="ex" style="--c:var(--release)">
+        <span class="tag">Tối T5 · chống tay</span><h3>Tư thế 2</h3>
+        <p class="dose">Plank chống khuỷu, giữ thân thẳng + nghiêng hông tới-lui, ép-mở bả vai. Chủ yếu là giữ thân (sức bền).</p>
+        <a class="ex-link" href="https://www.youtube.com/results?search_query=pelvic+floor+exercise+plank+position" target="_blank" rel="noopener">▶ Xem mẫu</a>
+      </div>
+      <div class="ex" style="--c:var(--release)">
+        <span class="tag">Tối T7 · quỳ gối</span><h3>Tư thế 3</h3>
+        <p class="dose">Quỳ 2 gối rộng bằng vai, lưng thẳng, siết theo nhịp. Khó nhất, thân không tựa gì.</p>
+        <a class="ex-link" href="https://www.youtube.com/results?search_query=pelvic+floor+exercises+kneeling" target="_blank" rel="noopener">▶ Xem mẫu</a>
+      </div>
+    </div>
+    <div class="today" style="margin-top:14px">
+      <p class="theme" style="margin:0">Tăng dần mỗi 6 tuần: siết <b style="color:var(--text)">5s → 10s → 15s</b> (thả 5s). Mỗi bài 30→45→60 giây, lặp 2 lần. Bấm bài "Giữ ngắn / Giữ dài" ở đồng hồ trên để đếm nhịp giúp.</p>
+    </div>
+  </section>
+
+  <!-- AROUSAL CONTROL (Richards) -->
+  <section class="block">
+    <p class="eyebrow">Kiểm soát lên đỉnh</p>
+    <h2>Giữ lâu là kỹ năng tập được</h2>
+    <p class="when-badge">🎯 Khi nào · Start-stop tối T4 · Thở mỗi sáng · Bóp+siết lúc lâm trận</p>
+    <p class="lead">Xuất sớm phần lớn là <b style="color:var(--text)">thói quen học được</b>, nên tập lại được. Ba việc, mỗi việc có chỗ của nó:</p>
+
+    <div class="ex-grid">
+      <div class="ex" style="--c:var(--exhale)">
+        <span class="tag">Mỗi sáng · cùng kegel</span><h3>Thở bụng sâu</h3>
+        <p class="dose">Thở bụng chậm sâu, đếm nhịp tới 30. Lúc "vào cuộc" thở kiểu này trước khi kích thích lên cao.</p>
+        <a class="ex-link" href="https://www.youtube.com/results?search_query=diaphragmatic+breathing+exercise" target="_blank" rel="noopener">▶ Xem mẫu</a>
+      </div>
+      <div class="ex" style="--c:var(--reverse)">
+        <span class="tag">Tối T4 · một mình</span><h3>Start-stop</h3>
+        <p class="dose">Lên gần "điểm không quay lại" → dừng → nghỉ vài giây → lặp 3-4 lần. Thời gian tới ngưỡng dài dần ra.</p>
+        <a class="ex-link" href="https://www.youtube.com/results?search_query=start+stop+technique+premature+ejaculation" target="_blank" rel="noopener">▶ Xem mẫu</a>
+      </div>
+      <div class="ex" style="--c:var(--release)">
+        <span class="tag">Lúc lâm trận</span><h3>Siết + bóp để chặn</h3>
+        <p class="dose">Gần tới: siết mạnh sàn chậu (bài Giữ ngắn / Nhanh) + thở chậm. Đây là lúc kegel ra trận.</p>
+        <a class="ex-link" href="https://www.youtube.com/results?search_query=squeeze+technique+premature+ejaculation" target="_blank" rel="noopener">▶ Xem mẫu</a>
+      </div>
+    </div>
+    <div class="today" style="margin-top:14px">
+      <p class="theme" style="margin:0">Mấu chốt: kegel cho <b style="color:var(--text)">khoẻ</b> → tập tư thế cho <b style="color:var(--text)">bền</b> → kiểm soát cho <b style="color:var(--text)">kỹ năng</b>. Đủ 3 mới giữ lâu thật.</p>
     </div>
   </section>
 
@@ -402,14 +478,21 @@
   var COLOR={engage:"#E7A93C",hold:"#E7A93C",release:"#4FC4BE",reverse:"#9AA6F0",neutral:"#7FA0A8",idle:"rgba(255,255,255,.15)"};
   var BT={in:{a:"↑",l:"Hít vào"},out:{a:"↓",l:"Thở ra"},free:{a:"~",l:"Thở đều"}};
   var WEEK=[
-    {d:"Thứ 2",lab:"T2",dow:1,theme:"Sức mạnh",rest:false,ex:["short","quick"]},
-    {d:"Thứ 3",lab:"T3",dow:2,theme:"Sức bền",rest:false,ex:["long","reverse"]},
-    {d:"Thứ 4",lab:"T4",dow:3,theme:"Thả lỏng",rest:false,ex:["reverse","breath"]},
-    {d:"Thứ 5",lab:"T5",dow:4,theme:"Sức mạnh",rest:false,ex:["short","quick"]},
-    {d:"Thứ 6",lab:"T6",dow:5,theme:"Kiểm soát",rest:false,ex:["long","elevator"]},
-    {d:"Thứ 7",lab:"T7",dow:6,theme:"Áp dụng nhẹ",rest:false,ex:["breath","reverse"]},
-    {d:"Chủ nhật",lab:"CN",dow:0,theme:"Nghỉ",rest:true,ex:[]}
+    {d:"Thứ 2",lab:"T2",dow:1,theme:"Sức mạnh",rest:false,ex:["short","quick"],pm:"pos1"},
+    {d:"Thứ 3",lab:"T3",dow:2,theme:"Sức bền",rest:false,ex:["long","reverse"],pm:"breath"},
+    {d:"Thứ 4",lab:"T4",dow:3,theme:"Thả lỏng",rest:false,ex:["reverse","breath"],pm:"startstop"},
+    {d:"Thứ 5",lab:"T5",dow:4,theme:"Sức mạnh",rest:false,ex:["short","quick"],pm:"pos2"},
+    {d:"Thứ 6",lab:"T6",dow:5,theme:"Kiểm soát",rest:false,ex:["long","elevator"],pm:"breath"},
+    {d:"Thứ 7",lab:"T7",dow:6,theme:"Áp dụng nhẹ",rest:false,ex:["breath","reverse"],pm:"pos3"},
+    {d:"Chủ nhật",lab:"CN",dow:0,theme:"Nghỉ",rest:true,ex:[],pm:null}
   ];
+  var PM={
+    pos1:{tag:"Tập theo tư thế · trên giường",name:"Tư thế 1 · nằm ngửa",cue:"Nằm ngửa gối co, siết 5s / thả 5s, kèm nâng-hạ hông tự nhiên. 2 lượt × ~45 giây.",short:"Tư thế nằm ngửa",yt:"kegel exercises men lying down"},
+    pos2:{tag:"Tập theo tư thế · trên giường",name:"Tư thế 2 · chống tay",cue:"Plank chống khuỷu, giữ thân + nghiêng hông tới-lui. 2 lượt × ~45 giây.",short:"Tư thế chống tay",yt:"pelvic floor exercise plank position"},
+    pos3:{tag:"Tập theo tư thế · trên giường",name:"Tư thế 3 · quỳ gối",cue:"Quỳ 2 gối, lưng thẳng, siết theo nhịp 5s/5s. 2 lượt × ~45 giây.",short:"Tư thế quỳ gối",yt:"pelvic floor exercises kneeling"},
+    startstop:{tag:"Kiểm soát · một mình",name:"Tập Start-stop",cue:"Lên gần ngưỡng → DỪNG → nghỉ vài giây → lặp 3-4 lần. Lùi bằng thở chậm + siết sàn chậu.",short:"Start-stop",yt:"start stop technique premature ejaculation"},
+    breath:{tag:"Thư giãn · trước ngủ",name:"Thở bụng 2-3 phút",cue:"Thở bụng chậm sâu, đếm nhịp. Thả lỏng sàn chậu cho hồi. Nhẹ nhàng.",short:"Thở bụng",yt:"diaphragmatic breathing exercise"}
+  };
 
   var orb=document.getElementById("orb"),countEl=document.getElementById("count"),
       muscleEl=document.getElementById("muscleLabel"),detailEl=document.getElementById("breath"),
@@ -524,16 +607,26 @@
   var dow=now.getDay();
   var dateStr=now.getDate()+"/"+(now.getMonth()+1)+"/"+now.getFullYear();
   var today=null;for(var i=0;i<WEEK.length;i++){if(WEEK[i].dow===dow)today=WEEK[i];}
+  function pmHTML(code){
+    if(!code) return '';
+    var p=PM[code];
+    var url="https://www.youtube.com/results?search_query="+encodeURIComponent(p.yt);
+    return '<div class="slot-h pm" style="margin-top:15px">🌙 Tối</div><div class="pm-card"><div class="pmt">'+p.tag+'</div><div class="pmn">'+p.name+'</div><div class="pmc">'+p.cue+'</div><a class="pm-link" href="'+url+'" target="_blank" rel="noopener">▶ Xem mẫu</a></div>';
+  }
   var tb=document.getElementById("todayBox");
   if(today&&today.rest){
-    tb.innerHTML='<p class="eyebrow">Buổi hôm nay · '+today.d+' · '+dateStr+'</p><h3>Nghỉ</h3><p class="rest-tag">Hôm nay nghỉ kegel. Chỉ thả lỏng tự nhiên để sàn chậu hồi.</p>';
+    tb.innerHTML='<p class="eyebrow">Buổi hôm nay · '+today.d+' · '+dateStr+'</p><h3>Nghỉ</h3><p class="rest-tag">Hôm nay nghỉ hẳn. Thả lỏng tự nhiên để sàn chậu hồi.</p>';
   }else if(today){
-    tb.innerHTML='<p class="eyebrow">Buổi hôm nay · '+today.d+' · '+dateStr+'</p><h3>'+today.theme+'</h3><p class="theme">Bấm 1 bài để nhảy lên đồng hồ và tập:</p><div class="chips">'+today.ex.map(function(k){return chipHTML(k,false);}).join("")+'</div>';
+    tb.innerHTML='<p class="eyebrow">Buổi hôm nay · '+today.d+' · '+dateStr+'</p>'
+      +'<div class="slot-h am">🌅 Sáng · '+today.theme+'</div><p class="theme" style="margin-bottom:9px">Bấm 1 bài để nhảy lên đồng hồ tập (làm bất cứ đâu):</p>'
+      +'<div class="chips">'+today.ex.map(function(k){return chipHTML(k,false);}).join("")+'</div>'
+      +pmHTML(today.pm);
   }
   document.getElementById("weekBox").innerHTML=WEEK.map(function(w){
     var cls="wday"+(w.dow===dow?" is-today":"")+(w.rest?" is-rest":"");
-    var ex=w.rest?'<span class="rest-tag">Nghỉ</span>':w.ex.map(function(k){return chipHTML(k,true);}).join("");
-    return '<div class="'+cls+'"><span class="dlabel">'+w.lab+'</span><div class="dex">'+ex+'</div></div>';
+    var ex=w.rest?'<span class="rest-tag">Nghỉ cả ngày</span>':'🌅 '+w.ex.map(function(k){return chipHTML(k,true);}).join("");
+    var pm=(!w.rest&&w.pm)?'<div class="wpm">🌙 '+PM[w.pm].short+'</div>':'';
+    return '<div class="'+cls+'"><span class="dlabel">'+w.lab+'</span><div class="dex">'+ex+pm+'</div></div>';
   }).join("");
 
   startBtn.addEventListener("click",function(){running?pause():start();});
@@ -543,6 +636,7 @@
     vibBtn.setAttribute("aria-pressed",vibrate);if(vibrate&&navigator.vibrate)navigator.vibrate(30);
   });
   document.addEventListener("click",function(ev){
+    if(ev.target.closest("a"))return;
     var el=ev.target.closest("[data-load]");if(!el)return;
     setMode(el.getAttribute("data-mode"));
     document.getElementById("timer").scrollIntoView({behavior:"smooth",block:"start"});
@@ -558,7 +652,7 @@
   patternEl.innerHTML=mode.pattern;
   setIdle();
 
-  // Nhảy từ trang khác (vd /7days) kèm ?mode=KEY → tự chọn bài + cuộn lên đồng hồ
+  // Nhảy từ /7days kèm ?mode=KEY → tự chọn bài + cuộn lên đồng hồ
   var qpMode=new URLSearchParams(location.search).get("mode");
   if(qpMode&&MODES[qpMode]){
     setMode(qpMode);

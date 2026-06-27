@@ -52,6 +52,14 @@
 
   .preview{text-align:center;font:700 11px var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--strength);background:rgba(231,169,60,.08);border:1px solid rgba(231,169,60,.25);border-radius:9px;padding:7px;margin-bottom:12px}
 
+  /* EQUIPMENT TOGGLE */
+  .toggle-wrap{text-align:center;margin:14px 0 4px}
+  .seg{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px;gap:4px}
+  .seg button{font:700 13.5px var(--sans);color:var(--muted);background:none;border:none;border-radius:9px;padding:11px 16px;min-height:44px;cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none;transition:background .2s,color .2s}
+  .seg button.on{background:var(--run);color:#06201E}
+  .toggle-note{color:var(--muted);font-size:12px;margin-top:9px;max-width:42ch;margin-left:auto;margin-right:auto}
+  .swap-tag{font:700 9px var(--mono);text-transform:uppercase;letter-spacing:.04em;color:#2A1E06;background:var(--strength);border-radius:5px;padding:2px 7px;margin-left:7px}
+
   .dayhd{display:flex;align-items:center;gap:10px;margin-bottom:6px}
   .dayhd .ic{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:19px;flex:0 0 auto}
   .ic.strength{background:rgba(231,169,60,.15)} .ic.run{background:rgba(79,196,190,.15)}
@@ -119,6 +127,14 @@
     <p class="lede">Mỗi ngày 1 việc chính + việc nhẹ + kegel. Bấm ← → xem ngày khác.</p>
   </header>
 
+  <div class="toggle-wrap">
+    <div class="seg" id="seg">
+      <button class="on" data-eq="0">Có xà / bàn</button>
+      <button data-eq="1">Không có dụng cụ</button>
+    </div>
+    <p class="toggle-note" id="toggleNote">Có xà = dùng thanh xà + mép bàn cho bài kéo. Còn lại chỉ cần thân + sàn.</p>
+  </div>
+
   <div class="nav">
     <button class="navbtn" id="prev" aria-label="Hôm trước">←</button>
     <div class="navmid"><div class="navdate" id="navdate"></div><div class="navtoday" id="navtoday"></div></div>
@@ -140,7 +156,7 @@
     pushH:{cat:"push",name:"Đẩy ngang (ngực/tay sau)",
       L:[["Chống đẩy tường","wall push up","đứng đẩy tường"],["Chống đẩy nghiêng","incline push up","tay kê cao"],["Chống đẩy quỳ gối","knee push up","gối làm tựa"],["Chống đẩy đủ","push up proper form","khuỷu ~45°, ngực chạm"],["Chống đẩy chân kê cao","decline push up","chân lên ghế"],["Chống đẩy kim cương","diamond push up","tay sát, tay sau"],["Archer push-up","archer push up","dồn 1 tay"],["Chống đẩy 1 tay","one arm push up progression","đỉnh cao"]]},
     pullH:{cat:"pull",name:"Kéo ngang (lưng giữa)",
-      L:[["Row đứng nghiêng","high inverted row","thanh ngang hông, thân ngả"],["Inverted row gối co","inverted row bent knee","gối co, kéo ngực lên"],["Inverted row chân thẳng","inverted row","thân thẳng cứng"],["Row chân kê cao","feet elevated inverted row","chân cao hơn tay"],["Archer row","archer inverted row","dồn 1 tay"],["Row 1 tay","one arm inverted row","đỉnh cao"]],sub:["Prone Y-T-W (nằm sấp)","prone y t w raises","nằm sấp nâng tay chữ Y-T-W, siết bả vai — không cần xà/bàn"]},
+      L:[["Row đứng nghiêng","high inverted row","thanh ngang hông, thân ngả"],["Inverted row gối co","inverted row bent knee","gối co, kéo ngực lên"],["Inverted row chân thẳng","inverted row","thân thẳng cứng"],["Row chân kê cao","feet elevated inverted row","chân cao hơn tay"],["Archer row","archer inverted row","dồn 1 tay"],["Row 1 tay","one arm inverted row","đỉnh cao"]],bw:[["Prone Y-T-W (nằm sấp)","prone y t w raises","nằm sấp nâng tay chữ Y-T-W, siết bả vai"],["Superman kéo","superman pulls exercise","nằm sấp, kéo khuỷu về sườn"],["Row dưới bàn (gối co)","under table row","nằm dưới bàn/2 ghế chắc, kéo ngực lên mép"],["Row dưới bàn (chân thẳng)","inverted row under table","thân thẳng cứng như tấm ván"]]},
     squat:{cat:"legs",name:"Squat (đùi/mông)",
       L:[["Box squat","box squat","ngồi chạm ghế rồi đứng"],["Squat bodyweight","bodyweight squat form","xuống sâu"],["Split squat","split squat tutorial","1 trước 1 sau"],["Bulgarian split squat","bulgarian split squat","chân sau kê ghế"],["Pistol xuống ghế","pistol squat to box","1 chân xuống ghế"],["Pistol squat","pistol squat","1 chân đủ"]]},
     hinge:{cat:"legs",name:"Gập hông (mông/đùi sau/lưng)",
@@ -148,13 +164,13 @@
     pushV:{cat:"push",name:"Đẩy dọc (vai)",
       L:[["Pike push-up","pike push up","hông cao, đầu xuống"],["Pike chân kê cao","elevated pike push up","chân lên ghế"],["Wall handstand giữ","wall handstand hold","up tường giữ","giữ 3 lần lâu nhất"],["Wall HSPU âm","wall handstand push up negative","hạ chậm","3×3-5, hạ 5s"],["Wall HSPU","wall handstand push up","đẩy lên"]]},
     pullV:{cat:"pull",name:"Kéo dọc (xà)",
-      L:[["Treo xà","dead hang","treo, xây lực nắm","giữ 3 lần lâu nhất"],["Kéo xương bả","scapular pull ups","hạ vai kéo bả","3×8-10"],["Pull-up âm","negative pull up","leo lên, hạ chậm 5s","3×3-5, hạ 5s"],["Pull-up","pull up proper form","cằm qua xà"],["Archer pull-up","archer pull up","dồn 1 tay"],["Pull-up 1 tay","one arm pull up progression","đỉnh cao"]],sub:["Kéo cửa bằng khăn / Prone pull","towel door row","quấn khăn quanh tay nắm cửa chắc rồi ngả người kéo về; hoặc nằm sấp nâng tay"]}
+      L:[["Treo xà","dead hang","treo, xây lực nắm","giữ 3 lần lâu nhất"],["Kéo xương bả","scapular pull ups","hạ vai kéo bả","3×8-10"],["Pull-up âm","negative pull up","leo lên, hạ chậm 5s","3×3-5, hạ 5s"],["Pull-up","pull up proper form","cằm qua xà"],["Archer pull-up","archer pull up","dồn 1 tay"],["Pull-up 1 tay","one arm pull up progression","đỉnh cao"]],bw:[["Superman giữ","superman hold exercise","nằm sấp nâng tay-chân, giữ 3-5s"],["Prone Y-T-W (nằm sấp)","prone y t w raises","nâng tay chữ Y-T-W, siết bả"],["Towel row ở cửa","towel door row","quấn khăn quanh tay nắm cửa chắc, ngả người kéo về"],["Row dưới bàn chân kê cao","feet elevated inverted row","nằm dưới bàn, chân kê ghế, khó hơn"]]}
   };
   var PAIRS=[["pushH","pullH","Đẩy ngang + Kéo ngang"],["squat","hinge","Squat + Gập hông"],["pushV","pullV","Đẩy dọc + Kéo dọc"]];
-  var levels={pushH:3,pullH:1,squat:1,hinge:0,pushV:0,pullV:2}, done={};
+  var levels={pushH:3,pullH:1,squat:1,hinge:0,pushV:0,pullV:2}, done={}, noEquip=false;
   var bcl={push:"b-push",pull:"b-pull",legs:"b-legs"};
-  function save(){ try{ localStorage.setItem('week_levels', JSON.stringify(levels)); }catch(e){} }
-  function load(){ try{ var r=localStorage.getItem('week_levels'); if(r){ Object.assign(levels,JSON.parse(r)); } }catch(e){} }
+  function save(){ try{ localStorage.setItem('week_levels', JSON.stringify(levels)); localStorage.setItem('week_noequip', noEquip?'1':'0'); }catch(e){} }
+  function load(){ try{ var r=localStorage.getItem('week_levels'); if(r){ Object.assign(levels,JSON.parse(r)); } if(localStorage.getItem('week_noequip')==='1'){ noEquip=true; } }catch(e){} setSeg(); }
 
   /* ---------- KEGEL (khớp app Kegel) ---------- */
   var KEG={short:["Giữ ngắn","×10"],long:["Giữ dài","×10"],quick:["Nhanh","×20"],reverse:["Reverse","×10"],elevator:["Thang máy","×4"],breath:["Phối thở","×3"]};
@@ -184,20 +200,23 @@
 
   /* ---------- builders ---------- */
   function card(key,editable){
-    var p=P[key], i=levels[key], lv=p.L[i];
+    var p=P[key];
+    var swapped = noEquip && p.bw;
+    var ladder = swapped ? p.bw : p.L;
+    var i = Math.min(levels[key], ladder.length-1), lv=ladder[i];
     var doStr=lv[3]||"3 hiệp × 8-12 cái";
-    var atTop=i>=p.L.length-1, atBot=i<=0, isDone=done[key];
+    var atTop=i>=ladder.length-1, atBot=i<=0, isDone=done[key];
     var btns = editable
       ? '<button class="dnb" data-act="dn" data-key="'+key+'"'+(atBot?' disabled':'')+'>↓ Dễ hơn</button><button class="upb" data-act="up" data-key="'+key+'"'+(atTop?' disabled':'')+'>↑ Lên bậc</button>'
       : '';
     var doneBtn = editable ? '<button class="donebtn" data-act="done" data-key="'+key+'">'+(isDone?'✓ Xong':'Đánh dấu')+'</button>' : '<span class="bsc" style="background:var(--surface2);color:var(--muted)">Xem trước</span>';
+    var swapTag = swapped ? '<span class="swap-tag">Thay thế</span>' : '';
     return '<div class="card'+(isDone&&editable?' done':'')+'">'
-      +'<div class="ctop"><span class="bsc '+bcl[p.cat]+'">Bậc '+(i+1)+'/'+p.L.length+'</span>'+doneBtn+'</div>'
+      +'<div class="ctop"><span class="bsc '+bcl[p.cat]+'">Bậc '+(i+1)+'/'+ladder.length+'</span>'+swapTag+'<span style="flex:1"></span>'+doneBtn+'</div>'
       +'<div class="cname">'+lv[0]+'</div><div class="cdo">'+doStr+'</div>'
-      +'<div class="ccue">'+lv[2]+' · '+p.name+'</div>'
+      +'<div class="ccue">'+lv[2]+' · '+p.name+(swapped?' · không cần xà':'')+'</div>'
       +'<div class="cbtns"><a class="watch" href="'+yt(lv[1])+'" target="_blank" rel="noopener">▶ Xem</a>'+btns+'</div>'
       +(editable?'<div class="crule"><b>Lên bậc</b> khi 3 hiệp đều 12 cái · <b>Dễ hơn</b> nếu chưa nổi 8</div>':'')
-      +(p.sub?'<div class="crule" style="padding-top:8px">↔ Không có xà/bàn? <a href="'+yt(p.sub[1])+'" target="_blank" rel="noopener" style="color:var(--run);font-weight:700;text-decoration:none">'+p.sub[0]+'</a> — '+p.sub[2]+'</div>':'')
       +'</div>';
   }
 
@@ -231,7 +250,7 @@
     var kegBtn='<a href="/kegel" style="display:block;text-align:center;margin-top:12px;font:700 14px var(--sans);color:#0A0E2A;background:var(--kegel);border-radius:11px;padding:13px;min-height:48px;text-decoration:none">▶ Mở app Kegel để tập</a>';
     if(!plan.keg.length) return '<div class="blk keg"><h3>Kegel hôm nay · Nghỉ</h3><div class="kegitems"><span class="ktag">Nghỉ — thả lỏng tự nhiên</span></div>'+kegBtn+'</div>';
     var items=plan.keg.map(function(k){return '<a class="ktag" href="/kegel?mode='+k+'">'+KEG[k][0]+'<b>'+KEG[k][1]+'</b></a>';}).join("");
-    return '<div class="blk keg"><h3>Kegel hôm nay · '+plan.kegTheme+'</h3><p class="bnote">Bấm 1 bài để mở thẳng bộ đếm nhịp Kegel đúng chế độ. 1-2 lần trong ngày.</p><div class="kegitems">'+items+'</div>'+kegBtn+'</div>';
+    return '<div class="blk keg"><h3>Kegel hôm nay · '+plan.kegTheme+'</h3><p class="bnote">Bấm 1 bài để mở thẳng bộ đếm nhịp đúng chế độ. 1-2 lần trong ngày.</p><div class="kegitems">'+items+'</div>'+kegBtn+'</div>';
   }
 
   function dayContent(){
@@ -270,6 +289,19 @@
   }
 
   function render(){ navHeader(); strip(); dayContent(); }
+
+  function setSeg(){
+    var btns=document.getElementById("seg").children;
+    btns[0].classList.toggle("on",!noEquip); btns[1].classList.toggle("on",noEquip);
+    document.getElementById("toggleNote").textContent = noEquip
+      ? "Không dụng cụ = chỉ thân + sàn (+ 1 bàn/ghế nếu cần). Bài kéo đã đổi sang phiên bản tay không (Thay thế)."
+      : "Có xà = dùng thanh xà + mép bàn cho bài kéo. Còn lại chỉ cần thân + sàn.";
+  }
+  document.getElementById("seg").addEventListener("click",function(e){
+    var b=e.target.closest("button"); if(!b) return;
+    noEquip = b.getAttribute("data-eq")==="1";
+    setSeg(); save(); render();
+  });
 
   /* ---------- events ---------- */
   document.getElementById("prev").addEventListener("click",function(){sel=addDays(sel,-1);render();});
