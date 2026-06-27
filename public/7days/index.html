@@ -10,239 +10,282 @@
 <meta name="format-detection" content="telephone=no">
 <link rel="icon" type="image/svg+xml" href="/7days/favicon.svg">
 <link rel="apple-touch-icon" href="/7days/favicon.svg">
-<title>Lịch Tập 7 Ngày — Body + Kegel</title>
+<title>Lịch Tuần — Tập + Chạy + Kegel</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
   :root{
     --bg:#0E1417; --surface:#172127; --surface2:#1E2A30; --line:rgba(255,255,255,.09);
-    --text:#ECE6DC; --muted:#93A0A6; --engage:#E7A93C; --release:#4FC4BE; --reverse:#9AA6F0;
+    --text:#ECE6DC; --muted:#93A0A6; --strength:#E7A93C; --run:#4FC4BE; --kegel:#9AA6F0; --core:#E08A9B; --ok:#5BD78C;
     --sans:'Be Vietnam Pro',system-ui,-apple-system,sans-serif; --mono:'Space Mono',ui-monospace,monospace;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
-  body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased;
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.55;-webkit-font-smoothing:antialiased;
     overscroll-behavior-y:none;-webkit-tap-highlight-color:transparent;
     background-image:radial-gradient(900px 500px at 50% -10%, rgba(79,196,190,.07), transparent 70%);}
-  .wrap{max-width:580px;margin:0 auto;
-    padding:max(38px,env(safe-area-inset-top)) calc(18px + env(safe-area-inset-right)) calc(64px + env(safe-area-inset-bottom)) calc(18px + env(safe-area-inset-left));}
+  .wrap{max-width:540px;margin:0 auto;
+    padding:max(32px,env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(64px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));}
+  .hero{text-align:center;padding:2px 0 8px}
+  .eyebrow{font:700 11px/1.4 var(--mono);letter-spacing:.2em;text-transform:uppercase;color:var(--run)}
+  .hero h1{font-weight:800;font-size:clamp(32px,9vw,46px);letter-spacing:-.02em;margin:7px 0 4px;line-height:1.02}
+  .lede{color:var(--muted);font-size:13.5px;max-width:30ch;margin:0 auto}
 
-  .hero{text-align:center;padding:6px 0 22px}
-  .eyebrow{font:700 11px/1.4 var(--mono);letter-spacing:.2em;text-transform:uppercase;color:var(--release)}
-  .hero h1{font-weight:800;font-size:clamp(34px,10vw,56px);letter-spacing:-.02em;margin:9px 0 6px;line-height:1}
-  .lede{color:var(--muted);font-size:15px;max-width:38ch;margin:0 auto}
+  /* NAV */
+  .nav{display:flex;align-items:center;gap:10px;margin:18px 0 8px}
+  .navbtn{font:700 20px var(--mono);color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:12px;width:48px;height:48px;cursor:pointer;flex:0 0 auto;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+  .navbtn:hover{border-color:var(--run)}
+  .navmid{flex:1;text-align:center}
+  .navdate{font:800 18px var(--sans);letter-spacing:-.01em}
+  .navtoday{margin-top:2px;min-height:18px}
+  .navtoday .badge{font:700 10px var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--run)}
+  .navtoday button{font:700 11px var(--sans);color:var(--muted);background:none;border:none;cursor:pointer;text-decoration:underline}
 
-  /* TOGGLE */
-  .toggle-wrap{text-align:center;margin-bottom:14px}
-  .seg{display:inline-flex;background:var(--surface2);border:1px solid var(--line);border-radius:13px;padding:4px;gap:4px}
-  .seg button{font:700 14px var(--sans);color:var(--muted);background:none;border:none;border-radius:9px;padding:11px 16px;min-height:44px;cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none;transition:background .2s,color .2s}
-  .seg button.on{background:var(--release);color:#06201E}
-  .toggle-note{color:var(--muted);font-size:12.5px;margin-top:9px;max-width:42ch;margin-left:auto;margin-right:auto}
+  .strip{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:14px}
+  .sd{text-align:center;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:9px 1px;min-height:48px;cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+  .sd.sel{box-shadow:0 0 0 2px var(--text)}
+  .sd .sl{font:700 10px var(--mono);color:var(--muted)}
+  .sd .si{font-size:9px;margin-top:2px;font-weight:700}
+  .sd.s-strength .si{color:var(--strength)} .sd.s-run .si{color:var(--run)}
+  .sd .dot{width:4px;height:4px;border-radius:50%;background:var(--run);margin:2px auto 0}
 
-  .note{background:linear-gradient(160deg,#1C2B2F,#172127);border:1px solid rgba(79,196,190,.22);border-radius:14px;
-    padding:13px 15px;font-size:13.5px;color:#C8D2D0;margin:16px 0 20px}
-  .note b{color:var(--text)}
+  .preview{text-align:center;font:700 11px var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--strength);background:rgba(231,169,60,.08);border:1px solid rgba(231,169,60,.25);border-radius:9px;padding:7px;margin-bottom:12px}
 
-  /* TODAY */
-  .today-card{background:linear-gradient(160deg,#1F2E26,#172127);border:1px solid rgba(231,169,60,.3);border-radius:18px;padding:17px;margin-bottom:20px}
-  .today-card .eyebrow{color:var(--engage)}
-  .today-card h3{font-size:21px;font-weight:800;margin:5px 0 8px}
-  .today-card .tline{color:var(--muted);font-size:13.5px;margin-bottom:12px}
-  .jump{display:inline-flex;align-items:center;font:700 13px var(--sans);color:#06201E;background:var(--engage);border:none;border-radius:10px;padding:11px 16px;min-height:44px;cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+  .dayhd{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .dayhd .ic{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:19px;flex:0 0 auto}
+  .ic.strength{background:rgba(231,169,60,.15)} .ic.run{background:rgba(79,196,190,.15)}
+  .dayhd h2{font-size:20px;font-weight:800;letter-spacing:-.01em}
+  .dayhd .sub{font-size:12px;color:var(--muted)}
 
-  /* DAY */
-  .day{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:16px 18px;margin-bottom:14px}
-  .day.is-today{border-color:var(--release);box-shadow:0 0 0 1px rgba(79,196,190,.25)}
-  .day-when{font:700 11px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--release)}
-  .day h3{font-size:19px;font-weight:800;margin:3px 0 10px;letter-spacing:-.01em}
-  .today-tag{float:right;font:700 10px var(--mono);color:#06201E;background:var(--release);padding:3px 8px;border-radius:6px;letter-spacing:.06em}
+  .runref{background:linear-gradient(160deg,#1C2B2F,#172127);border:1px solid rgba(79,196,190,.25);border-radius:14px;padding:14px 16px;margin:10px 0;font-size:13.5px;color:#C8D2D0}
+  .runref b{color:var(--text)}
 
-  .exrow{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}
-  .exrow:last-of-type{border-bottom:none}
-  .ex-name{font-weight:600;font-size:15px;line-height:1.35}
-  .ex-name .swap{font:700 9px var(--mono);color:var(--engage);margin-left:7px;letter-spacing:.06em;vertical-align:middle;
-    border:1px solid rgba(231,169,60,.4);border-radius:5px;padding:1px 5px}
-  .ex-meta{font-size:12.5px;color:var(--muted);margin-top:3px}
-  .ex-meta .sr{font-family:var(--mono);color:var(--text)}
-  .watch{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;font:700 12px var(--sans);color:var(--release);
-    background:var(--surface2);border:1px solid var(--line);border-radius:9px;padding:10px 13px;min-height:40px;text-decoration:none;touch-action:manipulation;transition:border-color .2s}
-  .watch:hover{border-color:var(--release)}
+  .pair{font:700 10px var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:14px 0 8px;display:flex;align-items:center;gap:8px}
+  .pair::before,.pair::after{content:"";flex:1;height:1px;background:var(--line)}
 
-  .kegel-block{margin-top:13px;padding:12px 14px;background:rgba(154,166,240,.06);border:1px solid rgba(154,166,240,.24);border-radius:12px}
-  .kegel-block .kh{font:700 10px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--reverse);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
-  .kegel-block .kh a{font:700 11px var(--sans);color:var(--reverse);text-decoration:none;text-transform:none;letter-spacing:0}
-  .kegel-items{display:flex;flex-wrap:wrap;gap:7px}
-  .ktag{font:600 13px var(--sans);color:var(--text);background:var(--surface2);border:1px solid rgba(154,166,240,.24);border-radius:9px;padding:9px 12px;min-height:40px;display:inline-flex;align-items:center;text-decoration:none;cursor:pointer;touch-action:manipulation;transition:border-color .2s,background .2s}
-  .ktag:hover{border-color:var(--reverse)}
-  .ktag:active{background:#222d34}
-  .ktag b{font-family:var(--mono);color:var(--reverse);font-size:12px;margin-left:5px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 16px;margin-bottom:10px}
+  .card.done{opacity:.55;border-color:var(--ok)}
+  .ctop{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+  .bsc{font:700 10px var(--mono);text-transform:uppercase;letter-spacing:.05em;padding:2px 7px;border-radius:5px}
+  .b-push{color:#2A1E06;background:var(--strength)} .b-pull{color:#06201E;background:var(--run)} .b-legs{color:#0A0E2A;background:var(--kegel)}
+  .donebtn{font:700 12px var(--sans);color:var(--muted);background:var(--surface2);border:1px solid var(--line);border-radius:20px;padding:8px 14px;min-height:38px;cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+  .card.done .donebtn{color:#06201E;background:var(--ok);border-color:var(--ok)}
+  .cname{font-size:20px;font-weight:800;letter-spacing:-.01em;line-height:1.15}
+  .cdo{font:700 14px var(--mono);color:var(--run);margin-top:3px}
+  .ccue{font-size:12px;color:var(--muted);margin-top:3px}
+  .cbtns{display:flex;gap:7px;margin-top:11px}
+  .cbtns a,.cbtns button{font:700 13px var(--sans);border-radius:10px;padding:11px 8px;min-height:46px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;text-decoration:none;text-align:center;border:1px solid var(--line);touch-action:manipulation;-webkit-user-select:none;user-select:none}
+  .watch{color:var(--text);background:var(--surface2);flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;padding:10px 13px}
+  .watch:hover{border-color:var(--run)}
+  .dnb{flex:1;color:var(--strength);background:rgba(231,169,60,.08)}
+  .upb{flex:1;color:var(--ok);background:rgba(91,215,140,.1)}
+  .dnb:disabled,.upb:disabled{opacity:.3;cursor:default}
+  .crule{font-size:11.5px;color:var(--muted);margin-top:9px;padding-top:8px;border-top:1px solid var(--line)}
+  .crule b{color:var(--text)}
 
-  footer{margin-top:34px;text-align:center;color:var(--muted);font-size:12px;border-top:1px solid var(--line);padding-top:20px}
-  :focus-visible{outline:2px solid var(--release);outline-offset:3px;border-radius:8px}
+  .blk{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 16px;margin-bottom:10px}
+  .blk.core{border-color:rgba(224,138,155,.3)} .blk.keg{border-color:rgba(154,166,240,.3)} .blk.sup{border-color:rgba(79,196,190,.22)}
+  .blk h3{font-size:15px;font-weight:800;margin-bottom:3px}
+  .blk.core h3{color:var(--core)} .blk.keg h3{color:var(--kegel)} .blk.sup h3{color:var(--run)}
+  .blk .bnote{font-size:11.5px;color:var(--muted);margin-bottom:8px}
+  .it{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+  .it:last-child{border-bottom:none}
+  .it .nm{font-weight:600} .it .cs{font-family:var(--mono);font-size:11.5px;color:var(--muted);white-space:nowrap}
+  .it a{font:700 12px var(--mono);color:var(--run);text-decoration:none}
+  .kegitems{display:flex;flex-wrap:wrap;gap:7px}
+  .ktag{font:600 13px var(--sans);color:var(--text);background:var(--surface2);border:1px solid rgba(154,166,240,.25);border-radius:9px;padding:9px 12px;min-height:40px;display:inline-flex;align-items:center;text-decoration:none;cursor:pointer;touch-action:manipulation;transition:border-color .2s}
+  .ktag:hover{border-color:var(--kegel)}
+  .ktag b{font-family:var(--mono);color:var(--kegel);font-size:12px;margin-left:5px}
+  .subhd{font:700 10px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:10px 0 4px}
+
+  details{background:var(--surface);border:1px solid var(--line);border-radius:13px;margin-top:8px;overflow:hidden}
+  summary{cursor:pointer;list-style:none;padding:14px 15px;font-weight:700;font-size:14px;display:flex;align-items:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+  summary::-webkit-details-marker{display:none}
+  summary .chev{margin-left:auto;color:var(--muted);font:700 13px var(--mono)}
+  details[open] summary .chev{transform:rotate(90deg)}
+  .wu{display:flex;flex-wrap:wrap;gap:7px;padding:0 15px 14px}
+  .wu a{font:600 12.5px var(--sans);color:var(--text);background:var(--surface2);border:1px solid var(--line);border-radius:9px;padding:7px 11px;text-decoration:none}
+
+  footer{margin-top:24px;text-align:center;color:var(--muted);font-size:12px;border-top:1px solid var(--line);padding-top:16px}
+  :focus-visible{outline:2px solid var(--run);outline-offset:3px;border-radius:8px}
 </style>
 </head>
 <body>
 <main class="wrap">
   <header class="hero">
-    <p class="eyebrow">7 ngày · Body + Kegel</p>
-    <h1>Lịch Tập Tuần</h1>
-    <p class="lede">Lặp lại mỗi tuần. Bấm ▶ Xem cạnh mỗi bài để coi cách tập trên YouTube.</p>
+    <p class="eyebrow">Tập · Chạy · Kegel</p>
+    <h1>Lịch Tuần</h1>
+    <p class="lede">Mỗi ngày 1 việc chính + việc nhẹ + kegel. Bấm ← → xem ngày khác.</p>
   </header>
 
-  <div class="toggle-wrap">
-    <div class="seg" id="seg">
-      <button class="on" data-bw="0">Có dụng cụ</button>
-      <button data-bw="1">Chỉ bodyweight</button>
-    </div>
-    <p class="toggle-note" id="toggleNote">Có dụng cụ = bàn chống đẩy, dây kháng lực, tạ tay, nhảy dây.</p>
+  <div class="nav">
+    <button class="navbtn" id="prev" aria-label="Hôm trước">←</button>
+    <div class="navmid"><div class="navdate" id="navdate"></div><div class="navtoday" id="navtoday"></div></div>
+    <button class="navbtn" id="next" aria-label="Hôm sau">→</button>
   </div>
+  <div class="strip" id="strip"></div>
 
-  <div class="note">
-    <b>Mỗi ngày</b> (kể cả ngày nghỉ): kegel + thở bụng 5 phút + mobility 5 phút. Bài có dấu <span style="color:var(--engage);font-weight:700">THAY THẾ</span> nghĩa là đã đổi sang phiên bản không cần dụng cụ.
-  </div>
+  <div id="dayContent"></div>
 
-  <div id="todayCard"></div>
-  <div id="days"></div>
-
-  <footer>Hướng dẫn tập luyện chung, không phải tư vấn y tế.</footer>
+  <footer>Ghép từ "Run Like a Pro" + "Overcoming Gravity". Hướng dẫn chung, không phải tư vấn y tế.</footer>
 </main>
 
 <script>
 (function(){
   function yt(q){return "https://www.youtube.com/results?search_query="+encodeURIComponent(q);}
-  var KMAP={"Giữ ngắn":"short","Giữ dài":"long","Siết nhanh":"quick","Reverse":"reverse","Thang máy":"elevator","Phối thở":"breath"};
-  function kegelURL(name){var k=KMAP[name];return k?("/kegel?mode="+k):"/kegel";}
 
-  var DAYS=[
-    {lab:"Thứ 2",dow:1,theme:"Thân trên — Đẩy + Lưng",rest:false,
-      ex:[
-        {n:"Chống đẩy (bàn chống)",alt:"Chống đẩy sàn",equip:true,sr:"3 x 8-12",rest:"60 giây",m:"ngực, vai, tay sau",ytA:"push up board workout",ytB:"push up proper form"},
-        {n:"Đẩy tạ qua đầu",alt:"Pike push-up",equip:true,sr:"3 x 10-12",rest:"60 giây",m:"vai",ytA:"dumbbell overhead press",ytB:"pike push up"},
-        {n:"Band row (kéo dây)",alt:"Superman",equip:true,sr:"3 x 10-12",rest:"60 giây",m:"lưng, vai sau",ytA:"resistance band row",ytB:"superman exercise back"},
-        {n:"Chống đẩy diamond (tay sau)",alt:"Chống đẩy diamond",equip:false,sr:"2 x 10-12",rest:"45 giây",m:"tay sau",ytA:"diamond push up",ytB:"diamond push up"},
-        {n:"Plank",alt:"Plank",equip:false,sr:"3 x 30-45 giây",rest:"45 giây",m:"core",ytA:"plank exercise",ytB:"plank exercise"}
-      ],
-      kegel:[{n:"Giữ ngắn",c:"×10"},{n:"Siết nhanh",c:"×20"}]},
+  /* ---------- STRENGTH patterns (bodyweight) ---------- */
+  var P={
+    pushH:{cat:"push",name:"Đẩy ngang (ngực/tay sau)",
+      L:[["Chống đẩy tường","wall push up","đứng đẩy tường"],["Chống đẩy nghiêng","incline push up","tay kê cao"],["Chống đẩy quỳ gối","knee push up","gối làm tựa"],["Chống đẩy đủ","push up proper form","khuỷu ~45°, ngực chạm"],["Chống đẩy chân kê cao","decline push up","chân lên ghế"],["Chống đẩy kim cương","diamond push up","tay sát, tay sau"],["Archer push-up","archer push up","dồn 1 tay"],["Chống đẩy 1 tay","one arm push up progression","đỉnh cao"]]},
+    pullH:{cat:"pull",name:"Kéo ngang (lưng giữa)",
+      L:[["Row đứng nghiêng","high inverted row","thanh ngang hông, thân ngả"],["Inverted row gối co","inverted row bent knee","gối co, kéo ngực lên"],["Inverted row chân thẳng","inverted row","thân thẳng cứng"],["Row chân kê cao","feet elevated inverted row","chân cao hơn tay"],["Archer row","archer inverted row","dồn 1 tay"],["Row 1 tay","one arm inverted row","đỉnh cao"]],sub:["Prone Y-T-W (nằm sấp)","prone y t w raises","nằm sấp nâng tay chữ Y-T-W, siết bả vai — không cần xà/bàn"]},
+    squat:{cat:"legs",name:"Squat (đùi/mông)",
+      L:[["Box squat","box squat","ngồi chạm ghế rồi đứng"],["Squat bodyweight","bodyweight squat form","xuống sâu"],["Split squat","split squat tutorial","1 trước 1 sau"],["Bulgarian split squat","bulgarian split squat","chân sau kê ghế"],["Pistol xuống ghế","pistol squat to box","1 chân xuống ghế"],["Pistol squat","pistol squat","1 chân đủ"]]},
+    hinge:{cat:"legs",name:"Gập hông (mông/đùi sau/lưng)",
+      L:[["Glute bridge","glute bridge exercise","siết mông đẩy hông"],["Glute bridge 1 chân","single leg glute bridge","1 chân"],["Hip thrust (vai kê)","hip thrust bodyweight","biên độ lớn hơn"],["Hip thrust 1 chân","single leg hip thrust","1 chân, vai kê"],["Single-leg RDL","single leg romanian deadlift bodyweight","gập hông thăng bằng"],["Nordic curl âm","nordic hamstring curl","hạ chậm"]]},
+    pushV:{cat:"push",name:"Đẩy dọc (vai)",
+      L:[["Pike push-up","pike push up","hông cao, đầu xuống"],["Pike chân kê cao","elevated pike push up","chân lên ghế"],["Wall handstand giữ","wall handstand hold","up tường giữ","giữ 3 lần lâu nhất"],["Wall HSPU âm","wall handstand push up negative","hạ chậm","3×3-5, hạ 5s"],["Wall HSPU","wall handstand push up","đẩy lên"]]},
+    pullV:{cat:"pull",name:"Kéo dọc (xà)",
+      L:[["Treo xà","dead hang","treo, xây lực nắm","giữ 3 lần lâu nhất"],["Kéo xương bả","scapular pull ups","hạ vai kéo bả","3×8-10"],["Pull-up âm","negative pull up","leo lên, hạ chậm 5s","3×3-5, hạ 5s"],["Pull-up","pull up proper form","cằm qua xà"],["Archer pull-up","archer pull up","dồn 1 tay"],["Pull-up 1 tay","one arm pull up progression","đỉnh cao"]],sub:["Kéo cửa bằng khăn / Prone pull","towel door row","quấn khăn quanh tay nắm cửa chắc rồi ngả người kéo về; hoặc nằm sấp nâng tay"]}
+  };
+  var PAIRS=[["pushH","pullH","Đẩy ngang + Kéo ngang"],["squat","hinge","Squat + Gập hông"],["pushV","pullV","Đẩy dọc + Kéo dọc"]];
+  var levels={pushH:3,pullH:1,squat:1,hinge:0,pushV:0,pullV:2}, done={};
+  var bcl={push:"b-push",pull:"b-pull",legs:"b-legs"};
+  function save(){ try{ localStorage.setItem('week_levels', JSON.stringify(levels)); }catch(e){} }
+  function load(){ try{ var r=localStorage.getItem('week_levels'); if(r){ Object.assign(levels,JSON.parse(r)); } }catch(e){} }
 
-    {lab:"Thứ 3",dow:2,theme:"Hông + Core dưới",rest:false,
-      ex:[
-        {n:"Squat (xuống chậm 3 giây)",alt:"Squat (xuống chậm 3 giây)",equip:false,sr:"4 x 15-20",rest:"60 giây",m:"đùi, mông",ytA:"bodyweight squat form",ytB:"bodyweight squat form"},
-        {n:"Glute bridge",alt:"Glute bridge",equip:false,sr:"4 x 15-20",rest:"60 giây",m:"mông, hông, đùi sau",ytA:"glute bridge exercise",ytB:"glute bridge exercise"},
-        {n:"Flutter kick",alt:"Flutter kick",equip:false,sr:"3 x 30-40 giây",rest:"45 giây",m:"bụng dưới",ytA:"flutter kicks exercise",ytB:"flutter kicks exercise"},
-        {n:"Dead bug",alt:"Dead bug",equip:false,sr:"3 x 8 / bên",rest:"45 giây",m:"core sâu",ytA:"dead bug exercise",ytB:"dead bug exercise"},
-        {n:"Side plank",alt:"Side plank",equip:false,sr:"3 x 20-30 giây / bên",rest:"45 giây",m:"core nghiêng",ytA:"side plank exercise",ytB:"side plank exercise"}
-      ],
-      kegel:[{n:"Giữ dài",c:"×10"},{n:"Reverse",c:"×10"}]},
+  /* ---------- KEGEL (khớp app Kegel) ---------- */
+  var KEG={short:["Giữ ngắn","×10"],long:["Giữ dài","×10"],quick:["Nhanh","×20"],reverse:["Reverse","×10"],elevator:["Thang máy","×4"],breath:["Phối thở","×3"]};
 
-    {lab:"Thứ 4",dow:3,theme:"Lưng + Dẻo (nhẹ)",rest:false,
-      ex:[
-        {n:"Superman",alt:"Superman",equip:false,sr:"3 x 12-15",rest:"45 giây",m:"lưng dưới, mông",ytA:"superman exercise back",ytB:"superman exercise back"},
-        {n:"Band pull-apart / face pull",alt:"Reverse snow angel",equip:true,sr:"3 x 15",rest:"45 giây",m:"lưng trên, vai sau",ytA:"band pull apart",ytB:"reverse snow angel exercise"},
-        {n:"Bird dog",alt:"Bird dog",equip:false,sr:"3 x 8 / bên",rest:"30 giây",m:"core, lưng dưới",ytA:"bird dog exercise",ytB:"bird dog exercise"},
-        {n:"Glute bridge 1 chân",alt:"Glute bridge 1 chân",equip:false,sr:"3 x 12 / chân",rest:"45 giây",m:"mông, hông",ytA:"single leg glute bridge",ytB:"single leg glute bridge"},
-        {n:"Mobility flow (hông + lưng)",alt:"Mobility flow (hông + lưng)",equip:false,sr:"10 phút",rest:"-",m:"dẻo",ytA:"hip mobility routine",ytB:"hip mobility routine"}
-      ],
-      kegel:[{n:"Reverse",c:"×10"},{n:"Phối thở",c:"×3"}]},
+  /* ---------- DAY PLAN by weekday ---------- */
+  var DP={
+    1:{type:"strength",legsLight:false,keg:["short","quick"],kegTheme:"Sức mạnh"},
+    2:{type:"run",run:"Dễ (easy)",sup:"full",keg:["long","reverse"],kegTheme:"Sức bền"},
+    3:{type:"run",run:"Chất (interval / tempo)",sup:"mob",keg:["reverse","breath"],kegTheme:"Thả lỏng"},
+    4:{type:"strength",legsLight:false,keg:["short","quick"],kegTheme:"Sức mạnh"},
+    5:{type:"run",run:"Dễ (easy)",sup:"full",keg:["long","elevator"],kegTheme:"Kiểm soát"},
+    6:{type:"strength",legsLight:true,keg:["breath","reverse"],kegTheme:"Áp dụng nhẹ"},
+    0:{type:"run",run:"Long run",sup:"mob",keg:[],kegTheme:"Nghỉ"}
+  };
+  var DOWLAB={0:"Chủ nhật",1:"Thứ 2",2:"Thứ 3",3:"Thứ 4",4:"Thứ 5",5:"Thứ 6",6:"Thứ 7"};
+  var DOWSHORT={0:"CN",1:"T2",2:"T3",3:"T4",4:"T5",5:"T6",6:"T7"};
 
-    {lab:"Thứ 5",dow:4,theme:"Thân trên — biến thể",rest:false,
-      ex:[
-        {n:"Chống đẩy chân kê cao",alt:"Chống đẩy chân kê cao",equip:false,sr:"4 x 8-12",rest:"75 giây",m:"ngực trên",ytA:"decline push up",ytB:"decline push up"},
-        {n:"Pike push-up",alt:"Pike push-up",equip:false,sr:"3 x 6-10",rest:"60 giây",m:"vai",ytA:"pike push up",ytB:"pike push up"},
-        {n:"Band row (kéo chậm)",alt:"Superman",equip:true,sr:"3 x 10-12",rest:"60 giây",m:"lưng",ytA:"resistance band row",ytB:"superman exercise back"},
-        {n:"Chống đẩy diamond",alt:"Chống đẩy diamond",equip:false,sr:"2 x tối đa",rest:"45 giây",m:"tay sau",ytA:"diamond push up",ytB:"diamond push up"},
-        {n:"Hollow hold",alt:"Hollow hold",equip:false,sr:"3 x 20-30 giây",rest:"45 giây",m:"core sâu",ytA:"hollow hold exercise",ytB:"hollow hold exercise"}
-      ],
-      kegel:[{n:"Giữ ngắn",c:"×10"},{n:"Siết nhanh",c:"×20"}]},
+  var MOB=[["Giãn hip flexor (couch stretch)","couch stretch hip flexor","mỗi bên 45s"],["90/90 hông","90 90 hip stretch","mỗi bên 45s"],["Mèo - bò","cat cow stretch","10 nhịp"],["World's greatest stretch","worlds greatest stretch","mỗi bên 5"],["Xoay hông","hip circle mobility","30s"]];
+  var CORE_LIGHT=[["Dead bug","dead bug exercise","3×8/bên"],["Side plank","side plank","2×30s/bên"],["Glute bridge (kích hoạt)","glute bridge exercise","2×15"]];
 
-    {lab:"Thứ 6",dow:5,theme:"Hông + Core (mạnh)",rest:false,
-      ex:[
-        {n:"Bulgarian split squat",alt:"Lunge lùi",equip:true,sr:"3 x 8-10 / chân",rest:"60 giây",m:"đùi, mông",ytA:"bulgarian split squat",ytB:"reverse lunge exercise"},
-        {n:"Glute bridge 1 chân (dừng 2 giây)",alt:"Glute bridge 1 chân (dừng 2 giây)",equip:false,sr:"4 x 12 / chân",rest:"60 giây",m:"mông, hông",ytA:"single leg glute bridge",ytB:"single leg glute bridge"},
-        {n:"Leg raise (nâng chân thẳng)",alt:"Leg raise (nâng chân thẳng)",equip:false,sr:"3 x 10-15",rest:"45 giây",m:"bụng dưới",ytA:"lying leg raises",ytB:"lying leg raises"},
-        {n:"Flutter kick",alt:"Flutter kick",equip:false,sr:"3 x 40 giây",rest:"45 giây",m:"bụng dưới",ytA:"flutter kicks exercise",ytB:"flutter kicks exercise"},
-        {n:"Plank",alt:"Plank",equip:false,sr:"3 x 45-60 giây",rest:"45 giây",m:"core",ytA:"plank exercise",ytB:"plank exercise"}
-      ],
-      kegel:[{n:"Giữ dài",c:"×10"},{n:"Thang máy",c:"×4"}]},
+  /* ---------- date state ---------- */
+  function midnight(d){var x=new Date(d);x.setHours(0,0,0,0);return x;}
+  var today=midnight(new Date()), sel=midnight(new Date());
+  function sameDay(a,b){return a.getTime()===b.getTime();}
+  function addDays(d,n){var x=new Date(d);x.setDate(x.getDate()+n);return midnight(x);}
+  function mondayOf(d){var x=midnight(d);var w=x.getDay();var diff=(w===0?-6:1-w);return addDays(x,diff);}
 
-    {lab:"Thứ 7",dow:6,theme:"Toàn thân nhẹ + Conditioning",rest:false,
-      ex:[
-        {n:"Vòng tròn x3: chống đẩy 10 / squat 15 / glute bridge 15 / plank 30 giây / leo núi 30 giây",alt:"Vòng tròn x3: chống đẩy 10 / squat 15 / glute bridge 15 / plank 30 giây / leo núi 30 giây",equip:false,sr:"3 vòng",rest:"60 giây / vòng",m:"toàn thân",ytA:"bodyweight circuit workout",ytB:"bodyweight circuit workout"},
-        {n:"Nhảy dây",alt:"Jumping jack / chạy tại chỗ",equip:true,sr:"10-15 phút",rest:"-",m:"tim mạch, đốt mỡ",ytA:"jump rope cardio",ytB:"jumping jacks"},
-        {n:"Mobility flow",alt:"Mobility flow",equip:false,sr:"10 phút",rest:"-",m:"dẻo",ytA:"full body mobility stretch",ytB:"full body mobility stretch"}
-      ],
-      kegel:[{n:"Phối thở",c:"×3"},{n:"Reverse",c:"×10"}]},
-
-    {lab:"Chủ nhật",dow:0,theme:"Nghỉ động — hồi phục",rest:true,
-      ex:[
-        {n:"Mobility flow",alt:"Mobility flow",equip:false,sr:"10 phút",rest:"-",m:"dẻo hông + lưng",ytA:"mobility routine recovery",ytB:"mobility routine recovery"},
-        {n:"Thở bụng + box breathing",alt:"Thở bụng + box breathing",equip:false,sr:"10 phút",rest:"-",m:"hồi phục",ytA:"diaphragmatic breathing exercise",ytB:"diaphragmatic breathing exercise"},
-        {n:"Đi bộ nhẹ (tùy thích)",alt:"Đi bộ nhẹ (tùy thích)",equip:false,sr:"20-30 phút",rest:"-",m:"hồi phục",ytA:"walking for recovery",ytB:"walking for recovery"}
-      ],
-      kegel:[]}
-  ];
-
-  var now=new Date(), curDow=now.getDay(), bw=false;
-  var dateStr=now.getDate()+"/"+(now.getMonth()+1)+"/"+now.getFullYear();
-  var daysEl=document.getElementById("days"), todayEl=document.getElementById("todayCard"),
-      seg=document.getElementById("seg"), toggleNote=document.getElementById("toggleNote");
-
-  function rowHTML(ex){
-    var swapped = bw && ex.equip;
-    var name = swapped ? ex.alt : ex.n;
-    var q = swapped ? ex.ytB : ex.ytA;
-    var swap = swapped ? '<span class="swap">THAY THẾ</span>' : '';
-    var meta = '<span class="sr">'+ex.sr+'</span>' + (ex.rest&&ex.rest!=="-"?' · nghỉ '+ex.rest:'') + (ex.m?' · '+ex.m:'');
-    return '<div class="exrow"><div><div class="ex-name">'+name+swap+'</div><div class="ex-meta">'+meta+'</div></div>'
-         + '<a class="watch" href="'+yt(q)+'" target="_blank" rel="noopener">▶ Xem</a></div>';
+  /* ---------- builders ---------- */
+  function card(key,editable){
+    var p=P[key], i=levels[key], lv=p.L[i];
+    var doStr=lv[3]||"3 hiệp × 8-12 cái";
+    var atTop=i>=p.L.length-1, atBot=i<=0, isDone=done[key];
+    var btns = editable
+      ? '<button class="dnb" data-act="dn" data-key="'+key+'"'+(atBot?' disabled':'')+'>↓ Dễ hơn</button><button class="upb" data-act="up" data-key="'+key+'"'+(atTop?' disabled':'')+'>↑ Lên bậc</button>'
+      : '';
+    var doneBtn = editable ? '<button class="donebtn" data-act="done" data-key="'+key+'">'+(isDone?'✓ Xong':'Đánh dấu')+'</button>' : '<span class="bsc" style="background:var(--surface2);color:var(--muted)">Xem trước</span>';
+    return '<div class="card'+(isDone&&editable?' done':'')+'">'
+      +'<div class="ctop"><span class="bsc '+bcl[p.cat]+'">Bậc '+(i+1)+'/'+p.L.length+'</span>'+doneBtn+'</div>'
+      +'<div class="cname">'+lv[0]+'</div><div class="cdo">'+doStr+'</div>'
+      +'<div class="ccue">'+lv[2]+' · '+p.name+'</div>'
+      +'<div class="cbtns"><a class="watch" href="'+yt(lv[1])+'" target="_blank" rel="noopener">▶ Xem</a>'+btns+'</div>'
+      +(editable?'<div class="crule"><b>Lên bậc</b> khi 3 hiệp đều 12 cái · <b>Dễ hơn</b> nếu chưa nổi 8</div>':'')
+      +(p.sub?'<div class="crule" style="padding-top:8px">↔ Không có xà/bàn? <a href="'+yt(p.sub[1])+'" target="_blank" rel="noopener" style="color:var(--run);font-weight:700;text-decoration:none">'+p.sub[0]+'</a> — '+p.sub[2]+'</div>':'')
+      +'</div>';
   }
 
-  function kegelHTML(day){
-    if(day.rest){
-      return '<div class="kegel-block"><div class="kh"><span>Kegel</span></div><div class="kegel-items"><span class="ktag">Nghỉ — chỉ thả lỏng tự nhiên</span></div></div>';
+  function strengthSession(editable,legsLight){
+    var h="";
+    if(legsLight) h+='<div class="runref"><b>Mai long run</b> → hôm nay tập chân (squat + hinge) <b>nhẹ thôi</b>: bớt 1 hiệp, đừng tập tới kiệt. Giữ chân tươi cho buổi dài.</div>';
+    PAIRS.forEach(function(pr){ h+='<div class="pair">'+pr[2]+'</div>'+card(pr[0],editable)+card(pr[1],editable); });
+    h+='<div class="pair">Lõi (cuối buổi)</div><div class="blk core"><h3>Core — đủ bụng + lưng + nghiêng</h3>'
+      +'<div class="it"><span class="nm">Plank (chống ngửa)</span><span class="cs">3×30-45s</span><a href="'+yt("plank exercise")+'" target="_blank" rel="noopener">▶</a></div>'
+      +'<div class="it"><span class="nm">Superman (lưng dưới)</span><span class="cs">3×12</span><a href="'+yt("superman exercise back")+'" target="_blank" rel="noopener">▶</a></div>'
+      +'<div class="it"><span class="nm">Side plank (nghiêng)</span><span class="cs">3×30s/bên</span><a href="'+yt("side plank")+'" target="_blank" rel="noopener">▶</a></div>'
+      +'</div>';
+    h+='<details><summary>Khởi động trước khi tập (5 phút)<span class="chev">▸</span></summary><div class="wu">'
+      +[["Xoay vai","arm circles warm up"],["Đá chân","leg swings warm up"],["Khởi động cổ tay","wrist warm up for push ups"],["Mèo-bò","cat cow stretch"],["Kéo vai sau (tay không)","prone y t w raises"]].map(function(w){return '<a href="'+yt(w[1])+'" target="_blank" rel="noopener">▶ '+w[0]+'</a>';}).join("")
+      +'</div></details>';
+    return h;
+  }
+
+  function supportBlock(sup){
+    var mob='<div class="subhd">Dẻo + thả lỏng (mỗi động tác ~1 phút)</div>'
+      +MOB.map(function(m){return '<div class="it"><span class="nm">'+m[0]+'</span><span class="cs">'+m[2]+'</span><a href="'+yt(m[1])+'" target="_blank" rel="noopener">▶</a></div>';}).join("");
+    if(sup==="full"){
+      var core='<div class="subhd">Core nhẹ (xây thói quen)</div>'
+        +CORE_LIGHT.map(function(m){return '<div class="it"><span class="nm">'+m[0]+'</span><span class="cs">'+m[2]+'</span><a href="'+yt(m[1])+'" target="_blank" rel="noopener">▶</a></div>';}).join("");
+      return '<div class="blk sup"><h3>Việc nhẹ hôm nay</h3><p class="bnote">Ngày chạy nhẹ — thêm chút dẻo + core cho thành thói quen, không nặng.</p>'+mob+core+'</div>';
     }
-    if(!day.kegel||!day.kegel.length) return '';
-    var items=day.kegel.map(function(k){return '<a class="ktag" href="'+kegelURL(k.n)+'">'+k.n+(k.c?'<b>'+k.c+'</b>':'')+'</a>';}).join("");
-    return '<div class="kegel-block"><div class="kh"><span>Kegel hôm nay — bấm để tập</span><a href="/kegel">▶ Mở đồng hồ</a></div><div class="kegel-items">'+items+'</div></div>';
+    return '<div class="blk sup"><h3>Việc nhẹ hôm nay</h3><p class="bnote">Hôm nay chạy nặng/dài — chỉ dẻo + thả lỏng để hồi, không tập thêm.</p>'+mob+'</div>';
   }
 
-  function dayHTML(d){
-    var cls="day"+(d.dow===curDow?" is-today":"");
-    var tag=d.dow===curDow?'<span class="today-tag">Hôm nay</span>':'';
-    var rows=d.ex.map(rowHTML).join("");
-    return '<div class="'+cls+'" id="day'+d.dow+'">'+tag+'<p class="day-when">'+d.lab+'</p><h3>'+d.theme+'</h3>'+rows+kegelHTML(d)+'</div>';
+  function kegelBlock(plan){
+    var kegBtn='<a href="/kegel" style="display:block;text-align:center;margin-top:12px;font:700 14px var(--sans);color:#0A0E2A;background:var(--kegel);border-radius:11px;padding:13px;min-height:48px;text-decoration:none">▶ Mở app Kegel để tập</a>';
+    if(!plan.keg.length) return '<div class="blk keg"><h3>Kegel hôm nay · Nghỉ</h3><div class="kegitems"><span class="ktag">Nghỉ — thả lỏng tự nhiên</span></div>'+kegBtn+'</div>';
+    var items=plan.keg.map(function(k){return '<a class="ktag" href="/kegel?mode='+k+'">'+KEG[k][0]+'<b>'+KEG[k][1]+'</b></a>';}).join("");
+    return '<div class="blk keg"><h3>Kegel hôm nay · '+plan.kegTheme+'</h3><p class="bnote">Bấm 1 bài để mở thẳng bộ đếm nhịp Kegel đúng chế độ. 1-2 lần trong ngày.</p><div class="kegitems">'+items+'</div>'+kegBtn+'</div>';
   }
 
-  function todayHTML(){
-    var t=null;for(var i=0;i<DAYS.length;i++){if(DAYS[i].dow===curDow)t=DAYS[i];}
-    if(!t) return '';
-    var keg=t.kegel&&t.kegel.length?(' · Kegel: '+t.kegel.map(function(k){return k.n+' '+(k.c||'');}).join(", ")):'';
-    var sub=t.rest?'Hôm nay nghỉ động: chỉ mobility, thở, đi bộ nhẹ.':(t.ex.length+' bài'+keg);
-    return '<div class="today-card"><p class="eyebrow">Buổi hôm nay · '+t.lab+' · '+dateStr+'</p><h3>'+t.theme+'</h3><p class="tline">'+sub+'</p><button class="jump" data-jump="'+t.dow+'">Xem buổi hôm nay ↓</button></div>';
+  function dayContent(){
+    var dow=sel.getDay(), plan=DP[dow], editable=sameDay(sel,today);
+    var h="";
+    if(!editable) h+='<div class="preview">Xem trước · bậc tập theo hôm nay</div>';
+    if(plan.type==="strength"){
+      h+='<div class="dayhd"><div class="ic strength">💪</div><div><h2>Tập thân</h2><div class="sub">Bodyweight full-body · '+DOWLAB[dow]+'</div></div></div>';
+      h+=strengthSession(editable,plan.legsLight);
+    } else {
+      h+='<div class="dayhd"><div class="ic run">🏃</div><div><h2>Chạy — '+plan.run+'</h2><div class="sub">'+DOWLAB[dow]+'</div></div></div>';
+      h+='<div class="runref">Buổi chạy chi tiết (pace, cấu trúc) xem ở app <b>Chạy Như Pro</b>. Dưới đây là việc nhẹ + kegel cho hôm nay.<a href="/run" style="display:block;text-align:center;margin-top:12px;font:700 14px var(--sans);color:#06201E;background:var(--run);border-radius:11px;padding:13px;min-height:48px;text-decoration:none">▶ Mở app Chạy Như Pro</a></div>';
+      h+=supportBlock(plan.sup);
+    }
+    h+=kegelBlock(plan);
+    document.getElementById("dayContent").innerHTML=h;
   }
 
-  function render(){
-    daysEl.innerHTML=DAYS.map(dayHTML).join("");
-    todayEl.innerHTML=todayHTML();
+  function strip(){
+    var mon=mondayOf(sel), h="";
+    for(var i=0;i<7;i++){
+      var d=addDays(mon,i), dow=d.getDay(), plan=DP[dow];
+      var cls="sd s-"+plan.type+(sameDay(d,sel)?" sel":"");
+      var dotEl=sameDay(d,today)?'<div class="dot"></div>':'';
+      h+='<div class="'+cls+'" data-off="'+Math.round((d-today)/86400000)+'"><div class="sl">'+DOWSHORT[dow]+'</div><div class="si">'+(plan.type==="strength"?"Tập":"Chạy")+'</div>'+dotEl+'</div>';
+    }
+    document.getElementById("strip").innerHTML=h;
   }
 
-  seg.addEventListener("click",function(e){
-    var b=e.target.closest("button");if(!b)return;
-    bw=b.getAttribute("data-bw")==="1";
-    [].forEach.call(seg.children,function(c){c.classList.toggle("on",c===b);});
-    toggleNote.textContent= bw
-      ? "Chỉ bodyweight = bỏ hết dụng cụ, chỉ dùng thân + sàn (+ 1 ghế/bàn nếu cần). Bài cần đồ đã đổi sang phiên bản tay không."
-      : "Có dụng cụ = bàn chống đẩy, dây kháng lực, tạ tay, nhảy dây.";
+  function navHeader(){
+    var dow=sel.getDay();
+    document.getElementById("navdate").textContent=DOWLAB[dow]+" · "+sel.getDate()+"/"+(sel.getMonth()+1);
+    var nt=document.getElementById("navtoday");
+    if(sameDay(sel,today)) nt.innerHTML='<span class="badge">Hôm nay</span>';
+    else { var diff=Math.round((sel-today)/86400000); nt.innerHTML='<button id="goToday">'+(diff>0?"+"+diff+" ngày":diff+" ngày")+' · về hôm nay</button>'; }
+  }
+
+  function render(){ navHeader(); strip(); dayContent(); }
+
+  /* ---------- events ---------- */
+  document.getElementById("prev").addEventListener("click",function(){sel=addDays(sel,-1);render();});
+  document.getElementById("next").addEventListener("click",function(){sel=addDays(sel,1);render();});
+  document.getElementById("strip").addEventListener("click",function(e){var d=e.target.closest("[data-off]");if(!d)return;sel=addDays(today,parseInt(d.getAttribute("data-off"),10));render();});
+  document.getElementById("navtoday").addEventListener("click",function(e){if(e.target.closest("#goToday")){sel=midnight(new Date());render();}});
+  document.getElementById("dayContent").addEventListener("click",function(e){
+    var b=e.target.closest("[data-act]");if(!b)return;
+    var key=b.getAttribute("data-key"), act=b.getAttribute("data-act");
+    if(act==="up"&&levels[key]<P[key].L.length-1){levels[key]++;save();}
+    else if(act==="dn"&&levels[key]>0){levels[key]--;save();}
+    else if(act==="done"){done[key]=!done[key];}
     render();
   });
 
-  document.addEventListener("click",function(e){
-    var b=e.target.closest("[data-jump]");if(!b)return;
-    var el=document.getElementById("day"+b.getAttribute("data-jump"));
-    if(el) el.scrollIntoView({behavior:"smooth",block:"start"});
-  });
-
-  render();
+  load(); render();
 })();
 </script>
 </body>
