@@ -19,6 +19,7 @@
     --bg:#0E1417; --surface:#172127; --surface2:#1E2A30; --line:rgba(255,255,255,.09);
     --text:#ECE6DC; --muted:#93A0A6;
     --engage:#E7A93C; --release:#4FC4BE; --reverse:#9AA6F0; --neutral:#7FA0A8;
+    --inhale:#5BD0C9; --exhale:#F0C062;
     --sans:'Be Vietnam Pro',system-ui,-apple-system,sans-serif;
     --mono:'Space Mono',ui-monospace,monospace;
   }
@@ -48,11 +49,11 @@
   .mode-meta span{color:var(--text);font-weight:600}
   .link-note{text-align:center;color:var(--muted);font-size:12px;margin-top:5px;opacity:.85}
 
-  .pacer{position:relative;width:min(264px,76vw);height:min(264px,76vw);margin:20px auto 6px;display:grid;place-items:center}
+  .pacer{position:relative;width:min(264px,76vw);height:min(264px,76vw);margin:18px auto 4px;display:grid;place-items:center}
   .ring{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
   .ring-track{fill:none;stroke:rgba(255,255,255,.07);stroke-width:6}
   .ring-prog{fill:none;stroke:rgba(255,255,255,.15);stroke-width:6;stroke-linecap:round;transition:stroke .4s ease}
-  .orb{width:min(160px,46vw);height:min(160px,46vw);border-radius:50%;display:grid;place-items:center;
+  .orb{width:min(158px,46vw);height:min(158px,46vw);border-radius:50%;display:grid;place-items:center;
     transition:background .5s ease,box-shadow .5s ease;will-change:transform;transform:translateY(0) scale(.7)}
   .orb[data-phase="idle"]{background:radial-gradient(circle at 50% 38%,#2A363B,#161D21);box-shadow:0 0 30px rgba(0,0,0,.35)}
   .orb[data-phase="engage"],.orb[data-phase="hold"]{background:radial-gradient(circle at 50% 38%,#F4C66B,#C9852A);box-shadow:0 0 64px rgba(231,169,60,.5)}
@@ -62,12 +63,27 @@
   .orb-inner{text-align:center;color:#0E1417}
   .orb[data-phase="idle"] .orb-inner{color:var(--muted)}
   .count{font:700 clamp(36px,12vw,44px)/1 var(--mono)}
-  .phase{font-weight:700;font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin-top:3px;opacity:.85}
+  .muscle{font-weight:700;font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin-top:3px;opacity:.85}
 
-  .breath{text-align:center;color:var(--text);font-size:15px;min-height:24px;margin-top:6px;font-weight:500;padding:0 8px}
-  .reps{text-align:center;color:var(--muted);font-size:13px;margin-top:2px}
+  /* BREATH PANEL */
+  .breath-cap{text-align:center;font:700 10px var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-top:14px}
+  .breath-badge{display:flex;align-items:center;justify-content:center;gap:9px;margin-top:4px;font-weight:800;font-size:20px;letter-spacing:.01em;transition:color .3s ease}
+  .bt-arrow{font-size:24px;line-height:1;transition:transform .3s ease}
+  .breath-badge[data-bt="in"]{color:var(--inhale)}
+  .breath-badge[data-bt="out"]{color:var(--engage)}
+  .breath-badge[data-bt="free"]{color:var(--muted)}
+  .breath-bar{height:9px;background:var(--surface2);border-radius:99px;overflow:hidden;margin:10px auto 0;max-width:280px;border:1px solid var(--line)}
+  .breath-fill{height:100%;width:0%;border-radius:99px}
+  .breath-fill[data-bt="in"]{background:linear-gradient(90deg,#327E7A,#5BD0C9)}
+  .breath-fill[data-bt="out"]{background:linear-gradient(90deg,#C9852A,#F0C062)}
+  .breath-fill[data-bt="free"]{background:repeating-linear-gradient(90deg,#46555B,#46555B 6px,#36444A 6px,#36444A 12px)}
+  .breath-detail{text-align:center;color:var(--text);font-size:14px;min-height:22px;margin-top:9px;padding:0 8px;font-weight:500}
+  .breath-pattern{text-align:center;color:var(--muted);font-size:12.5px;margin-top:10px;padding:8px 11px;background:var(--surface2);border-radius:10px;border:1px solid var(--line)}
+  .breath-pattern b{color:var(--text);font-weight:700}
+
+  .reps{text-align:center;color:var(--muted);font-size:13px;margin-top:12px}
   .reps span{font-family:var(--mono);color:var(--text)}
-  .controls{display:flex;gap:10px;margin-top:18px}
+  .controls{display:flex;gap:10px;margin-top:14px}
   .btn{flex:1;font:700 15px var(--sans);padding:14px;border-radius:13px;cursor:pointer;
     min-height:50px;touch-action:manipulation;-webkit-user-select:none;user-select:none;
     background:var(--surface2);color:var(--text);border:1px solid var(--line);transition:filter .2s}
@@ -93,7 +109,6 @@
   .chip:hover{border-color:var(--release)}
   .chip b{font-family:var(--mono);font-weight:700;color:var(--release);font-size:12px;margin-left:5px}
   .rest-tag{color:var(--muted);font-size:14px;font-style:italic}
-
   .week{display:grid;gap:8px;margin-top:14px}
   .wday{display:grid;grid-template-columns:48px 1fr;gap:10px;align-items:center;background:var(--surface);
     border:1px solid var(--line);border-radius:12px;padding:10px 12px}
@@ -179,14 +194,21 @@
       <div class="orb" id="orb" data-phase="idle">
         <div class="orb-inner">
           <div class="count" id="count">5</div>
-          <div class="phase" id="phaseLabel">Sẵn sàng</div>
+          <div class="muscle" id="muscleLabel">Sẵn sàng</div>
         </div>
       </div>
     </div>
 
-    <p class="breath" id="breath">Nhấn Bắt đầu để tập theo nhịp</p>
-    <p class="reps">Lần <span id="reps">0</span> / <span id="repsTarget">10</span></p>
+    <p class="breath-cap">Nhịp thở</p>
+    <div class="breath-badge" id="breathBadge" data-bt="free">
+      <span class="bt-arrow" id="btArrow">•</span>
+      <span class="bt-label" id="btLabel">Sẵn sàng</span>
+    </div>
+    <div class="breath-bar"><div class="breath-fill" id="breathFill" data-bt="free"></div></div>
+    <p class="breath-detail" id="breath">Nhấn Bắt đầu để tập theo nhịp</p>
+    <p class="breath-pattern" id="breathPattern"></p>
 
+    <p class="reps">Lần <span id="reps">0</span> / <span id="repsTarget">10</span></p>
     <div class="controls">
       <button class="btn btn-primary" id="startBtn">Bắt đầu</button>
       <button class="btn" id="resetBtn">Đặt lại</button>
@@ -238,37 +260,37 @@
       <div class="ex" style="--c:var(--engage)" data-load data-mode="short" tabindex="0" role="button">
         <span class="tag">Nền tảng</span><h3>Siết giữ ngắn</h3>
         <p>Siết lên rồi giữ vài giây, thả hẳn. Xây lực cơ bản.</p>
-        <p class="dose">Giữ 5 giây / thả 5 giây · 10 lần.</p>
+        <p class="dose">Giữ 5 giây / thả 5 giây · 10 lần. Thở ra khi siết, hít vào khi thả.</p>
         <p class="go">BẤM ĐỂ TẬP →</p>
       </div>
       <div class="ex" style="--c:var(--engage)" data-load data-mode="long" tabindex="0" role="button">
         <span class="tag">Sức bền</span><h3>Siết giữ dài</h3>
         <p>Như trên nhưng giữ lâu hơn. Tăng sức bền để duy trì lâu.</p>
-        <p class="dose">Giữ 10 giây / thả 10 giây · 10 lần.</p>
+        <p class="dose">Giữ 10 giây / thả 10 giây · 10 lần. Thở chậm đều, đừng nín hơi.</p>
         <p class="go">BẤM ĐỂ TẬP →</p>
       </div>
       <div class="ex" style="--c:var(--engage)" data-load data-mode="quick" tabindex="0" role="button">
         <span class="tag">Phản xạ</span><h3>Siết nhanh</h3>
         <p>Siết-thả thật nhanh liên tục. Luyện phản xạ chặn nhanh khi cần.</p>
-        <p class="dose">1 giây siết / 1 giây thả · 20 lần.</p>
+        <p class="dose">1 giây siết / 1 giây thả · 20 lần. Thở tự nhiên.</p>
         <p class="go">BẤM ĐỂ TẬP →</p>
       </div>
       <div class="ex" style="--c:var(--reverse)" data-load data-mode="reverse" tabindex="0" role="button">
         <span class="tag">Chìa khoá</span><h3>Reverse kegel</h3>
         <p>Thả lỏng và đẩy nhẹ sàn chậu xuống. Giúp giữ lâu, chống quá căng.</p>
-        <p class="dose">Đẩy 5 giây / trung tính 5 giây · 10 lần.</p>
+        <p class="dose">Đẩy 5 giây / trung tính 5 giây · 10 lần. Hít vào khi đẩy xuống.</p>
         <p class="go">BẤM ĐỂ TẬP →</p>
       </div>
       <div class="ex" style="--c:var(--release)" data-load data-mode="elevator" tabindex="0" role="button">
         <span class="tag">Kiểm soát</span><h3>Thang máy</h3>
         <p>Siết lên theo 3 tầng, giữ mỗi tầng, rồi hạ từng tầng. Kiểm soát tinh vi.</p>
-        <p class="dose">Lên 3 tầng, giữ, hạ dần · 4 lần.</p>
+        <p class="dose">Lên 3 tầng, giữ, hạ dần · 4 lần. Thở ra khi lên, hít vào khi hạ.</p>
         <p class="go">BẤM ĐỂ TẬP →</p>
       </div>
       <div class="ex" style="--c:var(--release)" data-load data-mode="breath" tabindex="0" role="button">
         <span class="tag">Áp dụng</span><h3>Phối thở</h3>
         <p>Giữ siết qua 4 nhịp thở mà không buông. Kỹ năng giữ nhịp liên tục không mỏi.</p>
-        <p class="dose">Giữ siết qua 4 nhịp thở rồi thả · 3 lần.</p>
+        <p class="dose">Hít 4 nhịp rồi thở 4 nhịp, giữ siết suốt · 3 lần.</p>
         <p class="go">BẤM ĐỂ TẬP →</p>
       </div>
     </div>
@@ -329,42 +351,56 @@
 
 <script>
 (function(){
-  function hold(D){return [
-    {label:"Siết & giữ",dur:D,key:"engage",s0:.62,s1:1,ty0:0,ty1:-26,breath:"Thở ra, siết lên trong và lên"},
-    {label:"Thả lỏng",dur:D,key:"release",s0:1,s1:.62,ty0:-26,ty1:0,breath:"Hít vào, buông hoàn toàn"}
-  ];}
-
   var MODES={
-    short:{name:"Giữ ngắn",target:10,desc:"siết 5 giây / thả 5 giây",phases:hold(5)},
-    long:{name:"Giữ dài",target:10,desc:"siết 10 giây / thả 10 giây",phases:hold(10)},
-    quick:{name:"Nhanh",target:20,desc:"siết 1 giây / thả 1 giây",phases:[
-      {label:"Siết",dur:1,key:"engage",s0:.62,s1:1,ty0:0,ty1:-26,breath:"Siết nhanh"},
-      {label:"Thả",dur:1,key:"release",s0:1,s1:.62,ty0:-26,ty1:0,breath:"Buông"}
-    ]},
-    reverse:{name:"Reverse",target:10,desc:"đẩy nhẹ 5 giây / trung tính 5 giây",phases:[
-      {label:"Thả & đẩy nhẹ",dur:5,key:"reverse",s0:.70,s1:.93,ty0:0,ty1:22,breath:"Hít vào, đẩy nhẹ sàn chậu xuống"},
-      {label:"Trung tính",dur:5,key:"neutral",s0:.93,s1:.70,ty0:22,ty1:0,breath:"Thở ra, về tự nhiên"}
-    ]},
-    elevator:{name:"Thang máy",target:4,desc:"lên 3 tầng, giữ, hạ dần",phases:[
-      {label:"Lên tầng 1",dur:1,key:"engage",s0:.62,s1:.76,ty0:0,ty1:-9,breath:"Siết nhẹ 1 phần"},
-      {label:"Giữ tầng 1",dur:1,key:"hold",s0:.76,s1:.76,ty0:-9,ty1:-9,breath:"Giữ"},
-      {label:"Lên tầng 2",dur:1,key:"engage",s0:.76,s1:.88,ty0:-9,ty1:-18,breath:"Siết mạnh hơn"},
-      {label:"Giữ tầng 2",dur:1,key:"hold",s0:.88,s1:.88,ty0:-18,ty1:-18,breath:"Giữ"},
-      {label:"Lên tầng 3",dur:1,key:"engage",s0:.88,s1:1,ty0:-18,ty1:-26,breath:"Siết hết cỡ"},
-      {label:"Giữ đỉnh",dur:2,key:"hold",s0:1,s1:1,ty0:-26,ty1:-26,breath:"Giữ đỉnh"},
-      {label:"Hạ dần",dur:3,key:"release",s0:1,s1:.62,ty0:-26,ty1:0,breath:"Hạ từ từ từng tầng"},
-      {label:"Thả",dur:2,key:"neutral",s0:.62,s1:.62,ty0:0,ty1:0,breath:"Buông hẳn"}
-    ]},
-    breath:{name:"Phối thở",target:3,desc:"giữ siết qua 4 nhịp thở rồi thả",phases:[
-      {label:"Siết — hít vào",dur:4,key:"hold",s0:.93,s1:1,ty0:-22,ty1:-26,breath:"Giữ siết, hít vào sâu"},
-      {label:"Siết — thở ra",dur:4,key:"hold",s0:1,s1:.92,ty0:-26,ty1:-20,breath:"Vẫn giữ siết, thở ra chậm"},
-      {label:"Siết — hít vào",dur:4,key:"hold",s0:.92,s1:1,ty0:-20,ty1:-26,breath:"Giữ siết, hít vào sâu"},
-      {label:"Siết — thở ra",dur:4,key:"hold",s0:1,s1:.92,ty0:-26,ty1:-20,breath:"Vẫn giữ siết, thở ra chậm"},
-      {label:"Thả lỏng",dur:4,key:"release",s0:.92,s1:.62,ty0:-20,ty1:0,breath:"Buông hoàn toàn"}
-    ]}
+    short:{name:"Giữ ngắn",target:10,desc:"siết 5 giây / thả 5 giây",
+      pattern:'<b>Thở ra</b> khi siết · <b>Hít vào</b> khi thả',
+      phases:[
+        {label:"Siết & giữ",dur:5,key:"engage",s0:.62,s1:1,ty0:0,ty1:-26,bt:"out",detail:"Thở ra chậm khi siết lên và giữ"},
+        {label:"Thả lỏng",dur:5,key:"release",s0:1,s1:.62,ty0:-26,ty1:0,bt:"in",detail:"Hít vào chậm khi buông ra"}
+      ]},
+    long:{name:"Giữ dài",target:10,desc:"siết 10 giây / thả 10 giây",
+      pattern:'<b>Thở chậm đều</b> suốt lúc giữ · KHÔNG nín hơi',
+      phases:[
+        {label:"Siết & giữ",dur:10,key:"engage",s0:.62,s1:1,ty0:0,ty1:-26,bt:"free",detail:"Giữ siết — thở chậm đều, không nín hơi"},
+        {label:"Thả lỏng",dur:10,key:"release",s0:1,s1:.62,ty0:-26,ty1:0,bt:"free",detail:"Buông hoàn toàn, thở đều"}
+      ]},
+    quick:{name:"Nhanh",target:20,desc:"siết 1 giây / thả 1 giây",
+      pattern:'<b>Thở tự nhiên</b> · quá nhanh để theo nhịp thở',
+      phases:[
+        {label:"Siết",dur:1,key:"engage",s0:.62,s1:1,ty0:0,ty1:-26,bt:"free",detail:"Thở tự nhiên"},
+        {label:"Thả",dur:1,key:"release",s0:1,s1:.62,ty0:-26,ty1:0,bt:"free",detail:"Thở tự nhiên"}
+      ]},
+    reverse:{name:"Reverse",target:10,desc:"đẩy nhẹ 5 giây / trung tính 5 giây",
+      pattern:'<b>Hít vào</b> khi đẩy xuống · <b>Thở ra</b> khi về',
+      phases:[
+        {label:"Thả & đẩy nhẹ",dur:5,key:"reverse",s0:.70,s1:.93,ty0:0,ty1:22,bt:"in",detail:"Hít vào sâu, đẩy nhẹ sàn chậu xuống"},
+        {label:"Trung tính",dur:5,key:"neutral",s0:.93,s1:.70,ty0:22,ty1:0,bt:"out",detail:"Thở ra, về tự nhiên"}
+      ]},
+    elevator:{name:"Thang máy",target:4,desc:"lên 3 tầng, giữ, hạ dần",
+      pattern:'<b>Thở ra</b> khi lên tầng · <b>Hít vào</b> khi hạ',
+      phases:[
+        {label:"Lên tầng 1",dur:1,key:"engage",s0:.62,s1:.76,ty0:0,ty1:-9,bt:"out",detail:"Thở ra nhẹ, siết 1 phần"},
+        {label:"Giữ tầng 1",dur:1,key:"hold",s0:.76,s1:.76,ty0:-9,ty1:-9,bt:"free",detail:"Giữ, thở đều"},
+        {label:"Lên tầng 2",dur:1,key:"engage",s0:.76,s1:.88,ty0:-9,ty1:-18,bt:"out",detail:"Thở ra thêm, siết mạnh hơn"},
+        {label:"Giữ tầng 2",dur:1,key:"hold",s0:.88,s1:.88,ty0:-18,ty1:-18,bt:"free",detail:"Giữ, thở đều"},
+        {label:"Lên tầng 3",dur:1,key:"engage",s0:.88,s1:1,ty0:-18,ty1:-26,bt:"out",detail:"Thở ra hết, siết tối đa"},
+        {label:"Giữ đỉnh",dur:2,key:"hold",s0:1,s1:1,ty0:-26,ty1:-26,bt:"free",detail:"Giữ đỉnh, thở đều"},
+        {label:"Hạ dần",dur:3,key:"release",s0:1,s1:.62,ty0:-26,ty1:0,bt:"in",detail:"Hít vào, hạ từ từ từng tầng"},
+        {label:"Thả",dur:2,key:"neutral",s0:.62,s1:.62,ty0:0,ty1:0,bt:"free",detail:"Buông hẳn, thở đều"}
+      ]},
+    breath:{name:"Phối thở",target:3,desc:"giữ siết qua 4 nhịp thở rồi thả",
+      pattern:'<b>Hít vào 4 nhịp</b> rồi <b>Thở ra 4 nhịp</b> · giữ siết suốt',
+      phases:[
+        {label:"Giữ siết",dur:4,key:"hold",s0:.93,s1:1,ty0:-22,ty1:-26,bt:"in",detail:"Giữ siết, hít vào sâu trong 4 nhịp"},
+        {label:"Giữ siết",dur:4,key:"hold",s0:1,s1:.92,ty0:-26,ty1:-20,bt:"out",detail:"Vẫn giữ siết, thở ra chậm trong 4 nhịp"},
+        {label:"Giữ siết",dur:4,key:"hold",s0:.92,s1:1,ty0:-20,ty1:-26,bt:"in",detail:"Giữ siết, hít vào sâu trong 4 nhịp"},
+        {label:"Giữ siết",dur:4,key:"hold",s0:1,s1:.92,ty0:-26,ty1:-20,bt:"out",detail:"Vẫn giữ siết, thở ra chậm trong 4 nhịp"},
+        {label:"Thả lỏng",dur:4,key:"release",s0:.92,s1:.62,ty0:-20,ty1:0,bt:"free",detail:"Buông hoàn toàn, thở thoải mái"}
+      ]}
   };
   var ORDER=["short","long","quick","reverse","elevator","breath"];
   var COLOR={engage:"#E7A93C",hold:"#E7A93C",release:"#4FC4BE",reverse:"#9AA6F0",neutral:"#7FA0A8",idle:"rgba(255,255,255,.15)"};
+  var BT={in:{a:"↑",l:"Hít vào"},out:{a:"↓",l:"Thở ra"},free:{a:"~",l:"Thở đều"}};
   var WEEK=[
     {d:"Thứ 2",lab:"T2",dow:1,theme:"Sức mạnh",rest:false,ex:["short","quick"]},
     {d:"Thứ 3",lab:"T3",dow:2,theme:"Sức bền",rest:false,ex:["long","reverse"]},
@@ -376,7 +412,10 @@
   ];
 
   var orb=document.getElementById("orb"),countEl=document.getElementById("count"),
-      phaseEl=document.getElementById("phaseLabel"),breathEl=document.getElementById("breath"),
+      muscleEl=document.getElementById("muscleLabel"),detailEl=document.getElementById("breath"),
+      badgeEl=document.getElementById("breathBadge"),btArrow=document.getElementById("btArrow"),
+      btLabel=document.getElementById("btLabel"),fillEl=document.getElementById("breathFill"),
+      patternEl=document.getElementById("breathPattern"),
       repsEl=document.getElementById("reps"),repsTargetEl=document.getElementById("repsTarget"),
       modeTargetEl=document.getElementById("modeTarget"),modeDescEl=document.getElementById("modeDesc"),
       ring=document.getElementById("ringProg"),startBtn=document.getElementById("startBtn"),
@@ -391,23 +430,30 @@
 
   function lerp(a,b,t){return a+(b-a)*t;}
   function ease(t){return t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;}
-
   function applyOrb(ph,p){
     var e=ease(p),s=lerp(ph.s0,ph.s1,e),ty=lerp(ph.ty0,ph.ty1,e);
     orb.style.transform="translateY("+ty+"px) scale("+s+")";
   }
+  function setBreath(bt){
+    badgeEl.setAttribute("data-bt",bt);fillEl.setAttribute("data-bt",bt);
+    btArrow.textContent=BT[bt].a;btLabel.textContent=BT[bt].l;
+    if(bt==="free") fillEl.style.width="100%";
+  }
   function setIdle(){
     running=false;phaseIdx=0;curPhase=null;pausedElapsed=0;
     orb.setAttribute("data-phase","idle");orb.style.transform="translateY(0) scale(.7)";
-    countEl.textContent=mode.phases[0].dur;phaseEl.textContent="Sẵn sàng";
-    breathEl.textContent="Nhấn Bắt đầu để tập theo nhịp";
+    countEl.textContent=mode.phases[0].dur;muscleEl.textContent="Sẵn sàng";
+    detailEl.textContent="Nhấn Bắt đầu để tập theo nhịp";
+    badgeEl.setAttribute("data-bt","free");btArrow.textContent="•";btLabel.textContent="Sẵn sàng";
+    fillEl.setAttribute("data-bt","free");fillEl.style.width="0%";
     ring.style.strokeDashoffset=0;ring.style.stroke=COLOR.idle;startBtn.textContent="Bắt đầu";
   }
   function setPhase(i,ts){
     phaseIdx=i;curPhase=mode.phases[i];phaseStart=ts;
     orb.setAttribute("data-phase",curPhase.key);
-    phaseEl.textContent=curPhase.label;breathEl.textContent=curPhase.breath;
+    muscleEl.textContent=curPhase.label;detailEl.textContent=curPhase.detail;
     ring.style.stroke=COLOR[curPhase.key];
+    setBreath(curPhase.bt);
     if(vibrate&&navigator.vibrate){navigator.vibrate(40);}
   }
   function advance(ts){
@@ -422,8 +468,10 @@
   function finish(){
     running=false;if(raf)cancelAnimationFrame(raf);raf=null;
     orb.setAttribute("data-phase","idle");orb.style.transform="translateY(0) scale(.7)";
-    phaseEl.textContent="Hoàn thành";countEl.textContent="✓";
-    breathEl.textContent="Xong "+mode.target+" lần. Nghỉ rồi tập tiếp nếu muốn.";
+    muscleEl.textContent="Hoàn thành";countEl.textContent="✓";
+    detailEl.textContent="Xong "+mode.target+" lần. Nghỉ rồi tập tiếp nếu muốn.";
+    badgeEl.setAttribute("data-bt","free");btArrow.textContent="✓";btLabel.textContent="Xong";
+    fillEl.style.width="0%";
     ring.style.strokeDashoffset=0;ring.style.stroke=COLOR.release;startBtn.textContent="Bắt đầu lại";
     pausedElapsed=0;curPhase=null;phaseIdx=0;
   }
@@ -433,6 +481,9 @@
     applyOrb(curPhase,p);
     countEl.textContent=Math.max(1,Math.ceil(dur-elapsed));
     ring.style.strokeDashoffset=C*p;
+    if(curPhase.bt==="in") fillEl.style.width=(p*100)+"%";
+    else if(curPhase.bt==="out") fillEl.style.width=((1-p)*100)+"%";
+    else fillEl.style.width="100%";
     if(elapsed>=dur){advance(ts);}
     raf=requestAnimationFrame(loop);
   }
@@ -454,10 +505,10 @@
     for(var i=0;i<pills.length;i++){pills[i].classList.toggle("is-active",pills[i].getAttribute("data-mode")===key);}
     if(raf)cancelAnimationFrame(raf);raf=null;reps=0;repsEl.textContent=0;
     repsTargetEl.textContent=mode.target;modeTargetEl.textContent=mode.target;modeDescEl.textContent=mode.desc;
+    patternEl.innerHTML=mode.pattern;
     setIdle();
   }
 
-  // build pills
   modesEl.innerHTML=ORDER.map(function(k,i){
     return '<button class="mode'+(i===0?' is-active':'')+'" data-mode="'+k+'">'+MODES[k].name+'</button>';
   }).join("");
@@ -465,7 +516,6 @@
     var b=e.target.closest(".mode");if(b)setMode(b.getAttribute("data-mode"));
   });
 
-  // build schedule
   function chipHTML(k,mini){
     var m=MODES[k];
     return '<button class="'+(mini?"mini":"chip")+'" data-load data-mode="'+k+'">'+m.name+'<b>×'+m.target+'</b></button>';
@@ -486,7 +536,6 @@
     return '<div class="'+cls+'"><span class="dlabel">'+w.lab+'</span><div class="dex">'+ex+'</div></div>';
   }).join("");
 
-  // interactions
   startBtn.addEventListener("click",function(){running?pause():start();});
   resetBtn.addEventListener("click",function(){if(raf)cancelAnimationFrame(raf);raf=null;reps=0;repsEl.textContent=0;setIdle();});
   vibBtn.addEventListener("click",function(){
@@ -506,6 +555,7 @@
   });
 
   repsTargetEl.textContent=mode.target;modeTargetEl.textContent=mode.target;modeDescEl.textContent=mode.desc;
+  patternEl.innerHTML=mode.pattern;
   setIdle();
 })();
 </script>
