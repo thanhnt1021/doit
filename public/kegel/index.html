@@ -8,7 +8,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="format-detection" content="telephone=no">
-<title>Kegel — Hướng dẫn & Lộ trình trọn đời</title>
+<title>Kegel — Đồng hồ, Lịch tập & Lộ trình</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -22,97 +22,112 @@
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
-  body{
-    background:var(--bg);color:var(--text);font-family:var(--sans);
-    line-height:1.6;-webkit-font-smoothing:antialiased;
-    overscroll-behavior-y:none;-webkit-tap-highlight-color:transparent;
-    background-image:radial-gradient(900px 500px at 50% -10%, rgba(79,196,190,.07), transparent 70%);
-  }
-  .wrap{
-    max-width:560px;margin:0 auto;
-    padding:max(40px,env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) calc(64px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left));
-  }
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;
+    -webkit-font-smoothing:antialiased;overscroll-behavior-y:none;-webkit-tap-highlight-color:transparent;
+    background-image:radial-gradient(900px 500px at 50% -10%, rgba(79,196,190,.07), transparent 70%);}
+  .wrap{max-width:560px;margin:0 auto;
+    padding:max(38px,env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) calc(64px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left));}
 
-  /* HERO */
-  .hero{text-align:center;padding:8px 0 28px}
+  .hero{text-align:center;padding:6px 0 24px}
   .eyebrow{font:700 11px/1.4 var(--mono);letter-spacing:.22em;text-transform:uppercase;color:var(--release)}
   .hero h1{font-weight:800;font-size:clamp(44px,16vw,76px);letter-spacing:-.03em;margin:10px 0 6px;line-height:.95}
   .lede{color:var(--muted);font-size:15px;max-width:34ch;margin:0 auto}
 
-  /* CARD */
-  .card{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:22px 18px 24px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:22px 18px 22px}
 
-  /* TRAINER */
+  /* TIMER */
   .modes{display:flex;flex-wrap:wrap;gap:7px;justify-content:center}
-  .mode{
-    font:500 13px var(--sans);color:var(--muted);background:var(--surface2);
-    border:1px solid var(--line);border-radius:999px;padding:10px 15px;cursor:pointer;
-    min-height:40px;display:inline-flex;align-items:center;
-    touch-action:manipulation;-webkit-user-select:none;user-select:none;
-    transition:color .2s,border-color .2s,background .2s;
-  }
+  .mode{font:500 13px var(--sans);color:var(--muted);background:var(--surface2);border:1px solid var(--line);
+    border-radius:999px;padding:10px 14px;cursor:pointer;min-height:40px;display:inline-flex;align-items:center;
+    touch-action:manipulation;-webkit-user-select:none;user-select:none;transition:color .2s,border-color .2s,background .2s}
   .mode:hover{color:var(--text)}
   .mode.is-active{color:#0E1417;background:var(--text);border-color:var(--text);font-weight:700}
   .mode-meta{text-align:center;color:var(--muted);font-size:13px;margin-top:12px}
   .mode-meta span{color:var(--text);font-weight:600}
+  .link-note{text-align:center;color:var(--muted);font-size:12px;margin-top:5px;opacity:.85}
 
-  .pacer{position:relative;width:min(264px,76vw);height:min(264px,76vw);margin:22px auto 6px;display:grid;place-items:center}
+  .pacer{position:relative;width:min(264px,76vw);height:min(264px,76vw);margin:20px auto 6px;display:grid;place-items:center}
   .ring{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
   .ring-track{fill:none;stroke:rgba(255,255,255,.07);stroke-width:6}
   .ring-prog{fill:none;stroke:rgba(255,255,255,.15);stroke-width:6;stroke-linecap:round;transition:stroke .4s ease}
-  .orb{
-    width:min(160px,46vw);height:min(160px,46vw);border-radius:50%;display:grid;place-items:center;
-    transition:background .5s ease,box-shadow .5s ease;will-change:transform;
-    transform:translateY(0) scale(.7);
-  }
+  .orb{width:min(160px,46vw);height:min(160px,46vw);border-radius:50%;display:grid;place-items:center;
+    transition:background .5s ease,box-shadow .5s ease;will-change:transform;transform:translateY(0) scale(.7)}
   .orb[data-phase="idle"]{background:radial-gradient(circle at 50% 38%,#2A363B,#161D21);box-shadow:0 0 30px rgba(0,0,0,.35)}
-  .orb[data-phase="engage"]{background:radial-gradient(circle at 50% 38%,#F4C66B,#C9852A);box-shadow:0 0 64px rgba(231,169,60,.5)}
+  .orb[data-phase="engage"],.orb[data-phase="hold"]{background:radial-gradient(circle at 50% 38%,#F4C66B,#C9852A);box-shadow:0 0 64px rgba(231,169,60,.5)}
   .orb[data-phase="release"]{background:radial-gradient(circle at 50% 38%,#83E2DC,#2C9A94);box-shadow:0 0 64px rgba(79,196,190,.45)}
   .orb[data-phase="reverse"]{background:radial-gradient(circle at 50% 38%,#C4CDFB,#6B79D6);box-shadow:0 0 64px rgba(154,166,240,.45)}
   .orb[data-phase="neutral"]{background:radial-gradient(circle at 50% 38%,#A2B8BF,#5C757D);box-shadow:0 0 44px rgba(127,160,168,.3)}
   .orb-inner{text-align:center;color:#0E1417}
   .orb[data-phase="idle"] .orb-inner{color:var(--muted)}
-  .count{font:700 clamp(38px,12vw,46px)/1 var(--mono)}
-  .phase{font-weight:700;font-size:11px;letter-spacing:.12em;text-transform:uppercase;margin-top:3px;opacity:.85}
+  .count{font:700 clamp(36px,12vw,44px)/1 var(--mono)}
+  .phase{font-weight:700;font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin-top:3px;opacity:.85}
 
-  .breath{text-align:center;color:var(--text);font-size:15px;min-height:24px;margin-top:6px;font-weight:500}
+  .breath{text-align:center;color:var(--text);font-size:15px;min-height:24px;margin-top:6px;font-weight:500;padding:0 8px}
   .reps{text-align:center;color:var(--muted);font-size:13px;margin-top:2px}
   .reps span{font-family:var(--mono);color:var(--text)}
-
   .controls{display:flex;gap:10px;margin-top:18px}
-  .btn{
-    flex:1;font:700 15px var(--sans);padding:14px;border-radius:13px;cursor:pointer;
+  .btn{flex:1;font:700 15px var(--sans);padding:14px;border-radius:13px;cursor:pointer;
     min-height:50px;touch-action:manipulation;-webkit-user-select:none;user-select:none;
-    background:var(--surface2);color:var(--text);border:1px solid var(--line);transition:filter .2s,background .2s;
-  }
+    background:var(--surface2);color:var(--text);border:1px solid var(--line);transition:filter .2s}
   .btn:hover{filter:brightness(1.12)}
   .btn-primary{background:var(--release);color:#06201E;border-color:transparent}
-  .vib-toggle{display:block;margin:8px auto 0;padding:8px 12px;background:none;border:none;color:var(--muted);font:400 12px var(--mono);cursor:pointer;letter-spacing:.04em;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+  .vib-toggle{display:block;margin:8px auto 0;padding:8px 12px;background:none;border:none;color:var(--muted);font:400 12px var(--mono);cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none}
   .vib-toggle:hover{color:var(--text)}
 
   /* BLOCKS */
-  .block{margin-top:46px}
-  .block h2{font-weight:800;font-size:clamp(24px,7vw,32px);letter-spacing:-.02em;margin:8px 0 16px}
+  .block{margin-top:44px}
+  .block h2{font-weight:800;font-size:clamp(24px,7vw,32px);letter-spacing:-.02em;margin:8px 0 14px}
   .lead{color:var(--muted);font-size:15px;margin-bottom:18px}
 
+  /* TODAY + WEEK */
+  .today{background:linear-gradient(160deg,#1C2B2F,#172127);border:1px solid rgba(79,196,190,.28);border-radius:18px;padding:18px}
+  .today .eyebrow{color:var(--engage)}
+  .today h3{font-size:22px;font-weight:800;margin:5px 0 3px}
+  .today .theme{color:var(--muted);font-size:13px;margin-bottom:13px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{font:600 14px var(--sans);color:var(--text);background:var(--surface2);border:1px solid var(--line);
+    border-radius:11px;padding:11px 14px;cursor:pointer;min-height:42px;display:inline-flex;align-items:center;
+    touch-action:manipulation;-webkit-user-select:none;user-select:none;transition:border-color .2s}
+  .chip:hover{border-color:var(--release)}
+  .chip b{font-family:var(--mono);font-weight:700;color:var(--release);font-size:12px;margin-left:5px}
+  .rest-tag{color:var(--muted);font-size:14px;font-style:italic}
+
+  .week{display:grid;gap:8px;margin-top:14px}
+  .wday{display:grid;grid-template-columns:48px 1fr;gap:10px;align-items:center;background:var(--surface);
+    border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+  .wday.is-today{border-color:var(--release);background:#16242A}
+  .wday.is-rest{opacity:.72}
+  .wday .dlabel{font:700 13px var(--mono);color:var(--muted);text-transform:uppercase}
+  .wday.is-today .dlabel{color:var(--release)}
+  .wday .dex{display:flex;flex-wrap:wrap;gap:6px}
+  .mini{font:600 12px var(--sans);color:var(--text);background:var(--surface2);border:1px solid var(--line);
+    border-radius:8px;padding:8px 11px;cursor:pointer;min-height:36px;display:inline-flex;align-items:center;
+    touch-action:manipulation;-webkit-user-select:none;user-select:none;transition:border-color .2s}
+  .mini:hover{border-color:var(--release)}
+  .mini b{font-family:var(--mono);color:var(--release);font-weight:700;font-size:11px;margin-left:4px}
+
+  /* FIND MUSCLE */
   .two{display:grid;gap:14px}
   .panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 18px}
   .panel h3{font-size:15px;font-weight:700;margin-bottom:8px}
   .panel.good h3{color:var(--release)}
   .panel.bad h3{color:var(--engage)}
   .panel ul{list-style:none;display:grid;gap:7px}
-  .panel li{font-size:14px;color:var(--muted);padding-left:18px;position:relative}
+  .panel li{font-size:14px;padding-left:18px;position:relative}
   .panel li::before{content:"";position:absolute;left:0;top:9px;width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.4}
   .panel.good li{color:#B9D8D5}
   .panel.bad li{color:#E4C9A6}
 
   /* EXERCISES */
   .ex-grid{display:grid;gap:12px}
-  .ex{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 18px;border-left:3px solid var(--c,var(--release))}
+  .ex{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 18px;
+    border-left:3px solid var(--c,var(--release));cursor:pointer;touch-action:manipulation;transition:border-color .2s,background .2s}
+  .ex:hover{background:var(--surface2)}
   .ex .tag{font:700 10px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--c,var(--release))}
   .ex h3{font-size:17px;font-weight:700;margin:4px 0 6px}
   .ex p{font-size:14px;color:var(--muted)}
   .ex .dose{margin-top:8px;font-size:13px;color:var(--text);font-weight:500}
+  .ex .go{margin-top:10px;font:700 11px var(--mono);letter-spacing:.06em;color:var(--c,var(--release))}
 
   /* TIMELINE */
   .timeline{list-style:none;position:relative;padding-left:8px}
@@ -132,8 +147,7 @@
   .safety li{font-size:14px;color:#E4C9A6;padding-left:20px;position:relative}
   .safety li::before{content:"!";position:absolute;left:0;top:0;color:var(--engage);font-weight:800}
 
-  footer{margin-top:44px;text-align:center;color:var(--muted);font-size:12px;border-top:1px solid var(--line);padding-top:20px}
-
+  footer{margin-top:42px;text-align:center;color:var(--muted);font-size:12px;border-top:1px solid var(--line);padding-top:20px}
   :focus-visible{outline:2px solid var(--release);outline-offset:3px;border-radius:8px}
 
   @media (min-width:520px){ .two{grid-template-columns:1fr 1fr} .ex-grid{grid-template-columns:1fr 1fr} }
@@ -146,17 +160,14 @@
   <header class="hero">
     <p class="eyebrow">Sàn chậu · Kiểm soát · Trọn đời</p>
     <h1>Kegel</h1>
-    <p class="lede">Tập cơ sàn chậu để giữ lâu, đẩy khỏe, và bảo vệ sức khỏe khi có tuổi. Tập theo nhịp bên dưới.</p>
+    <p class="lede">Tập theo nhịp, theo lịch, theo lộ trình. Giữ lâu hơn giờ và khỏe mạnh về sau.</p>
   </header>
 
-  <section class="card trainer" aria-label="Bộ đếm nhịp Kegel">
-    <div class="modes" id="modes">
-      <button class="mode is-active" data-mode="foundation">Nền tảng</button>
-      <button class="mode" data-mode="endurance">Sức bền</button>
-      <button class="mode" data-mode="quick">Nhanh</button>
-      <button class="mode" data-mode="reverse">Reverse</button>
-    </div>
+  <!-- TIMER -->
+  <section class="card" id="timer" aria-label="Đồng hồ bấm giờ Kegel">
+    <div class="modes" id="modes"></div>
     <p class="mode-meta"><span id="modeTarget">10</span> lần · <span id="modeDesc">siết 5 giây / thả 5 giây</span></p>
+    <p class="link-note">6 chế độ = 6 bài trong mục "Các bài tập". Làm theo lịch bên dưới.</p>
 
     <div class="pacer">
       <svg class="ring" viewBox="0 0 264 264" aria-hidden="true">
@@ -181,17 +192,27 @@
     <button class="vib-toggle" id="vibBtn" aria-pressed="true">Rung: Bật</button>
   </section>
 
+  <!-- SCHEDULE -->
+  <section class="block">
+    <p class="eyebrow">Lịch tập</p>
+    <h2>Buổi hôm nay & cả tuần</h2>
+    <p class="lead">Bấm 1 bài bất kỳ là nó nhảy lên đồng hồ ở trên để tập ngay.</p>
+    <div class="today" id="todayBox"></div>
+    <div class="week" id="weekBox"></div>
+  </section>
+
+  <!-- FIND MUSCLE -->
   <section class="block">
     <p class="eyebrow">Bước 1</p>
     <h2>Tìm đúng cơ</h2>
-    <p class="lead">Đây là phần quan trọng nhất. Siết sai cơ thì tập bao nhiêu cũng vô ích.</p>
+    <p class="lead">Quan trọng nhất. Siết sai cơ thì tập bao nhiêu cũng vô ích.</p>
     <div class="two">
       <div class="panel good">
         <h3>Cảm giác đúng</h3>
         <ul>
           <li>Cơ mày dùng để nín tiểu giữa dòng (chỉ thử 1 lần để nhận biết, đừng tập kiểu này thường xuyên).</li>
           <li>Cơ làm nâng tinh hoàn và gốc dương vật lên.</li>
-          <li>Như đang vừa nín tiểu vừa nín xì hơi: một cú "nâng lên trong và lên".</li>
+          <li>Như vừa nín tiểu vừa nín xì hơi: một cú "nâng lên trong và lên".</li>
         </ul>
       </div>
       <div class="panel bad">
@@ -206,241 +227,283 @@
     </div>
   </section>
 
+  <!-- EXERCISES -->
   <section class="block">
-    <p class="eyebrow">Vốn bài</p>
-    <h2>Các bài tập</h2>
+    <p class="eyebrow">Các bài tập</p>
+    <h2>6 bài = 6 chế độ đồng hồ</h2>
+    <p class="lead">Mỗi bài đều có sẵn trong đồng hồ. Bấm 1 bài là nhảy lên đồng hồ để tập theo nhịp.</p>
     <div class="ex-grid">
-      <div class="ex" style="--c:var(--engage)">
-        <span class="tag">Sức mạnh</span>
-        <h3>Siết giữ</h3>
-        <p>Siết lên và giữ vài giây rồi thả hẳn. Xây lực và sức bền cho sàn chậu.</p>
-        <p class="dose">Giữ 5 đến 10 giây, thả bằng thời gian giữ.</p>
+      <div class="ex" style="--c:var(--engage)" data-load data-mode="short" tabindex="0" role="button">
+        <span class="tag">Nền tảng</span><h3>Siết giữ ngắn</h3>
+        <p>Siết lên rồi giữ vài giây, thả hẳn. Xây lực cơ bản.</p>
+        <p class="dose">Giữ 5 giây / thả 5 giây · 10 lần.</p>
+        <p class="go">BẤM ĐỂ TẬP →</p>
       </div>
-      <div class="ex" style="--c:var(--engage)">
-        <span class="tag">Phản xạ</span>
-        <h3>Siết nhanh (flicks)</h3>
-        <p>Siết và thả thật nhanh, liên tục. Luyện phản xạ chặn nhanh khi cần.</p>
-        <p class="dose">10 đến 20 cái, nhịp 1 giây siết / 1 giây thả.</p>
+      <div class="ex" style="--c:var(--engage)" data-load data-mode="long" tabindex="0" role="button">
+        <span class="tag">Sức bền</span><h3>Siết giữ dài</h3>
+        <p>Như trên nhưng giữ lâu hơn. Tăng sức bền để duy trì lâu.</p>
+        <p class="dose">Giữ 10 giây / thả 10 giây · 10 lần.</p>
+        <p class="go">BẤM ĐỂ TẬP →</p>
       </div>
-      <div class="ex" style="--c:var(--reverse)">
-        <span class="tag">Chìa khoá</span>
-        <h3>Reverse kegel</h3>
-        <p>Tập thả lỏng và đẩy nhẹ sàn chậu xuống. Đây mới là thứ giúp giữ lâu, vì sàn chậu quá căng mới gây xuất sớm.</p>
-        <p class="dose">Đẩy nhẹ 5 giây, về trung tính 5 giây, xen kẽ siết.</p>
+      <div class="ex" style="--c:var(--engage)" data-load data-mode="quick" tabindex="0" role="button">
+        <span class="tag">Phản xạ</span><h3>Siết nhanh</h3>
+        <p>Siết-thả thật nhanh liên tục. Luyện phản xạ chặn nhanh khi cần.</p>
+        <p class="dose">1 giây siết / 1 giây thả · 20 lần.</p>
+        <p class="go">BẤM ĐỂ TẬP →</p>
       </div>
-      <div class="ex" style="--c:var(--release)">
-        <span class="tag">Nâng cao</span>
-        <h3>Thang máy</h3>
-        <p>Siết lên theo từng "tầng" (nhẹ, vừa, mạnh) rồi hạ từng tầng. Luyện kiểm soát tinh vi.</p>
-        <p class="dose">Lên 3 tầng, giữ mỗi tầng 2 giây, hạ từng tầng.</p>
+      <div class="ex" style="--c:var(--reverse)" data-load data-mode="reverse" tabindex="0" role="button">
+        <span class="tag">Chìa khoá</span><h3>Reverse kegel</h3>
+        <p>Thả lỏng và đẩy nhẹ sàn chậu xuống. Giúp giữ lâu, chống quá căng.</p>
+        <p class="dose">Đẩy 5 giây / trung tính 5 giây · 10 lần.</p>
+        <p class="go">BẤM ĐỂ TẬP →</p>
       </div>
-      <div class="ex" style="--c:var(--release)">
-        <span class="tag">Áp dụng</span>
-        <h3>Phối thở</h3>
-        <p>Giữ siết mà vẫn thở đều, không nín hơi. Đây đúng là kỹ năng giữ nhịp liên tục mà không mỏi.</p>
-        <p class="dose">Giữ siết 10 giây trong khi thở chậm 2-3 nhịp.</p>
+      <div class="ex" style="--c:var(--release)" data-load data-mode="elevator" tabindex="0" role="button">
+        <span class="tag">Kiểm soát</span><h3>Thang máy</h3>
+        <p>Siết lên theo 3 tầng, giữ mỗi tầng, rồi hạ từng tầng. Kiểm soát tinh vi.</p>
+        <p class="dose">Lên 3 tầng, giữ, hạ dần · 4 lần.</p>
+        <p class="go">BẤM ĐỂ TẬP →</p>
+      </div>
+      <div class="ex" style="--c:var(--release)" data-load data-mode="breath" tabindex="0" role="button">
+        <span class="tag">Áp dụng</span><h3>Phối thở</h3>
+        <p>Giữ siết qua 4 nhịp thở mà không buông. Kỹ năng giữ nhịp liên tục không mỏi.</p>
+        <p class="dose">Giữ siết qua 4 nhịp thở rồi thả · 3 lần.</p>
+        <p class="go">BẤM ĐỂ TẬP →</p>
       </div>
     </div>
   </section>
 
+  <!-- ROADMAP -->
   <section class="block">
     <p class="eyebrow">Lộ trình</p>
     <h2>Tập đến lúc già</h2>
-    <p class="lead">Sàn chậu yếu dần theo tuổi. Xây nền vài tháng đầu, rồi duy trì cả đời để giữ phong độ và sức khỏe.</p>
+    <p class="lead">Sàn chậu yếu dần theo tuổi. Xây nền vài tháng đầu, rồi duy trì cả đời.</p>
     <ol class="timeline">
       <li class="phase-item">
         <span class="phase-num">01</span>
         <span class="phase-when">Tuần 1 đến 4 · nằm</span>
         <h3>Nền tảng</h3>
         <p>Tìm đúng cơ, tập co cho chuẩn, không gồng nhầm.</p>
-        <p class="do">Siết giữ 5 giây x10 + flicks 10 x3 hiệp, 1-2 lần/ngày. Bắt đầu làm quen reverse kegel.</p>
+        <p class="do">Siết giữ ngắn + Siết nhanh, 1-2 lần/ngày. Làm quen Reverse kegel.</p>
       </li>
       <li class="phase-item">
         <span class="phase-num">02</span>
         <span class="phase-when">Tháng 2 đến 3 · ngồi rồi đứng</span>
         <h3>Xây sức</h3>
         <p>Tăng lực và sức bền, tập ở tư thế khó dần.</p>
-        <p class="do">Siết giữ 10 giây x10 + flicks 15 x2 + reverse kegel 10. Làm 2 lần/ngày.</p>
+        <p class="do">Siết giữ dài + Reverse kegel, 2 lần/ngày.</p>
       </li>
       <li class="phase-item">
         <span class="phase-num">03</span>
         <span class="phase-when">Tháng 4 đến 6 · đứng / vận động</span>
         <h3>Kiểm soát</h3>
-        <p>Điều khiển sàn chậu theo ý, phối hợp thở và chuyển động. Áp dụng vào thực tế: lúc gần "tới" biết siết và thở chậm để lùi lại.</p>
-        <p class="do">Thang máy + reverse kegel chủ động + giữ siết khi vẫn thở đều. Tập khi đứng, khi đi.</p>
+        <p>Điều khiển theo ý, phối thở và chuyển động. Lúc gần "tới" biết siết và thở chậm để lùi lại.</p>
+        <p class="do">Thang máy + Phối thở + Reverse chủ động. Tập khi đứng, khi đi.</p>
       </li>
       <li class="phase-item">
         <span class="phase-num">04</span>
         <span class="phase-when">Tháng 6 trở đi · trọn đời</span>
         <h3>Duy trì</h3>
-        <p>Giữ phong độ. Từ 40 tuổi trở lên, duy trì giúp chống tiểu rắt, tốt cho tuyến tiền liệt và hỗ trợ cương. Không cần tăng nữa, chỉ cần đều.</p>
-        <p class="do">1 buổi tổng hợp (giữ + nhanh + reverse) 3-4 lần/tuần là đủ.</p>
+        <p>Giữ phong độ. Từ 40 tuổi, duy trì giúp chống tiểu rắt, tốt cho tuyến tiền liệt và hỗ trợ cương. Không cần tăng, chỉ cần đều.</p>
+        <p class="do">1 buổi tổng hợp 3-4 lần/tuần là đủ.</p>
       </li>
     </ol>
   </section>
 
+  <!-- SAFETY -->
   <section class="block safety">
     <h2>An toàn</h2>
     <div class="panel">
       <ul>
-        <li>Đừng tập kegel trong lúc đang tiểu. Cách nín tiểu chỉ để nhận biết cơ, làm thường xuyên dễ hại.</li>
-        <li>Đừng lạm dụng. Có ngày nghỉ, và luôn cân bằng siết với thả lỏng (reverse). Sàn chậu quá căng cũng gây xuất sớm và đau.</li>
-        <li>Chất lượng hơn số lượng. Siết đúng cơ, thả hết, hơn là siết bừa thật nhiều.</li>
+        <li>Đừng tập kegel trong lúc đang tiểu. Cách nín tiểu chỉ để nhận biết cơ.</li>
+        <li>Đừng lạm dụng. Có ngày nghỉ, luôn cân bằng siết với thả lỏng (Reverse). Sàn chậu quá căng cũng gây xuất sớm và đau.</li>
+        <li>Chất lượng hơn số lượng. Siết đúng cơ, thả hết.</li>
         <li>Đau vùng chậu, khó tiểu, cương kém đi, hoặc đau khi tập thì ngừng và gặp bác sĩ hoặc chuyên gia vật lý trị liệu sàn chậu.</li>
       </ul>
     </div>
   </section>
 
-  <footer>
-    Hướng dẫn tập luyện chung, không phải tư vấn y tế.
-  </footer>
+  <footer>Hướng dẫn tập luyện chung, không phải tư vấn y tế.</footer>
 </main>
 
 <script>
 (function(){
-  var MODES = {
-    foundation:{target:10,desc:"siết 5 giây / thả 5 giây",phases:[
-      {key:"engage",label:"Siết & giữ",dur:5,breath:"Thở ra, siết lên trong và lên"},
-      {key:"release",label:"Thả lỏng",dur:5,breath:"Hít vào, buông hoàn toàn"}
+  function hold(D){return [
+    {label:"Siết & giữ",dur:D,key:"engage",s0:.62,s1:1,ty0:0,ty1:-26,breath:"Thở ra, siết lên trong và lên"},
+    {label:"Thả lỏng",dur:D,key:"release",s0:1,s1:.62,ty0:-26,ty1:0,breath:"Hít vào, buông hoàn toàn"}
+  ];}
+
+  var MODES={
+    short:{name:"Giữ ngắn",target:10,desc:"siết 5 giây / thả 5 giây",phases:hold(5)},
+    long:{name:"Giữ dài",target:10,desc:"siết 10 giây / thả 10 giây",phases:hold(10)},
+    quick:{name:"Nhanh",target:20,desc:"siết 1 giây / thả 1 giây",phases:[
+      {label:"Siết",dur:1,key:"engage",s0:.62,s1:1,ty0:0,ty1:-26,breath:"Siết nhanh"},
+      {label:"Thả",dur:1,key:"release",s0:1,s1:.62,ty0:-26,ty1:0,breath:"Buông"}
     ]},
-    endurance:{target:10,desc:"siết 10 giây / thả 10 giây",phases:[
-      {key:"engage",label:"Siết & giữ",dur:10,breath:"Thở chậm, giữ siết đều, không nín hơi"},
-      {key:"release",label:"Thả lỏng",dur:10,breath:"Hít vào, buông hoàn toàn"}
+    reverse:{name:"Reverse",target:10,desc:"đẩy nhẹ 5 giây / trung tính 5 giây",phases:[
+      {label:"Thả & đẩy nhẹ",dur:5,key:"reverse",s0:.70,s1:.93,ty0:0,ty1:22,breath:"Hít vào, đẩy nhẹ sàn chậu xuống"},
+      {label:"Trung tính",dur:5,key:"neutral",s0:.93,s1:.70,ty0:22,ty1:0,breath:"Thở ra, về tự nhiên"}
     ]},
-    quick:{target:20,desc:"siết nhanh 1 giây / thả 1 giây",phases:[
-      {key:"engage",label:"Siết",dur:1,breath:"Siết nhanh"},
-      {key:"release",label:"Thả",dur:1,breath:"Buông"}
+    elevator:{name:"Thang máy",target:4,desc:"lên 3 tầng, giữ, hạ dần",phases:[
+      {label:"Lên tầng 1",dur:1,key:"engage",s0:.62,s1:.76,ty0:0,ty1:-9,breath:"Siết nhẹ 1 phần"},
+      {label:"Giữ tầng 1",dur:1,key:"hold",s0:.76,s1:.76,ty0:-9,ty1:-9,breath:"Giữ"},
+      {label:"Lên tầng 2",dur:1,key:"engage",s0:.76,s1:.88,ty0:-9,ty1:-18,breath:"Siết mạnh hơn"},
+      {label:"Giữ tầng 2",dur:1,key:"hold",s0:.88,s1:.88,ty0:-18,ty1:-18,breath:"Giữ"},
+      {label:"Lên tầng 3",dur:1,key:"engage",s0:.88,s1:1,ty0:-18,ty1:-26,breath:"Siết hết cỡ"},
+      {label:"Giữ đỉnh",dur:2,key:"hold",s0:1,s1:1,ty0:-26,ty1:-26,breath:"Giữ đỉnh"},
+      {label:"Hạ dần",dur:3,key:"release",s0:1,s1:.62,ty0:-26,ty1:0,breath:"Hạ từ từ từng tầng"},
+      {label:"Thả",dur:2,key:"neutral",s0:.62,s1:.62,ty0:0,ty1:0,breath:"Buông hẳn"}
     ]},
-    reverse:{target:10,desc:"đẩy nhẹ 5 giây / trung tính 5 giây",phases:[
-      {key:"reverse",label:"Thả & đẩy nhẹ",dur:5,breath:"Hít vào, đẩy nhẹ sàn chậu xuống"},
-      {key:"neutral",label:"Trung tính",dur:5,breath:"Thở ra, về tự nhiên"}
+    breath:{name:"Phối thở",target:3,desc:"giữ siết qua 4 nhịp thở rồi thả",phases:[
+      {label:"Siết — hít vào",dur:4,key:"hold",s0:.93,s1:1,ty0:-22,ty1:-26,breath:"Giữ siết, hít vào sâu"},
+      {label:"Siết — thở ra",dur:4,key:"hold",s0:1,s1:.92,ty0:-26,ty1:-20,breath:"Vẫn giữ siết, thở ra chậm"},
+      {label:"Siết — hít vào",dur:4,key:"hold",s0:.92,s1:1,ty0:-20,ty1:-26,breath:"Giữ siết, hít vào sâu"},
+      {label:"Siết — thở ra",dur:4,key:"hold",s0:1,s1:.92,ty0:-26,ty1:-20,breath:"Vẫn giữ siết, thở ra chậm"},
+      {label:"Thả lỏng",dur:4,key:"release",s0:.92,s1:.62,ty0:-20,ty1:0,breath:"Buông hoàn toàn"}
     ]}
   };
-  var RING_COLOR={engage:"#E7A93C",release:"#4FC4BE",reverse:"#9AA6F0",neutral:"#7FA0A8",idle:"rgba(255,255,255,.15)"};
+  var ORDER=["short","long","quick","reverse","elevator","breath"];
+  var COLOR={engage:"#E7A93C",hold:"#E7A93C",release:"#4FC4BE",reverse:"#9AA6F0",neutral:"#7FA0A8",idle:"rgba(255,255,255,.15)"};
+  var WEEK=[
+    {d:"Thứ 2",lab:"T2",dow:1,theme:"Sức mạnh",rest:false,ex:["short","quick"]},
+    {d:"Thứ 3",lab:"T3",dow:2,theme:"Sức bền",rest:false,ex:["long","reverse"]},
+    {d:"Thứ 4",lab:"T4",dow:3,theme:"Thả lỏng",rest:false,ex:["reverse","breath"]},
+    {d:"Thứ 5",lab:"T5",dow:4,theme:"Sức mạnh",rest:false,ex:["short","quick"]},
+    {d:"Thứ 6",lab:"T6",dow:5,theme:"Kiểm soát",rest:false,ex:["long","elevator"]},
+    {d:"Thứ 7",lab:"T7",dow:6,theme:"Áp dụng nhẹ",rest:false,ex:["breath","reverse"]},
+    {d:"Chủ nhật",lab:"CN",dow:0,theme:"Nghỉ",rest:true,ex:[]}
+  ];
 
-  var orb=document.getElementById("orb"),
-      countEl=document.getElementById("count"),
-      phaseEl=document.getElementById("phaseLabel"),
-      breathEl=document.getElementById("breath"),
-      repsEl=document.getElementById("reps"),
-      repsTargetEl=document.getElementById("repsTarget"),
-      modeTargetEl=document.getElementById("modeTarget"),
-      modeDescEl=document.getElementById("modeDesc"),
-      ring=document.getElementById("ringProg"),
-      startBtn=document.getElementById("startBtn"),
-      resetBtn=document.getElementById("resetBtn"),
-      vibBtn=document.getElementById("vibBtn");
+  var orb=document.getElementById("orb"),countEl=document.getElementById("count"),
+      phaseEl=document.getElementById("phaseLabel"),breathEl=document.getElementById("breath"),
+      repsEl=document.getElementById("reps"),repsTargetEl=document.getElementById("repsTarget"),
+      modeTargetEl=document.getElementById("modeTarget"),modeDescEl=document.getElementById("modeDesc"),
+      ring=document.getElementById("ringProg"),startBtn=document.getElementById("startBtn"),
+      resetBtn=document.getElementById("resetBtn"),vibBtn=document.getElementById("vibBtn"),
+      modesEl=document.getElementById("modes");
 
   var C=2*Math.PI*120;
-  ring.style.strokeDasharray=C;
-  ring.style.strokeDashoffset=0;
+  ring.style.strokeDasharray=C; ring.style.strokeDashoffset=0;
 
-  var modeKey="foundation", mode=MODES[modeKey],
-      phaseIdx=0, curPhase=null, reps=0,
-      running=false, raf=null, phaseStart=0, pausedElapsed=0, vibrate=true;
+  var modeKey="short",mode=MODES[modeKey],phaseIdx=0,curPhase=null,reps=0,
+      running=false,raf=null,phaseStart=0,pausedElapsed=0,vibrate=true;
 
   function lerp(a,b,t){return a+(b-a)*t;}
   function ease(t){return t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;}
 
-  function applyOrb(phase,p){
-    var e=ease(p), s, ty;
-    if(phase.key==="engage"){ s=lerp(.62,1,e); ty=lerp(0,-26,e); }
-    else if(phase.key==="release"){ s=lerp(1,.62,e); ty=lerp(-26,0,e); }
-    else if(phase.key==="reverse"){ s=lerp(.7,.93,e); ty=lerp(0,22,e); }
-    else { s=lerp(.93,.7,e); ty=lerp(22,0,e); }
+  function applyOrb(ph,p){
+    var e=ease(p),s=lerp(ph.s0,ph.s1,e),ty=lerp(ph.ty0,ph.ty1,e);
     orb.style.transform="translateY("+ty+"px) scale("+s+")";
   }
-
   function setIdle(){
-    running=false; phaseIdx=0; curPhase=null; pausedElapsed=0;
-    orb.setAttribute("data-phase","idle");
-    orb.style.transform="translateY(0) scale(.7)";
-    countEl.textContent=mode.phases[0].dur;
-    phaseEl.textContent="Sẵn sàng";
+    running=false;phaseIdx=0;curPhase=null;pausedElapsed=0;
+    orb.setAttribute("data-phase","idle");orb.style.transform="translateY(0) scale(.7)";
+    countEl.textContent=mode.phases[0].dur;phaseEl.textContent="Sẵn sàng";
     breathEl.textContent="Nhấn Bắt đầu để tập theo nhịp";
-    ring.style.strokeDashoffset=0; ring.style.stroke=RING_COLOR.idle;
-    startBtn.textContent="Bắt đầu";
+    ring.style.strokeDashoffset=0;ring.style.stroke=COLOR.idle;startBtn.textContent="Bắt đầu";
   }
-
   function setPhase(i,ts){
-    phaseIdx=i; curPhase=mode.phases[i]; phaseStart=ts;
+    phaseIdx=i;curPhase=mode.phases[i];phaseStart=ts;
     orb.setAttribute("data-phase",curPhase.key);
-    phaseEl.textContent=curPhase.label;
-    breathEl.textContent=curPhase.breath;
-    ring.style.stroke=RING_COLOR[curPhase.key];
-    if(vibrate && navigator.vibrate){ navigator.vibrate(40); }
+    phaseEl.textContent=curPhase.label;breathEl.textContent=curPhase.breath;
+    ring.style.stroke=COLOR[curPhase.key];
+    if(vibrate&&navigator.vibrate){navigator.vibrate(40);}
   }
-
   function advance(ts){
     var ni=phaseIdx+1;
     if(ni>=mode.phases.length){
-      reps++; repsEl.textContent=reps;
-      if(reps>=mode.target){ finish(); return; }
+      reps++;repsEl.textContent=reps;
+      if(reps>=mode.target){finish();return;}
       ni=0;
     }
     setPhase(ni,ts);
   }
-
   function finish(){
-    running=false; if(raf) cancelAnimationFrame(raf); raf=null;
-    orb.setAttribute("data-phase","idle");
-    orb.style.transform="translateY(0) scale(.7)";
-    phaseEl.textContent="Hoàn thành";
-    countEl.textContent="✓";
+    running=false;if(raf)cancelAnimationFrame(raf);raf=null;
+    orb.setAttribute("data-phase","idle");orb.style.transform="translateY(0) scale(.7)";
+    phaseEl.textContent="Hoàn thành";countEl.textContent="✓";
     breathEl.textContent="Xong "+mode.target+" lần. Nghỉ rồi tập tiếp nếu muốn.";
-    ring.style.strokeDashoffset=0; ring.style.stroke=RING_COLOR.release;
-    startBtn.textContent="Bắt đầu lại";
-    pausedElapsed=0; curPhase=null; phaseIdx=0;
+    ring.style.strokeDashoffset=0;ring.style.stroke=COLOR.release;startBtn.textContent="Bắt đầu lại";
+    pausedElapsed=0;curPhase=null;phaseIdx=0;
   }
-
   function loop(ts){
-    if(!running) return;
-    var elapsed=(ts-phaseStart)/1000, dur=curPhase.dur, p=Math.min(elapsed/dur,1);
+    if(!running)return;
+    var elapsed=(ts-phaseStart)/1000,dur=curPhase.dur,p=Math.min(elapsed/dur,1);
     applyOrb(curPhase,p);
     countEl.textContent=Math.max(1,Math.ceil(dur-elapsed));
     ring.style.strokeDashoffset=C*p;
-    if(elapsed>=dur){ advance(ts); }
+    if(elapsed>=dur){advance(ts);}
     raf=requestAnimationFrame(loop);
   }
-
   function start(){
-    if(running) return;
-    if(reps>=mode.target){ reps=0; repsEl.textContent=0; }
-    running=true;
-    var ts=performance.now();
-    if(curPhase==null){ reps= (reps>=mode.target?0:reps); repsEl.textContent=reps; setPhase(0,ts); }
-    else { phaseStart=ts-pausedElapsed*1000; }
-    startBtn.textContent="Tạm dừng";
-    raf=requestAnimationFrame(loop);
+    if(running)return;
+    if(reps>=mode.target){reps=0;repsEl.textContent=0;}
+    running=true;var ts=performance.now();
+    if(curPhase==null){setPhase(0,ts);}else{phaseStart=ts-pausedElapsed*1000;}
+    startBtn.textContent="Tạm dừng";raf=requestAnimationFrame(loop);
   }
-
   function pause(){
-    running=false; if(raf) cancelAnimationFrame(raf); raf=null;
-    pausedElapsed=(performance.now()-phaseStart)/1000;
-    startBtn.textContent="Tiếp tục";
+    running=false;if(raf)cancelAnimationFrame(raf);raf=null;
+    pausedElapsed=(performance.now()-phaseStart)/1000;startBtn.textContent="Tiếp tục";
+  }
+  function setMode(key){
+    if(!MODES[key])return;
+    modeKey=key;mode=MODES[key];
+    var pills=modesEl.children;
+    for(var i=0;i<pills.length;i++){pills[i].classList.toggle("is-active",pills[i].getAttribute("data-mode")===key);}
+    if(raf)cancelAnimationFrame(raf);raf=null;reps=0;repsEl.textContent=0;
+    repsTargetEl.textContent=mode.target;modeTargetEl.textContent=mode.target;modeDescEl.textContent=mode.desc;
+    setIdle();
   }
 
-  startBtn.addEventListener("click",function(){ running?pause():start(); });
-  resetBtn.addEventListener("click",function(){ if(raf) cancelAnimationFrame(raf); raf=null; reps=0; repsEl.textContent=0; setIdle(); });
-
-  document.getElementById("modes").addEventListener("click",function(ev){
-    var b=ev.target.closest(".mode"); if(!b) return;
-    [].forEach.call(this.children,function(c){c.classList.remove("is-active");});
-    b.classList.add("is-active");
-    modeKey=b.getAttribute("data-mode"); mode=MODES[modeKey];
-    if(raf) cancelAnimationFrame(raf); raf=null; reps=0; repsEl.textContent=0;
-    repsTargetEl.textContent=mode.target; modeTargetEl.textContent=mode.target; modeDescEl.textContent=mode.desc;
-    setIdle();
+  // build pills
+  modesEl.innerHTML=ORDER.map(function(k,i){
+    return '<button class="mode'+(i===0?' is-active':'')+'" data-mode="'+k+'">'+MODES[k].name+'</button>';
+  }).join("");
+  modesEl.addEventListener("click",function(e){
+    var b=e.target.closest(".mode");if(b)setMode(b.getAttribute("data-mode"));
   });
 
+  // build schedule
+  function chipHTML(k,mini){
+    var m=MODES[k];
+    return '<button class="'+(mini?"mini":"chip")+'" data-load data-mode="'+k+'">'+m.name+'<b>×'+m.target+'</b></button>';
+  }
+  var now=new Date();
+  var dow=now.getDay();
+  var dateStr=now.getDate()+"/"+(now.getMonth()+1)+"/"+now.getFullYear();
+  var today=null;for(var i=0;i<WEEK.length;i++){if(WEEK[i].dow===dow)today=WEEK[i];}
+  var tb=document.getElementById("todayBox");
+  if(today&&today.rest){
+    tb.innerHTML='<p class="eyebrow">Buổi hôm nay · '+today.d+' · '+dateStr+'</p><h3>Nghỉ</h3><p class="rest-tag">Hôm nay nghỉ kegel. Chỉ thả lỏng tự nhiên để sàn chậu hồi.</p>';
+  }else if(today){
+    tb.innerHTML='<p class="eyebrow">Buổi hôm nay · '+today.d+' · '+dateStr+'</p><h3>'+today.theme+'</h3><p class="theme">Bấm 1 bài để nhảy lên đồng hồ và tập:</p><div class="chips">'+today.ex.map(function(k){return chipHTML(k,false);}).join("")+'</div>';
+  }
+  document.getElementById("weekBox").innerHTML=WEEK.map(function(w){
+    var cls="wday"+(w.dow===dow?" is-today":"")+(w.rest?" is-rest":"");
+    var ex=w.rest?'<span class="rest-tag">Nghỉ</span>':w.ex.map(function(k){return chipHTML(k,true);}).join("");
+    return '<div class="'+cls+'"><span class="dlabel">'+w.lab+'</span><div class="dex">'+ex+'</div></div>';
+  }).join("");
+
+  // interactions
+  startBtn.addEventListener("click",function(){running?pause():start();});
+  resetBtn.addEventListener("click",function(){if(raf)cancelAnimationFrame(raf);raf=null;reps=0;repsEl.textContent=0;setIdle();});
   vibBtn.addEventListener("click",function(){
-    vibrate=!vibrate;
-    vibBtn.textContent="Rung: "+(vibrate?"Bật":"Tắt");
-    vibBtn.setAttribute("aria-pressed",vibrate);
-    if(vibrate && navigator.vibrate) navigator.vibrate(30);
+    vibrate=!vibrate;vibBtn.textContent="Rung: "+(vibrate?"Bật":"Tắt");
+    vibBtn.setAttribute("aria-pressed",vibrate);if(vibrate&&navigator.vibrate)navigator.vibrate(30);
+  });
+  document.addEventListener("click",function(ev){
+    var el=ev.target.closest("[data-load]");if(!el)return;
+    setMode(el.getAttribute("data-mode"));
+    document.getElementById("timer").scrollIntoView({behavior:"smooth",block:"start"});
+  });
+  document.addEventListener("keydown",function(ev){
+    if(ev.key==="Enter"||ev.key===" "){
+      var el=ev.target&&ev.target.closest?ev.target.closest("[data-load]"):null;
+      if(el){ev.preventDefault();el.click();}
+    }
   });
 
-  repsTargetEl.textContent=mode.target;
+  repsTargetEl.textContent=mode.target;modeTargetEl.textContent=mode.target;modeDescEl.textContent=mode.desc;
   setIdle();
 })();
 </script>
