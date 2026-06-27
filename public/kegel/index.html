@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0E1417">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+<title>Kegel — Hướng dẫn & Lộ trình trọn đời</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0E1417; --surface:#172127; --surface2:#1E2A30; --line:rgba(255,255,255,.09);
+    --text:#ECE6DC; --muted:#93A0A6;
+    --engage:#E7A93C; --release:#4FC4BE; --reverse:#9AA6F0; --neutral:#7FA0A8;
+    --sans:'Be Vietnam Pro',system-ui,-apple-system,sans-serif;
+    --mono:'Space Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+  body{
+    background:var(--bg);color:var(--text);font-family:var(--sans);
+    line-height:1.6;-webkit-font-smoothing:antialiased;
+    overscroll-behavior-y:none;-webkit-tap-highlight-color:transparent;
+    background-image:radial-gradient(900px 500px at 50% -10%, rgba(79,196,190,.07), transparent 70%);
+  }
+  .wrap{
+    max-width:560px;margin:0 auto;
+    padding:max(40px,env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) calc(64px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left));
+  }
+
+  /* HERO */
+  .hero{text-align:center;padding:8px 0 28px}
+  .eyebrow{font:700 11px/1.4 var(--mono);letter-spacing:.22em;text-transform:uppercase;color:var(--release)}
+  .hero h1{font-weight:800;font-size:clamp(44px,16vw,76px);letter-spacing:-.03em;margin:10px 0 6px;line-height:.95}
+  .lede{color:var(--muted);font-size:15px;max-width:34ch;margin:0 auto}
+
+  /* CARD */
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:22px 18px 24px}
+
+  /* TRAINER */
+  .modes{display:flex;flex-wrap:wrap;gap:7px;justify-content:center}
+  .mode{
+    font:500 13px var(--sans);color:var(--muted);background:var(--surface2);
+    border:1px solid var(--line);border-radius:999px;padding:10px 15px;cursor:pointer;
+    min-height:40px;display:inline-flex;align-items:center;
+    touch-action:manipulation;-webkit-user-select:none;user-select:none;
+    transition:color .2s,border-color .2s,background .2s;
+  }
+  .mode:hover{color:var(--text)}
+  .mode.is-active{color:#0E1417;background:var(--text);border-color:var(--text);font-weight:700}
+  .mode-meta{text-align:center;color:var(--muted);font-size:13px;margin-top:12px}
+  .mode-meta span{color:var(--text);font-weight:600}
+
+  .pacer{position:relative;width:min(264px,76vw);height:min(264px,76vw);margin:22px auto 6px;display:grid;place-items:center}
+  .ring{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
+  .ring-track{fill:none;stroke:rgba(255,255,255,.07);stroke-width:6}
+  .ring-prog{fill:none;stroke:rgba(255,255,255,.15);stroke-width:6;stroke-linecap:round;transition:stroke .4s ease}
+  .orb{
+    width:min(160px,46vw);height:min(160px,46vw);border-radius:50%;display:grid;place-items:center;
+    transition:background .5s ease,box-shadow .5s ease;will-change:transform;
+    transform:translateY(0) scale(.7);
+  }
+  .orb[data-phase="idle"]{background:radial-gradient(circle at 50% 38%,#2A363B,#161D21);box-shadow:0 0 30px rgba(0,0,0,.35)}
+  .orb[data-phase="engage"]{background:radial-gradient(circle at 50% 38%,#F4C66B,#C9852A);box-shadow:0 0 64px rgba(231,169,60,.5)}
+  .orb[data-phase="release"]{background:radial-gradient(circle at 50% 38%,#83E2DC,#2C9A94);box-shadow:0 0 64px rgba(79,196,190,.45)}
+  .orb[data-phase="reverse"]{background:radial-gradient(circle at 50% 38%,#C4CDFB,#6B79D6);box-shadow:0 0 64px rgba(154,166,240,.45)}
+  .orb[data-phase="neutral"]{background:radial-gradient(circle at 50% 38%,#A2B8BF,#5C757D);box-shadow:0 0 44px rgba(127,160,168,.3)}
+  .orb-inner{text-align:center;color:#0E1417}
+  .orb[data-phase="idle"] .orb-inner{color:var(--muted)}
+  .count{font:700 clamp(38px,12vw,46px)/1 var(--mono)}
+  .phase{font-weight:700;font-size:11px;letter-spacing:.12em;text-transform:uppercase;margin-top:3px;opacity:.85}
+
+  .breath{text-align:center;color:var(--text);font-size:15px;min-height:24px;margin-top:6px;font-weight:500}
+  .reps{text-align:center;color:var(--muted);font-size:13px;margin-top:2px}
+  .reps span{font-family:var(--mono);color:var(--text)}
+
+  .controls{display:flex;gap:10px;margin-top:18px}
+  .btn{
+    flex:1;font:700 15px var(--sans);padding:14px;border-radius:13px;cursor:pointer;
+    min-height:50px;touch-action:manipulation;-webkit-user-select:none;user-select:none;
+    background:var(--surface2);color:var(--text);border:1px solid var(--line);transition:filter .2s,background .2s;
+  }
+  .btn:hover{filter:brightness(1.12)}
+  .btn-primary{background:var(--release);color:#06201E;border-color:transparent}
+  .vib-toggle{display:block;margin:8px auto 0;padding:8px 12px;background:none;border:none;color:var(--muted);font:400 12px var(--mono);cursor:pointer;letter-spacing:.04em;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+  .vib-toggle:hover{color:var(--text)}
+
+  /* BLOCKS */
+  .block{margin-top:46px}
+  .block h2{font-weight:800;font-size:clamp(24px,7vw,32px);letter-spacing:-.02em;margin:8px 0 16px}
+  .lead{color:var(--muted);font-size:15px;margin-bottom:18px}
+
+  .two{display:grid;gap:14px}
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 18px}
+  .panel h3{font-size:15px;font-weight:700;margin-bottom:8px}
+  .panel.good h3{color:var(--release)}
+  .panel.bad h3{color:var(--engage)}
+  .panel ul{list-style:none;display:grid;gap:7px}
+  .panel li{font-size:14px;color:var(--muted);padding-left:18px;position:relative}
+  .panel li::before{content:"";position:absolute;left:0;top:9px;width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.4}
+  .panel.good li{color:#B9D8D5}
+  .panel.bad li{color:#E4C9A6}
+
+  /* EXERCISES */
+  .ex-grid{display:grid;gap:12px}
+  .ex{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 18px;border-left:3px solid var(--c,var(--release))}
+  .ex .tag{font:700 10px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--c,var(--release))}
+  .ex h3{font-size:17px;font-weight:700;margin:4px 0 6px}
+  .ex p{font-size:14px;color:var(--muted)}
+  .ex .dose{margin-top:8px;font-size:13px;color:var(--text);font-weight:500}
+
+  /* TIMELINE */
+  .timeline{list-style:none;position:relative;padding-left:8px}
+  .timeline::before{content:"";position:absolute;left:21px;top:10px;bottom:10px;width:2px;background:linear-gradient(var(--engage),var(--release),var(--reverse))}
+  .phase-item{position:relative;padding:0 0 26px 52px}
+  .phase-item:last-child{padding-bottom:0}
+  .phase-num{position:absolute;left:0;top:0;width:42px;height:42px;border-radius:50%;display:grid;place-items:center;
+    font:700 14px var(--mono);background:var(--surface2);border:1px solid var(--line);color:var(--text);z-index:1}
+  .phase-when{font:700 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--release)}
+  .phase-item h3{font-size:19px;font-weight:800;margin:2px 0 6px;letter-spacing:-.01em}
+  .phase-item p{font-size:14px;color:var(--muted)}
+  .phase-item .do{margin-top:7px;font-size:13.5px;color:#C8D2D0}
+
+  /* SAFETY */
+  .safety .panel{border-color:rgba(231,169,60,.3)}
+  .safety ul{list-style:none;display:grid;gap:9px}
+  .safety li{font-size:14px;color:#E4C9A6;padding-left:20px;position:relative}
+  .safety li::before{content:"!";position:absolute;left:0;top:0;color:var(--engage);font-weight:800}
+
+  footer{margin-top:44px;text-align:center;color:var(--muted);font-size:12px;border-top:1px solid var(--line);padding-top:20px}
+
+  :focus-visible{outline:2px solid var(--release);outline-offset:3px;border-radius:8px}
+
+  @media (min-width:520px){ .two{grid-template-columns:1fr 1fr} .ex-grid{grid-template-columns:1fr 1fr} }
+  @media (prefers-reduced-motion:reduce){ body{background-image:none} }
+</style>
+</head>
+<body>
+<main class="wrap">
+
+  <header class="hero">
+    <p class="eyebrow">Sàn chậu · Kiểm soát · Trọn đời</p>
+    <h1>Kegel</h1>
+    <p class="lede">Tập cơ sàn chậu để giữ lâu, đẩy khỏe, và bảo vệ sức khỏe khi có tuổi. Tập theo nhịp bên dưới.</p>
+  </header>
+
+  <section class="card trainer" aria-label="Bộ đếm nhịp Kegel">
+    <div class="modes" id="modes">
+      <button class="mode is-active" data-mode="foundation">Nền tảng</button>
+      <button class="mode" data-mode="endurance">Sức bền</button>
+      <button class="mode" data-mode="quick">Nhanh</button>
+      <button class="mode" data-mode="reverse">Reverse</button>
+    </div>
+    <p class="mode-meta"><span id="modeTarget">10</span> lần · <span id="modeDesc">siết 5 giây / thả 5 giây</span></p>
+
+    <div class="pacer">
+      <svg class="ring" viewBox="0 0 264 264" aria-hidden="true">
+        <circle class="ring-track" cx="132" cy="132" r="120"></circle>
+        <circle class="ring-prog" id="ringProg" cx="132" cy="132" r="120"></circle>
+      </svg>
+      <div class="orb" id="orb" data-phase="idle">
+        <div class="orb-inner">
+          <div class="count" id="count">5</div>
+          <div class="phase" id="phaseLabel">Sẵn sàng</div>
+        </div>
+      </div>
+    </div>
+
+    <p class="breath" id="breath">Nhấn Bắt đầu để tập theo nhịp</p>
+    <p class="reps">Lần <span id="reps">0</span> / <span id="repsTarget">10</span></p>
+
+    <div class="controls">
+      <button class="btn btn-primary" id="startBtn">Bắt đầu</button>
+      <button class="btn" id="resetBtn">Đặt lại</button>
+    </div>
+    <button class="vib-toggle" id="vibBtn" aria-pressed="true">Rung: Bật</button>
+  </section>
+
+  <section class="block">
+    <p class="eyebrow">Bước 1</p>
+    <h2>Tìm đúng cơ</h2>
+    <p class="lead">Đây là phần quan trọng nhất. Siết sai cơ thì tập bao nhiêu cũng vô ích.</p>
+    <div class="two">
+      <div class="panel good">
+        <h3>Cảm giác đúng</h3>
+        <ul>
+          <li>Cơ mày dùng để nín tiểu giữa dòng (chỉ thử 1 lần để nhận biết, đừng tập kiểu này thường xuyên).</li>
+          <li>Cơ làm nâng tinh hoàn và gốc dương vật lên.</li>
+          <li>Như đang vừa nín tiểu vừa nín xì hơi: một cú "nâng lên trong và lên".</li>
+        </ul>
+      </div>
+      <div class="panel bad">
+        <h3>Sai thường gặp</h3>
+        <ul>
+          <li>Gồng mông, đùi hoặc bụng thay vì sàn chậu.</li>
+          <li>Nín thở khi siết.</li>
+          <li>Chỉ siết, không bao giờ thả lỏng hẳn.</li>
+          <li>Đẩy ra ngoài thay vì nâng vào trong.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <p class="eyebrow">Vốn bài</p>
+    <h2>Các bài tập</h2>
+    <div class="ex-grid">
+      <div class="ex" style="--c:var(--engage)">
+        <span class="tag">Sức mạnh</span>
+        <h3>Siết giữ</h3>
+        <p>Siết lên và giữ vài giây rồi thả hẳn. Xây lực và sức bền cho sàn chậu.</p>
+        <p class="dose">Giữ 5 đến 10 giây, thả bằng thời gian giữ.</p>
+      </div>
+      <div class="ex" style="--c:var(--engage)">
+        <span class="tag">Phản xạ</span>
+        <h3>Siết nhanh (flicks)</h3>
+        <p>Siết và thả thật nhanh, liên tục. Luyện phản xạ chặn nhanh khi cần.</p>
+        <p class="dose">10 đến 20 cái, nhịp 1 giây siết / 1 giây thả.</p>
+      </div>
+      <div class="ex" style="--c:var(--reverse)">
+        <span class="tag">Chìa khoá</span>
+        <h3>Reverse kegel</h3>
+        <p>Tập thả lỏng và đẩy nhẹ sàn chậu xuống. Đây mới là thứ giúp giữ lâu, vì sàn chậu quá căng mới gây xuất sớm.</p>
+        <p class="dose">Đẩy nhẹ 5 giây, về trung tính 5 giây, xen kẽ siết.</p>
+      </div>
+      <div class="ex" style="--c:var(--release)">
+        <span class="tag">Nâng cao</span>
+        <h3>Thang máy</h3>
+        <p>Siết lên theo từng "tầng" (nhẹ, vừa, mạnh) rồi hạ từng tầng. Luyện kiểm soát tinh vi.</p>
+        <p class="dose">Lên 3 tầng, giữ mỗi tầng 2 giây, hạ từng tầng.</p>
+      </div>
+      <div class="ex" style="--c:var(--release)">
+        <span class="tag">Áp dụng</span>
+        <h3>Phối thở</h3>
+        <p>Giữ siết mà vẫn thở đều, không nín hơi. Đây đúng là kỹ năng giữ nhịp liên tục mà không mỏi.</p>
+        <p class="dose">Giữ siết 10 giây trong khi thở chậm 2-3 nhịp.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <p class="eyebrow">Lộ trình</p>
+    <h2>Tập đến lúc già</h2>
+    <p class="lead">Sàn chậu yếu dần theo tuổi. Xây nền vài tháng đầu, rồi duy trì cả đời để giữ phong độ và sức khỏe.</p>
+    <ol class="timeline">
+      <li class="phase-item">
+        <span class="phase-num">01</span>
+        <span class="phase-when">Tuần 1 đến 4 · nằm</span>
+        <h3>Nền tảng</h3>
+        <p>Tìm đúng cơ, tập co cho chuẩn, không gồng nhầm.</p>
+        <p class="do">Siết giữ 5 giây x10 + flicks 10 x3 hiệp, 1-2 lần/ngày. Bắt đầu làm quen reverse kegel.</p>
+      </li>
+      <li class="phase-item">
+        <span class="phase-num">02</span>
+        <span class="phase-when">Tháng 2 đến 3 · ngồi rồi đứng</span>
+        <h3>Xây sức</h3>
+        <p>Tăng lực và sức bền, tập ở tư thế khó dần.</p>
+        <p class="do">Siết giữ 10 giây x10 + flicks 15 x2 + reverse kegel 10. Làm 2 lần/ngày.</p>
+      </li>
+      <li class="phase-item">
+        <span class="phase-num">03</span>
+        <span class="phase-when">Tháng 4 đến 6 · đứng / vận động</span>
+        <h3>Kiểm soát</h3>
+        <p>Điều khiển sàn chậu theo ý, phối hợp thở và chuyển động. Áp dụng vào thực tế: lúc gần "tới" biết siết và thở chậm để lùi lại.</p>
+        <p class="do">Thang máy + reverse kegel chủ động + giữ siết khi vẫn thở đều. Tập khi đứng, khi đi.</p>
+      </li>
+      <li class="phase-item">
+        <span class="phase-num">04</span>
+        <span class="phase-when">Tháng 6 trở đi · trọn đời</span>
+        <h3>Duy trì</h3>
+        <p>Giữ phong độ. Từ 40 tuổi trở lên, duy trì giúp chống tiểu rắt, tốt cho tuyến tiền liệt và hỗ trợ cương. Không cần tăng nữa, chỉ cần đều.</p>
+        <p class="do">1 buổi tổng hợp (giữ + nhanh + reverse) 3-4 lần/tuần là đủ.</p>
+      </li>
+    </ol>
+  </section>
+
+  <section class="block safety">
+    <h2>An toàn</h2>
+    <div class="panel">
+      <ul>
+        <li>Đừng tập kegel trong lúc đang tiểu. Cách nín tiểu chỉ để nhận biết cơ, làm thường xuyên dễ hại.</li>
+        <li>Đừng lạm dụng. Có ngày nghỉ, và luôn cân bằng siết với thả lỏng (reverse). Sàn chậu quá căng cũng gây xuất sớm và đau.</li>
+        <li>Chất lượng hơn số lượng. Siết đúng cơ, thả hết, hơn là siết bừa thật nhiều.</li>
+        <li>Đau vùng chậu, khó tiểu, cương kém đi, hoặc đau khi tập thì ngừng và gặp bác sĩ hoặc chuyên gia vật lý trị liệu sàn chậu.</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    Hướng dẫn tập luyện chung, không phải tư vấn y tế.
+  </footer>
+</main>
+
+<script>
+(function(){
+  var MODES = {
+    foundation:{target:10,desc:"siết 5 giây / thả 5 giây",phases:[
+      {key:"engage",label:"Siết & giữ",dur:5,breath:"Thở ra, siết lên trong và lên"},
+      {key:"release",label:"Thả lỏng",dur:5,breath:"Hít vào, buông hoàn toàn"}
+    ]},
+    endurance:{target:10,desc:"siết 10 giây / thả 10 giây",phases:[
+      {key:"engage",label:"Siết & giữ",dur:10,breath:"Thở chậm, giữ siết đều, không nín hơi"},
+      {key:"release",label:"Thả lỏng",dur:10,breath:"Hít vào, buông hoàn toàn"}
+    ]},
+    quick:{target:20,desc:"siết nhanh 1 giây / thả 1 giây",phases:[
+      {key:"engage",label:"Siết",dur:1,breath:"Siết nhanh"},
+      {key:"release",label:"Thả",dur:1,breath:"Buông"}
+    ]},
+    reverse:{target:10,desc:"đẩy nhẹ 5 giây / trung tính 5 giây",phases:[
+      {key:"reverse",label:"Thả & đẩy nhẹ",dur:5,breath:"Hít vào, đẩy nhẹ sàn chậu xuống"},
+      {key:"neutral",label:"Trung tính",dur:5,breath:"Thở ra, về tự nhiên"}
+    ]}
+  };
+  var RING_COLOR={engage:"#E7A93C",release:"#4FC4BE",reverse:"#9AA6F0",neutral:"#7FA0A8",idle:"rgba(255,255,255,.15)"};
+
+  var orb=document.getElementById("orb"),
+      countEl=document.getElementById("count"),
+      phaseEl=document.getElementById("phaseLabel"),
+      breathEl=document.getElementById("breath"),
+      repsEl=document.getElementById("reps"),
+      repsTargetEl=document.getElementById("repsTarget"),
+      modeTargetEl=document.getElementById("modeTarget"),
+      modeDescEl=document.getElementById("modeDesc"),
+      ring=document.getElementById("ringProg"),
+      startBtn=document.getElementById("startBtn"),
+      resetBtn=document.getElementById("resetBtn"),
+      vibBtn=document.getElementById("vibBtn");
+
+  var C=2*Math.PI*120;
+  ring.style.strokeDasharray=C;
+  ring.style.strokeDashoffset=0;
+
+  var modeKey="foundation", mode=MODES[modeKey],
+      phaseIdx=0, curPhase=null, reps=0,
+      running=false, raf=null, phaseStart=0, pausedElapsed=0, vibrate=true;
+
+  function lerp(a,b,t){return a+(b-a)*t;}
+  function ease(t){return t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;}
+
+  function applyOrb(phase,p){
+    var e=ease(p), s, ty;
+    if(phase.key==="engage"){ s=lerp(.62,1,e); ty=lerp(0,-26,e); }
+    else if(phase.key==="release"){ s=lerp(1,.62,e); ty=lerp(-26,0,e); }
+    else if(phase.key==="reverse"){ s=lerp(.7,.93,e); ty=lerp(0,22,e); }
+    else { s=lerp(.93,.7,e); ty=lerp(22,0,e); }
+    orb.style.transform="translateY("+ty+"px) scale("+s+")";
+  }
+
+  function setIdle(){
+    running=false; phaseIdx=0; curPhase=null; pausedElapsed=0;
+    orb.setAttribute("data-phase","idle");
+    orb.style.transform="translateY(0) scale(.7)";
+    countEl.textContent=mode.phases[0].dur;
+    phaseEl.textContent="Sẵn sàng";
+    breathEl.textContent="Nhấn Bắt đầu để tập theo nhịp";
+    ring.style.strokeDashoffset=0; ring.style.stroke=RING_COLOR.idle;
+    startBtn.textContent="Bắt đầu";
+  }
+
+  function setPhase(i,ts){
+    phaseIdx=i; curPhase=mode.phases[i]; phaseStart=ts;
+    orb.setAttribute("data-phase",curPhase.key);
+    phaseEl.textContent=curPhase.label;
+    breathEl.textContent=curPhase.breath;
+    ring.style.stroke=RING_COLOR[curPhase.key];
+    if(vibrate && navigator.vibrate){ navigator.vibrate(40); }
+  }
+
+  function advance(ts){
+    var ni=phaseIdx+1;
+    if(ni>=mode.phases.length){
+      reps++; repsEl.textContent=reps;
+      if(reps>=mode.target){ finish(); return; }
+      ni=0;
+    }
+    setPhase(ni,ts);
+  }
+
+  function finish(){
+    running=false; if(raf) cancelAnimationFrame(raf); raf=null;
+    orb.setAttribute("data-phase","idle");
+    orb.style.transform="translateY(0) scale(.7)";
+    phaseEl.textContent="Hoàn thành";
+    countEl.textContent="✓";
+    breathEl.textContent="Xong "+mode.target+" lần. Nghỉ rồi tập tiếp nếu muốn.";
+    ring.style.strokeDashoffset=0; ring.style.stroke=RING_COLOR.release;
+    startBtn.textContent="Bắt đầu lại";
+    pausedElapsed=0; curPhase=null; phaseIdx=0;
+  }
+
+  function loop(ts){
+    if(!running) return;
+    var elapsed=(ts-phaseStart)/1000, dur=curPhase.dur, p=Math.min(elapsed/dur,1);
+    applyOrb(curPhase,p);
+    countEl.textContent=Math.max(1,Math.ceil(dur-elapsed));
+    ring.style.strokeDashoffset=C*p;
+    if(elapsed>=dur){ advance(ts); }
+    raf=requestAnimationFrame(loop);
+  }
+
+  function start(){
+    if(running) return;
+    if(reps>=mode.target){ reps=0; repsEl.textContent=0; }
+    running=true;
+    var ts=performance.now();
+    if(curPhase==null){ reps= (reps>=mode.target?0:reps); repsEl.textContent=reps; setPhase(0,ts); }
+    else { phaseStart=ts-pausedElapsed*1000; }
+    startBtn.textContent="Tạm dừng";
+    raf=requestAnimationFrame(loop);
+  }
+
+  function pause(){
+    running=false; if(raf) cancelAnimationFrame(raf); raf=null;
+    pausedElapsed=(performance.now()-phaseStart)/1000;
+    startBtn.textContent="Tiếp tục";
+  }
+
+  startBtn.addEventListener("click",function(){ running?pause():start(); });
+  resetBtn.addEventListener("click",function(){ if(raf) cancelAnimationFrame(raf); raf=null; reps=0; repsEl.textContent=0; setIdle(); });
+
+  document.getElementById("modes").addEventListener("click",function(ev){
+    var b=ev.target.closest(".mode"); if(!b) return;
+    [].forEach.call(this.children,function(c){c.classList.remove("is-active");});
+    b.classList.add("is-active");
+    modeKey=b.getAttribute("data-mode"); mode=MODES[modeKey];
+    if(raf) cancelAnimationFrame(raf); raf=null; reps=0; repsEl.textContent=0;
+    repsTargetEl.textContent=mode.target; modeTargetEl.textContent=mode.target; modeDescEl.textContent=mode.desc;
+    setIdle();
+  });
+
+  vibBtn.addEventListener("click",function(){
+    vibrate=!vibrate;
+    vibBtn.textContent="Rung: "+(vibrate?"Bật":"Tắt");
+    vibBtn.setAttribute("aria-pressed",vibrate);
+    if(vibrate && navigator.vibrate) navigator.vibrate(30);
+  });
+
+  repsTargetEl.textContent=mode.target;
+  setIdle();
+})();
+</script>
+</body>
+</html>
