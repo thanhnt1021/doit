@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0E1417">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+<link rel="icon" type="image/svg+xml" href="/run/favicon.svg">
+<link rel="apple-touch-icon" href="/run/favicon.svg">
+<title>Lịch Chạy Đều — lặp mãi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0E1417; --surface:#172127; --surface2:#1E2A30; --line:rgba(255,255,255,.09);
+    --text:#ECE6DC; --muted:#93A0A6; --easy:#4FC4BE; --strides:#E7A93C; --long:#9AA6F0;
+    --sans:'Be Vietnam Pro',system-ui,-apple-system,sans-serif; --mono:'Space Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased;
+    overscroll-behavior-y:none;-webkit-tap-highlight-color:transparent;
+    background-image:radial-gradient(900px 500px at 50% -10%, rgba(79,196,190,.07), transparent 70%);}
+  .wrap{max-width:540px;margin:0 auto;
+    padding:max(38px,env(safe-area-inset-top)) calc(18px + env(safe-area-inset-right)) calc(64px + env(safe-area-inset-bottom)) calc(18px + env(safe-area-inset-left));}
+  .hero{text-align:center;padding:6px 0 18px}
+  .eyebrow{font:700 11px/1.4 var(--mono);letter-spacing:.2em;text-transform:uppercase;color:var(--easy)}
+  .hero h1{font-weight:800;font-size:clamp(38px,12vw,60px);letter-spacing:-.02em;margin:9px 0 6px;line-height:1}
+  .lede{color:var(--muted);font-size:15px;max-width:32ch;margin:0 auto}
+
+  /* PROGRAM CONTROL */
+  .prog{background:linear-gradient(160deg,#1C2B2F,#172127);border:1px solid rgba(79,196,190,.28);border-radius:18px;padding:17px;margin-bottom:16px;text-align:center}
+  .prog.on{text-align:left}
+  .prog .eyebrow{color:var(--easy)}
+  .prog h3{font-size:22px;font-weight:800;margin:5px 0 4px}
+  .prog .pn{color:var(--muted);font-size:13.5px;margin-bottom:13px}
+  .prog .pn b{color:var(--text)}
+  .startbtn{display:inline-flex;align-items:center;justify-content:center;width:100%;font:800 16px var(--sans);
+    color:#06201E;background:var(--easy);border:none;border-radius:13px;padding:15px;min-height:52px;cursor:pointer;
+    touch-action:manipulation;-webkit-user-select:none;user-select:none;transition:filter .2s}
+  .startbtn:hover{filter:brightness(1.08)}
+  .resetbtn{font:700 12px var(--sans);color:var(--muted);background:var(--surface2);border:1px solid var(--line);
+    border-radius:10px;padding:9px 14px;min-height:40px;cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+  .resetbtn:hover{color:var(--text)}
+
+  .note{background:linear-gradient(160deg,#1C2B2F,#172127);border:1px solid rgba(79,196,190,.22);border-radius:14px;
+    padding:13px 15px;font-size:13.5px;color:#C8D2D0;margin:14px 0 18px}
+  .note b{color:var(--text)}
+
+  .today-card{background:linear-gradient(160deg,#1F2E26,#172127);border:1px solid rgba(231,169,60,.3);border-radius:18px;padding:17px;margin-bottom:18px}
+  .today-card .eyebrow{color:var(--strides)}
+  .today-card h3{font-size:23px;font-weight:800;margin:5px 0 3px}
+  .today-card .km{font:700 15px var(--mono);color:var(--easy)}
+  .today-card .tn{color:var(--muted);font-size:13.5px;margin-top:6px}
+
+  .week{display:grid;gap:8px}
+  .wday{display:grid;grid-template-columns:42px 1fr auto;gap:11px;align-items:center;background:var(--surface);
+    border:1px solid var(--line);border-radius:13px;padding:12px 13px}
+  .wday.is-today{border-color:var(--easy);box-shadow:0 0 0 1px rgba(79,196,190,.25)}
+  .wday.rest{opacity:.62}
+  .wday.done{border-color:rgba(79,196,190,.4);background:#16242A}
+  .dlabel{font:700 13px var(--mono);color:var(--muted);text-transform:uppercase}
+  .wday.is-today .dlabel{color:var(--easy)}
+  .wtitle{font-weight:700;font-size:15px}
+  .wtitle .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:middle}
+  .dot.easy{background:var(--easy)} .dot.strides{background:var(--strides)} .dot.long{background:var(--long)} .dot.rest{background:var(--muted)}
+  .donechk{color:var(--easy);font-weight:800;margin-left:6px}
+  .wnote{font-size:12px;color:var(--muted);margin-top:2px}
+  .wright{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+  .wkm{font:700 15px var(--mono);color:var(--text);white-space:nowrap}
+  .wkm.rest{color:var(--muted);font-size:12px;font-family:var(--sans)}
+  .donebtn{font:700 11px var(--sans);color:var(--muted);background:var(--surface2);border:1px solid var(--line);
+    border-radius:9px;padding:8px 11px;min-height:36px;cursor:pointer;white-space:nowrap;
+    touch-action:manipulation;-webkit-user-select:none;user-select:none;transition:background .2s,color .2s,border-color .2s}
+  .donebtn:hover{border-color:var(--easy)}
+  .donebtn.done{background:var(--easy);color:#06201E;border-color:transparent}
+  .donebtn.big{width:100%;font-size:14px;padding:13px;min-height:48px;margin-top:13px;justify-content:center}
+
+  .legend{margin-top:20px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 18px}
+  .legend h2{font-size:17px;font-weight:800;margin-bottom:12px}
+  .lrow{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+  .lrow:last-child{border-bottom:none}
+  .lrow .ld{width:9px;height:9px;border-radius:50%;margin-top:7px;flex-shrink:0}
+  .lrow h4{font-size:14px;font-weight:700}
+  .lrow p{font-size:13px;color:var(--muted)}
+  .lrow a{font:700 11px var(--mono);color:var(--easy);text-decoration:none}
+
+  footer{margin-top:30px;text-align:center;color:var(--muted);font-size:12px;border-top:1px solid var(--line);padding-top:18px}
+  :focus-visible{outline:2px solid var(--easy);outline-offset:3px;border-radius:8px}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header class="hero">
+    <p class="eyebrow">Chạy đều · Lặp mãi</p>
+    <h1>Lịch Chạy</h1>
+    <p class="lede">Cùng 1 lịch mỗi tuần. Không nghĩ. Hôm nay ô nào sáng thì chạy ô đó.</p>
+  </header>
+
+  <div id="progBox"></div>
+
+  <div class="note">
+    <b>Cách dùng:</b> bấm <b>Bắt đầu tuần 1</b> để khởi động — app tự đếm tuần theo ngày. Chạy <b>hết bằng pace easy</b> (nói chuyện cả câu được). Chạy xong buổi nào bấm <b>Đã chạy</b> buổi đó. Ngày không chạy (T2, T5, T7) thì tập sức mạnh hoặc nghỉ tùy mày.
+  </div>
+
+  <div id="todayCard"></div>
+  <div class="week" id="weekBox"></div>
+
+  <div class="legend">
+    <h2>3 kiểu buổi (chỉ vậy thôi)</h2>
+    <div class="lrow"><span class="ld" style="background:var(--easy)"></span><div><h4>Easy run</h4><p>Chạy chậm, nói chuyện được, thở mũi thoải mái. Đây là phần lớn việc.</p></div></div>
+    <div class="lrow"><span class="ld" style="background:var(--strides)"></span><div><h4>Easy + strides</h4><p>Easy như thường, cuối buổi thêm 5 x 20 giây tăng tốc nhẹ (~80%, không sprint), đi bộ 40 giây giữa các lần. Giữ chân nhanh nhẹn, chống chững. <a href="https://www.youtube.com/results?search_query=running+strides+workout" target="_blank" rel="noopener">▶ Xem</a></p></div></div>
+    <div class="lrow"><span class="ld" style="background:var(--long)"></span><div><h4>Long run</h4><p>Chạy dài, vẫn pace easy, dài hơn ngày thường. Xây sức bền + đốt mỡ. Tuần nào khỏe có thể kéo tới 15k rồi giữ.</p></div></div>
+  </div>
+
+  <footer>Hướng dẫn tập luyện chung, không phải tư vấn y tế.</footer>
+</main>
+
+<script>
+(function(){
+  var WEEK=[
+    {lab:"T2",dow:1,type:"rest",title:"Nghỉ chạy",note:"Tập sức mạnh hoặc nghỉ"},
+    {lab:"T3",dow:2,type:"easy",title:"Easy run",note:"Chậm, nói chuyện được",km:{a:4,b:5}},
+    {lab:"T4",dow:3,type:"strides",title:"Easy + strides",note:"Cuối buổi: 5 x 20 giây tăng tốc",km:{a:4,b:6}},
+    {lab:"T5",dow:4,type:"rest",title:"Nghỉ chạy",note:"Tập sức mạnh hoặc nghỉ"},
+    {lab:"T6",dow:5,type:"easy",title:"Easy run",note:"Chậm, nói chuyện được",km:{a:4,b:5}},
+    {lab:"T7",dow:6,type:"rest",title:"Nghỉ",note:"Nghỉ hoặc đi bộ nhẹ"},
+    {lab:"CN",dow:0,type:"long",title:"Long run",note:"Chạy dài, pace easy",km:{a:8,b:12}}
+  ];
+
+  // ---- state (localStorage) ----
+  var LSK="runplan.v1";
+  function load(){try{return JSON.parse(localStorage.getItem(LSK))||{};}catch(e){return {};}}
+  function save(s){try{localStorage.setItem(LSK,JSON.stringify(s));}catch(e){}}
+  var state=load(); state.done=state.done||{};
+
+  // ---- date helpers ----
+  function pad(n){return n<10?"0"+n:""+n;}
+  function ymd(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());}
+  function parseYMD(s){var p=s.split("-");return new Date(+p[0],+p[1]-1,+p[2]);}
+  function addDays(d,n){return new Date(d.getFullYear(),d.getMonth(),d.getDate()+n);}
+  function mondayOf(d){var x=new Date(d.getFullYear(),d.getMonth(),d.getDate());var w=x.getDay();return addDays(x,w===0?-6:1-w);}
+
+  var today=new Date(); today=new Date(today.getFullYear(),today.getMonth(),today.getDate());
+  var curDow=today.getDay();
+  var monday=mondayOf(today);
+
+  var weekNum=null, phase="a";
+  function computePhase(){
+    if(state.start){
+      var diff=Math.round((monday.getTime()-mondayOf(parseYMD(state.start)).getTime())/86400000);
+      weekNum=Math.floor(diff/7)+1; if(weekNum<1)weekNum=1;
+      phase=weekNum<=4?"a":"b";
+    }else{ weekNum=null; phase="a"; }
+  }
+
+  function sessionsThisWeek(){var c=0;for(var i=0;i<WEEK.length;i++)if(WEEK[i].km)c++;return c;}
+  function doneThisWeek(){var c=0;for(var i=0;i<WEEK.length;i++){if(WEEK[i].km&&state.done[ymd(addDays(monday,i))])c++;}return c;}
+  function fmt(d){return d.getDate()+"/"+(d.getMonth()+1)+"/"+d.getFullYear();}
+
+  var progBox=document.getElementById("progBox"),
+      weekBox=document.getElementById("weekBox"),
+      todayCard=document.getElementById("todayCard");
+
+  function progHTML(){
+    if(!state.start){
+      return '<div class="prog"><p class="eyebrow">Chương trình</p><h3>Chưa bắt đầu</h3>'
+        +'<p class="pn">Bấm để bắt đầu <b>Tuần 1</b>. App tự đếm tuần theo ngày — tuần 1-4 chạy bản làm quen, tuần 5+ chuyển bản đều đặn rồi lặp mãi.</p>'
+        +'<button class="startbtn" id="startBtn">▶ Bắt đầu tuần 1</button></div>';
+    }
+    var pname=phase==="a"?"Làm quen":"Đều đặn";
+    var pn=phase==="a"?"Bản ngắn cho gân khớp quen lại.":"Bản đều đặn — lặp mãi.";
+    return '<div class="prog on"><p class="eyebrow">Chương trình · bắt đầu '+fmt(parseYMD(state.start))+'</p>'
+      +'<h3>Tuần '+weekNum+' · '+pname+'</h3>'
+      +'<p class="pn">'+pn+' Đã chạy <b>'+doneThisWeek()+'/'+sessionsThisWeek()+'</b> buổi tuần này.</p>'
+      +'<button class="resetbtn" id="resetBtn">Đặt lại</button></div>';
+  }
+
+  function dayHTML(w,i){
+    var date=addDays(monday,i), key=ymd(date), dstr=date.getDate()+"/"+(date.getMonth()+1);
+    var done=!!state.done[key];
+    var cls="wday"+(w.dow===curDow?" is-today":"")+(w.type==="rest"?" rest":"")+(done&&w.km?" done":"");
+    var right;
+    if(w.km){
+      right='<div class="wright"><span class="wkm">'+w.km[phase]+' km</span>'
+          +'<button class="donebtn'+(done?' done':'')+'" data-done="'+key+'">'+(done?'✓ Đã chạy':'Đã chạy')+'</button></div>';
+    }else{
+      right='<div class="wright"><span class="wkm rest">Nghỉ</span></div>';
+    }
+    return '<div class="'+cls+'"><span class="dlabel">'+w.lab+'</span>'
+         +'<div><div class="wtitle"><span class="dot '+w.type+'"></span>'+w.title+(done&&w.km?'<span class="donechk">✓</span>':'')+'</div>'
+         +'<div class="wnote">'+w.note+' · '+dstr+'</div></div>'
+         +right+'</div>';
+  }
+
+  function todayHTML(){
+    var t=null;for(var i=0;i<WEEK.length;i++){if(WEEK[i].dow===curDow)t=WEEK[i];}
+    if(!t) return '';
+    var dstr=fmt(today);
+    if(t.type==="rest"){
+      return '<div class="today-card"><p class="eyebrow">Hôm nay · '+t.lab+' · '+dstr+'</p><h3>'+t.title+'</h3><p class="tn">'+t.note+'.</p></div>';
+    }
+    var key=ymd(today), done=!!state.done[key];
+    return '<div class="today-card"><p class="eyebrow">Hôm nay · '+t.lab+' · '+dstr+'</p>'
+      +'<h3>'+t.title+' <span class="km">'+t.km[phase]+' km</span></h3>'
+      +'<p class="tn">'+t.note+'. Chạy pace easy.</p>'
+      +'<button class="donebtn big'+(done?' done':'')+'" data-done="'+key+'">'+(done?'✓ Đã chạy hôm nay':'Đánh dấu đã chạy hôm nay')+'</button></div>';
+  }
+
+  function render(){
+    computePhase();
+    progBox.innerHTML=progHTML();
+    todayCard.innerHTML=todayHTML();
+    weekBox.innerHTML=WEEK.map(dayHTML).join("");
+  }
+
+  document.addEventListener("click",function(e){
+    if(e.target.closest("#startBtn")){ state.start=ymd(monday); save(state); render(); return; }
+    if(e.target.closest("#resetBtn")){
+      if(window.confirm("Đặt lại chương trình? Xóa ngày bắt đầu và lịch sử đã chạy.")){ state={done:{}}; save(state); render(); }
+      return;
+    }
+    var d=e.target.closest("[data-done]");
+    if(d){ var k=d.getAttribute("data-done"); if(state.done[k]) delete state.done[k]; else state.done[k]=true; save(state); render(); }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
