@@ -557,6 +557,13 @@
   repsTargetEl.textContent=mode.target;modeTargetEl.textContent=mode.target;modeDescEl.textContent=mode.desc;
   patternEl.innerHTML=mode.pattern;
   setIdle();
+
+  // Nhảy từ trang khác (vd /7days) kèm ?mode=KEY → tự chọn bài + cuộn lên đồng hồ
+  var qpMode=new URLSearchParams(location.search).get("mode");
+  if(qpMode&&MODES[qpMode]){
+    setMode(qpMode);
+    setTimeout(function(){document.getElementById("timer").scrollIntoView({behavior:"smooth",block:"start"});},80);
+  }
 })();
 </script>
 </body>
