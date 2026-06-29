@@ -35,6 +35,12 @@
   .eyebrow{font:700 11px/1.4 var(--mono);letter-spacing:.22em;text-transform:uppercase;color:var(--release)}
   .hero h1{font-weight:800;font-size:clamp(44px,16vw,76px);letter-spacing:-.03em;margin:10px 0 6px;line-height:.95}
   .lede{color:var(--muted);font-size:15px;max-width:34ch;margin:0 auto}
+  .authbar{display:flex;align-items:center;justify-content:center;gap:9px;margin:13px auto 0;font-size:12.5px}
+  .authbar .st{display:inline-flex;align-items:center;gap:6px;color:var(--muted)}
+  .authbar .dot{width:8px;height:8px;border-radius:50%;background:#5BD78C}
+  .authbar .dot.off{background:var(--muted)}
+  .authbar a{font:700 12px var(--sans);color:var(--release);background:none;border:1px solid var(--line);border-radius:8px;padding:6px 11px;min-height:34px;text-decoration:none;display:inline-flex;align-items:center}
+  .authbar a:hover{border-color:var(--release)}
 
   .card{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:22px 18px 22px}
 
@@ -197,6 +203,7 @@
     <p class="eyebrow">Sàn chậu · Kiểm soát · Trọn đời</p>
     <h1>Kegel</h1>
     <p class="lede">Tập theo nhịp, theo tư thế, kiểm soát lên đỉnh. Giữ lâu hơn và khỏe về sau.</p>
+    <div class="authbar" id="authbar"></div>
   </header>
 
   <!-- TIMER -->
@@ -665,8 +672,8 @@
     return '<div class="'+cls+'"><span class="dlabel">'+w.lab+'</span><div class="dex">'+ex+pm+'</div></div>';
   }).join("");
 
-  /* ---------- Đánh dấu xong hôm nay (lưu DB /api, fallback localStorage) ---------- */
-  var PIN=(function(){try{return localStorage.getItem('doit-pin')||'';}catch(e){return '';}})();
+  /* ---------- Đánh dấu xong hôm nay (lưu DB /api; chỉ khi đã đăng nhập) ---------- */
+  var canEdit=false;
   function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
   function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
   function pad(n){return n<10?'0'+n:''+n;}
@@ -678,19 +685,22 @@
     if(today.pm) progItems.push({key:'pm:'+today.pm,name:PM[today.pm].short,slot:'🌙'});
   }
   function kSend(body){
-    return fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json','x-pin':PIN},body:JSON.stringify(body)})
-      .then(function(r){ if(r.status===401){ var p=window.prompt('Nhập mã PIN để lưu (Cloudflare APP_PIN):',PIN||''); if(p!=null){PIN=p;lsSet('doit-pin',p);kSend(body);} } })
+    if(!canEdit) return;
+    fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)})
+      .then(function(r){ if(r.status===401){ canEdit=false; renderProgress(); alert('Phiên đăng nhập đã hết. Vào /admin đăng nhập lại để đánh dấu.'); } })
       .catch(function(){});
   }
   function renderProgress(){
     var el=document.getElementById('kProgress'); if(!el) return;
     if(!progItems.length){ el.innerHTML=''; return; }
-    el.innerHTML='<div class="kprog-h">Đánh dấu xong hôm nay</div><div class="kprog">'
+    var note=canEdit?'':' · <a href="/admin/" style="color:var(--release)">đăng nhập để đánh dấu</a>';
+    el.innerHTML='<div class="kprog-h">Đánh dấu xong hôm nay'+note+'</div><div class="kprog">'
       +progItems.map(function(it){var d=!!kdone[it.key];
-        return '<button class="kdone'+(d?' is-done':'')+'" data-kdone="'+it.key+'"><span class="kx">'+(d?'✓':'○')+'</span>'+it.slot+' '+it.name+'</button>';}).join('')
+        return '<button class="kdone'+(d?' is-done':'')+'"'+(canEdit?' data-kdone="'+it.key+'"':' disabled style="cursor:default;opacity:.85"')+'><span class="kx">'+(d?'✓':'○')+'</span>'+it.slot+' '+it.name+'</button>';}).join('')
       +'</div>';
   }
   function kToggle(key){
+    if(!canEdit) return;
     kdone[key]=!kdone[key];
     lsSet('keg-done-'+todayKey,JSON.stringify(kdone));
     renderProgress();
@@ -709,6 +719,17 @@
     var b=ev.target.closest('[data-kdone]'); if(!b) return;
     kToggle(b.getAttribute('data-kdone'));
   });
+  /* trạng thái đăng nhập */
+  function setKAuth(){
+    var el=document.getElementById('authbar'); if(!el) return;
+    el.innerHTML = canEdit
+      ? '<span class="st"><span class="dot"></span>Đang đăng nhập</span><a href="/admin/">Hồ sơ</a>'
+      : '<span class="st"><span class="dot off"></span>Chế độ xem</span><a href="/admin/">Đăng nhập để thao tác</a>';
+  }
+  setKAuth();
+  fetch('/api/me',{credentials:'same-origin'}).then(function(r){return r.ok?r.json():null;}).then(function(d){
+    canEdit=!!(d&&d.user); setKAuth(); renderProgress();
+  }).catch(function(){});
 
   startBtn.addEventListener("click",function(){running?pause():start();});
   resetBtn.addEventListener("click",function(){if(raf)cancelAnimationFrame(raf);raf=null;reps=0;repsEl.textContent=0;setIdle();});

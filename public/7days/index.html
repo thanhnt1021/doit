@@ -31,6 +31,13 @@
   .eyebrow{font:700 11px/1.4 var(--mono);letter-spacing:.2em;text-transform:uppercase;color:var(--run)}
   .hero h1{font-weight:800;font-size:clamp(32px,9vw,46px);letter-spacing:-.02em;margin:7px 0 4px;line-height:1.02}
   .lede{color:var(--muted);font-size:13.5px;max-width:30ch;margin:0 auto}
+  .authbar{display:flex;align-items:center;justify-content:center;gap:9px;margin:12px auto 0;font-size:12.5px}
+  .authbar .st{display:inline-flex;align-items:center;gap:6px;color:var(--muted)}
+  .authbar .st b{color:var(--text)}
+  .authbar .dot{width:8px;height:8px;border-radius:50%;background:var(--ok)}
+  .authbar .dot.off{background:var(--muted)}
+  .authbar a,.authbar button{font:700 12px var(--sans);color:var(--run);background:none;border:1px solid var(--line);border-radius:8px;padding:6px 11px;min-height:34px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center}
+  .authbar a:hover,.authbar button:hover{border-color:var(--run)}
 
   /* NAV */
   .nav{display:flex;align-items:center;gap:10px;margin:18px 0 8px}
@@ -131,6 +138,7 @@
     <p class="eyebrow">Tập · Chạy · Kegel</p>
     <h1>Lịch Tuần</h1>
     <p class="lede">Mỗi ngày 1 việc chính + việc nhẹ + kegel. Bấm ← → xem ngày khác.</p>
+    <div class="authbar" id="authbar"></div>
   </header>
 
   <div class="toggle-wrap">
@@ -173,11 +181,10 @@
       L:[["Treo xà","dead hang","treo, xây lực nắm","giữ 3 lần lâu nhất"],["Kéo xương bả","scapular pull ups","hạ vai kéo bả","3×8-10"],["Pull-up âm","negative pull up","leo lên, hạ chậm 5s","3×3-5, hạ 5s"],["Pull-up","pull up proper form","cằm qua xà"],["Archer pull-up","archer pull up","dồn 1 tay"],["Pull-up 1 tay","one arm pull up progression","đỉnh cao"]],bw:[["Superman giữ","superman hold exercise","nằm sấp nâng tay-chân, giữ 3-5s","3×5 lần giữ"],["Prone Y-T-W (chuỗi)","prone y t w raises","làm liền 3 kiểu Y-T-W, siết bả mỗi nhịp","3×(5+5+5)"],["Reverse snow angel chậm","reverse snow angel exercise","quét tay chậm, kiểm soát hết biên độ","3×8"],["Prone lat pull (kéo cao→thấp)","prone lat raise floor","tay duỗi cao, kéo thành chữ W ép lưng giữa","3×10"]]}
   };
   var PAIRS=[["pushH","pullH","Đẩy ngang + Kéo ngang"],["squat","hinge","Squat + Gập hông"],["pushV","pullV","Đẩy dọc + Kéo dọc"]];
-  var levels={pushH:3,pullH:1,squat:1,hinge:0,pushV:0,pullV:2}, doneByDay={}, noEquip=false;
+  var levels={pushH:3,pullH:1,squat:1,hinge:0,pushV:0,pullV:2}, doneByDay={}, noEquip=false, canEdit=false;
   var bcl={push:"b-push",pull:"b-pull",legs:"b-legs"};
 
-  /* ---------- lưu DB (Cloudflare D1 qua /api) + fallback localStorage ---------- */
-  var PIN=(function(){try{return localStorage.getItem('doit-pin')||'';}catch(e){return '';}})();
+  /* ---------- lưu DB (Cloudflare D1 qua /api) — chỉ khi đã đăng nhập ---------- */
   function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
   function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
   function pad(n){return n<10?'0'+n:''+n;}
@@ -186,8 +193,9 @@
   function ladderOf(key){return (noEquip&&P[key].bw)?P[key].bw:P[key].L;}
 
   function apiSend(body){
-    return fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json','x-pin':PIN},body:JSON.stringify(body)})
-      .then(function(r){ if(r.status===401){ var p=window.prompt('Nhập mã PIN để lưu (Cloudflare APP_PIN):',PIN||''); if(p!=null){PIN=p;lsSet('doit-pin',p);apiSend(body);} } })
+    if(!canEdit) return Promise.resolve();
+    return fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)})
+      .then(function(r){ if(r.status===401){ canEdit=false; setAuthBar(); render(); alert('Phiên đăng nhập đã hết. Vào /admin đăng nhập lại để thao tác.'); } })
       .catch(function(){});
   }
   function saveSettings(){
@@ -219,6 +227,19 @@
   }
   /* đổi ngày: vẽ ngay từ cache rồi đồng bộ DB */
   function ensureDay(){ var k=dateKey(sel); loadDoneLocal(k); render(); fetchState(k,false); }
+
+  /* ---------- đăng nhập (khách chỉ xem) ---------- */
+  function setAuthBar(){
+    var el=document.getElementById('authbar'); if(!el) return;
+    el.innerHTML = canEdit
+      ? '<span class="st"><span class="dot"></span>Đang đăng nhập</span><a href="/admin/">Hồ sơ</a>'
+      : '<span class="st"><span class="dot off"></span>Chế độ xem</span><a href="/admin/">Đăng nhập để thao tác</a>';
+  }
+  function fetchMe(){
+    fetch('/api/me',{credentials:'same-origin'}).then(function(r){return r.ok?r.json():null;}).then(function(d){
+      canEdit = !!(d&&d.user); setAuthBar(); render();
+    }).catch(function(){ canEdit=false; setAuthBar(); });
+  }
 
   /* ---------- KEGEL (khớp app Kegel) ---------- */
   var KEG={short:["Giữ ngắn","×10"],long:["Giữ dài","×10"],quick:["Nhanh","×20"],reverse:["Reverse","×10"],elevator:["Thang máy","×4"],breath:["Phối thở","×3"]};
@@ -261,17 +282,19 @@
     var i = Math.min(levels[key], ladder.length-1), lv=ladder[i];
     var doStr=lv[3]||"3 hiệp × 8-12 cái";
     var atTop=i>=ladder.length-1, atBot=i<=0, isDone=doneMap()[key];
-    var btns = editable
+    var btns = (editable&&canEdit)
       ? '<button class="dnb" data-act="dn" data-key="'+key+'"'+(atBot?' disabled':'')+'>↓ Dễ hơn</button><button class="upb" data-act="up" data-key="'+key+'"'+(atTop?' disabled':'')+'>↑ Lên bậc</button>'
       : '';
-    var doneBtn = '<button class="donebtn" data-act="done" data-key="'+key+'">'+(isDone?'✓ Xong':'Đánh dấu')+'</button>';
+    var doneBtn = canEdit
+      ? '<button class="donebtn" data-act="done" data-key="'+key+'">'+(isDone?'✓ Xong':'Đánh dấu')+'</button>'
+      : (isDone?'<span class="bsc" style="background:var(--ok);color:#06201E">✓ Đã xong</span>':'');
     var swapTag = swapped ? '<span class="swap-tag">Thay thế</span>' : '';
     return '<div class="card'+(isDone?' done':'')+'">'
       +'<div class="ctop"><span class="bsc '+bcl[p.cat]+'">Bậc '+(i+1)+'/'+ladder.length+'</span>'+swapTag+'<span style="flex:1"></span>'+doneBtn+'</div>'
       +'<div class="cname">'+lv[0]+'</div><div class="cdo">'+doStr+'</div>'
       +'<div class="ccue">'+lv[2]+' · '+p.name+(swapped?' · không cần xà':'')+'</div>'
       +'<div class="cbtns"><a class="watch" href="'+yt(lv[1])+'" target="_blank" rel="noopener">▶ Xem</a>'+btns+'</div>'
-      +(editable?'<div class="crule"><b>Lên bậc</b> khi 3 hiệp đều 12 cái · <b>Dễ hơn</b> nếu chưa nổi 8</div>':'')
+      +(editable&&canEdit?'<div class="crule"><b>Lên bậc</b> khi 3 hiệp đều 12 cái · <b>Dễ hơn</b> nếu chưa nổi 8</div>':'')
       +'</div>';
   }
 
@@ -368,7 +391,7 @@
   document.getElementById("seg").addEventListener("click",function(e){
     var b=e.target.closest("button"); if(!b) return;
     noEquip = b.getAttribute("data-eq")==="1";
-    setSeg(); saveSettings(); render();
+    setSeg(); if(canEdit) saveSettings(); render();   // khách: đổi để xem, không lưu
   });
 
   /* ---------- events ---------- */
@@ -378,6 +401,7 @@
   document.getElementById("navtoday").addEventListener("click",function(e){if(e.target.closest("#goToday")){sel=midnight(new Date());ensureDay();}});
   document.getElementById("dayContent").addEventListener("click",function(e){
     var b=e.target.closest("[data-act]");if(!b)return;
+    if(!canEdit) return;   // khách chỉ xem
     var key=b.getAttribute("data-key"), act=b.getAttribute("data-act");
     if(act==="up"&&levels[key]<ladderOf(key).length-1){levels[key]++;saveSettings();}
     else if(act==="dn"&&levels[key]>0){levels[key]--;saveSettings();}
@@ -385,8 +409,9 @@
     render();
   });
 
-  loadLocal(); loadDoneLocal(dateKey(today)); setSeg(); render();   // vẽ ngay từ cache
-  fetchState(dateKey(today), true);                                  // rồi đồng bộ DB
+  loadLocal(); loadDoneLocal(dateKey(today)); setSeg(); setAuthBar(); render();   // vẽ ngay từ cache
+  fetchState(dateKey(today), true);                                  // đồng bộ DB
+  fetchMe();                                                         // xác định quyền thao tác
 })();
 </script>
 </body>

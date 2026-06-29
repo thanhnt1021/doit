@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0E1417">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="format-detection" content="telephone=no">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<title>Admin — DoIt</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#0E1417;--surface:#172127;--surface2:#1E2A30;--line:rgba(255,255,255,.09);
+    --text:#ECE6DC;--muted:#93A0A6;--run:#4FC4BE;--ok:#5BD78C;--bad:#F0808F;
+    --sans:'Be Vietnam Pro',system-ui,-apple-system,sans-serif;--mono:'Space Mono',ui-monospace,monospace;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.55;-webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(900px 500px at 50% -10%, rgba(79,196,190,.07), transparent 70%);}
+  .wrap{max-width:440px;margin:0 auto;padding:max(40px,env(safe-area-inset-top)) 20px 64px}
+  .hero{text-align:center;padding:6px 0 22px}
+  .eyebrow{font:700 11px var(--mono);letter-spacing:.2em;text-transform:uppercase;color:var(--run)}
+  h1{font-weight:800;font-size:clamp(34px,11vw,48px);letter-spacing:-.02em;margin:8px 0 4px}
+  .lede{color:var(--muted);font-size:13.5px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:20px 18px;margin-bottom:14px}
+  .card h2{font-size:17px;font-weight:800;margin-bottom:4px}
+  .card .sub{color:var(--muted);font-size:13px;margin-bottom:14px}
+  label{display:block;font:700 11px var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:12px 0 5px}
+  input{width:100%;font:500 16px var(--sans);color:var(--text);background:var(--surface2);border:1px solid var(--line);
+    border-radius:11px;padding:13px 14px;min-height:50px}
+  input:focus{outline:2px solid var(--run);outline-offset:1px}
+  .btn{width:100%;font:700 15px var(--sans);padding:14px;border-radius:12px;min-height:52px;cursor:pointer;margin-top:16px;
+    background:var(--run);color:#06201E;border:1px solid transparent}
+  .btn.ghost{background:var(--surface2);color:var(--text);border-color:var(--line)}
+  .btn:hover{filter:brightness(1.08)}
+  .msg{font-size:13px;margin-top:12px;min-height:18px;padding:0 2px}
+  .msg.ok{color:var(--ok)} .msg.bad{color:var(--bad)}
+  .who{display:flex;align-items:center;gap:9px;background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:6px}
+  .who .dot{width:9px;height:9px;border-radius:50%;background:var(--ok);flex:0 0 auto}
+  .who b{font-weight:800}
+  .links{display:flex;gap:10px;margin-top:6px}
+  .links a{flex:1;text-align:center;font:700 13px var(--sans);color:var(--text);background:var(--surface);border:1px solid var(--line);
+    border-radius:11px;padding:12px;text-decoration:none}
+  .links a:hover{border-color:var(--run)}
+  .hint{color:var(--muted);font-size:12px;margin-top:10px;line-height:1.5}
+  footer{margin-top:24px;text-align:center;color:var(--muted);font-size:12px}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header class="hero">
+    <p class="eyebrow">DoIt · Quản trị</p>
+    <h1>Admin</h1>
+    <p class="lede">Chỉ tài khoản này mới đánh dấu được. Khách chỉ xem.</p>
+  </header>
+
+  <div id="view"></div>
+
+  <div class="links">
+    <a href="/7days/">📅 Lịch Tuần</a>
+    <a href="/kegel/">🔵 Kegel</a>
+  </div>
+  <footer>Đăng nhập lưu phiên 30 ngày trên thiết bị này.</footer>
+</main>
+
+<script>
+(function(){
+  var view=document.getElementById("view");
+  function api(path,body){
+    return fetch(path,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},
+      body:body?JSON.stringify(body):undefined,credentials:'same-origin'})
+      .then(function(r){return r.json().then(function(j){return {status:r.status,j:j};});});
+  }
+  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+
+  function loginView(){
+    view.innerHTML=
+      '<div class="card"><h2>Đăng nhập</h2><p class="sub">Tài khoản duy nhất được thao tác.</p>'
+      +'<label>Tài khoản</label><input id="u" autocomplete="username" autocapitalize="off" autocorrect="off" placeholder="hentaiikidd">'
+      +'<label>Mật khẩu</label><input id="p" type="password" autocomplete="current-password" placeholder="••••••">'
+      +'<button class="btn" id="loginBtn">Đăng nhập</button>'
+      +'<div class="msg" id="m"></div></div>';
+    document.getElementById("loginBtn").addEventListener("click",doLogin);
+    document.getElementById("p").addEventListener("keydown",function(e){if(e.key==="Enter")doLogin();});
+  }
+  function doLogin(){
+    var m=document.getElementById("m"); m.className="msg"; m.textContent="Đang kiểm tra...";
+    api('/api/login',{username:document.getElementById("u").value,password:document.getElementById("p").value})
+      .then(function(r){
+        if(r.status===200&&r.j.ok){ render(); }
+        else if(r.status===503){ m.className="msg bad"; m.textContent="Server chưa cấu hình DB/secret."; }
+        else { m.className="msg bad"; m.textContent="Sai tài khoản hoặc mật khẩu."; }
+      }).catch(function(){ m.className="msg bad"; m.textContent="Lỗi mạng."; });
+  }
+
+  function profileView(user){
+    view.innerHTML=
+      '<div class="card"><div class="who"><span class="dot"></span><span>Đang đăng nhập: <b>'+esc(user)+'</b></span></div>'
+      +'<button class="btn ghost" id="logoutBtn">Đăng xuất</button></div>'
+      +'<div class="card"><h2>Đổi mật khẩu</h2><p class="sub">Đổi xong nhớ lưu vào app Password.</p>'
+      +'<label>Mật khẩu hiện tại</label><input id="cur" type="password" autocomplete="current-password">'
+      +'<label>Mật khẩu mới</label><input id="n1" type="password" autocomplete="new-password">'
+      +'<label>Nhập lại mật khẩu mới</label><input id="n2" type="password" autocomplete="new-password">'
+      +'<button class="btn" id="pwBtn">Đổi mật khẩu</button>'
+      +'<div class="msg" id="pm"></div>'
+      +'<p class="hint">Mật khẩu tối thiểu 4 ký tự, lưu dạng băm (PBKDF2) — server không giữ bản thô.</p></div>';
+    document.getElementById("logoutBtn").addEventListener("click",function(){
+      api('/api/logout',{}).then(render);
+    });
+    document.getElementById("pwBtn").addEventListener("click",doChange);
+  }
+  function doChange(){
+    var pm=document.getElementById("pm"); pm.className="msg";
+    var cur=document.getElementById("cur").value, n1=document.getElementById("n1").value, n2=document.getElementById("n2").value;
+    if(n1.length<4){ pm.className="msg bad"; pm.textContent="Mật khẩu mới tối thiểu 4 ký tự."; return; }
+    if(n1!==n2){ pm.className="msg bad"; pm.textContent="Hai mật khẩu mới không khớp."; return; }
+    pm.textContent="Đang đổi...";
+    api('/api/password',{current:cur,next:n1}).then(function(r){
+      if(r.status===200&&r.j.ok){ pm.className="msg ok"; pm.textContent="Đã đổi mật khẩu. Lưu lại vào app Password nhé!";
+        document.getElementById("cur").value=document.getElementById("n1").value=document.getElementById("n2").value=""; }
+      else if(r.status===403){ pm.className="msg bad"; pm.textContent="Mật khẩu hiện tại sai."; }
+      else { pm.className="msg bad"; pm.textContent="Lỗi: "+(r.j.error||r.status); }
+    }).catch(function(){ pm.className="msg bad"; pm.textContent="Lỗi mạng."; });
+  }
+
+  function render(){
+    api('/api/me').then(function(r){
+      if(r.j&&r.j.user) profileView(r.j.user); else loginView();
+    }).catch(loginView);
+  }
+  render();
+})();
+</script>
+</body>
+</html>

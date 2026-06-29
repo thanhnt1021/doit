@@ -37,3 +37,6 @@ __pycache__/
 # Canva hook sentinel (project khong dung Canva)
 .canva-verified.json
 .canva-map.json
+
+# Pages local secrets
+.dev.vars

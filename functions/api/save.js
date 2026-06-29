@@ -1,7 +1,8 @@
 // POST /api/save
 //   { kind:'done', date, exercise, done, level }   → ghi 1 bài của 1 ngày
 //   { kind:'settings', levels?, noequip? }         → ghi cài đặt toàn cục
-// Nếu đặt biến môi trường APP_PIN ở Cloudflare → bắt buộc header 'x-pin' khớp.
+// Bắt buộc đang ĐĂNG NHẬP (cookie session). Khách chỉ xem, không ghi được.
+import { getSessionUser } from "../_auth.js";
 
 function json(obj, status) {
   return new Response(JSON.stringify(obj), {
@@ -13,9 +14,8 @@ function json(obj, status) {
 export async function onRequestPost(context) {
   const { request, env } = context;
   if (!env.DB) return json({ error: "no-db" }, 503);
-  if (env.APP_PIN && request.headers.get("x-pin") !== env.APP_PIN) {
-    return json({ error: "unauthorized" }, 401);
-  }
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401);
 
   let body;
   try { body = await request.json(); } catch (e) { return json({ error: "bad-json" }, 400); }

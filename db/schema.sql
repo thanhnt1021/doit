@@ -16,3 +16,11 @@ CREATE TABLE IF NOT EXISTS settings (
   k TEXT PRIMARY KEY,               -- 'levels' (JSON) | 'noequip' ('0'/'1')
   v TEXT NOT NULL
 );
+
+-- Tài khoản (chỉ 1 user thao tác). Mật khẩu lưu PBKDF2-SHA256 + salt, không lưu thô.
+CREATE TABLE IF NOT EXISTS auth (
+  username TEXT PRIMARY KEY,
+  salt     TEXT NOT NULL,
+  hash     TEXT NOT NULL,
+  updated_at TEXT
+);
