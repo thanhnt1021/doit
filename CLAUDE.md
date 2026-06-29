@@ -31,3 +31,5 @@ git remote set-url origin https://github.com/thanhnt1021/doit.git  # reset lại
 - Vite + React (JSX)
 - Inline styles (dark theme, mobile-first)
 - Google Fonts: Crimson Pro, JetBrains Mono
+
+> Đọc docs/universal_rules/INDEX.md để áp dụng universal workflow rules.
