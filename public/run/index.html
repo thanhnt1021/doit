@@ -117,6 +117,11 @@
   .dbody b{color:var(--text)}
 
   footer{margin-top:30px;text-align:center;color:var(--muted);font-size:12px;border-top:1px solid var(--line);padding-top:18px}
+  .authbar{display:flex;align-items:center;justify-content:center;gap:9px;margin:13px auto 0;font-size:12.5px}
+  .authbar .st{display:inline-flex;align-items:center;gap:6px;color:var(--muted)}
+  .authbar .dot{width:8px;height:8px;border-radius:50%;background:#5BD78C} .authbar .dot.off{background:var(--muted)}
+  .authbar a{font:700 12px var(--sans);color:var(--easy);background:none;border:1px solid var(--line);border-radius:8px;padding:6px 11px;min-height:34px;text-decoration:none;display:inline-flex;align-items:center}
+  .authbar a:hover{border-color:var(--easy)}
   :focus-visible{outline:2px solid var(--easy);outline-offset:3px;border-radius:8px}
 </style>
 </head>
@@ -126,6 +131,7 @@
     <p class="eyebrow">Run Like a Pro · 80/20</p>
     <h1>Chạy Như Pro</h1>
     <p class="lede">Nhập vài số, app tính pace riêng cho mày và tự biết tuần nào chạy gì.</p>
+    <div class="authbar" id="authbar"></div>
   </header>
 
   <div id="modeBar"></div>
@@ -384,14 +390,28 @@
       +'<div class="why">'+h.w+' <a href="https://www.youtube.com/results?search_query='+encodeURIComponent(h.yt)+'" target="_blank" rel="noopener">▶ Xem</a></div></div></details>';
   }).join("");
 
-  // ---------- restore saved mode ----------
-  var saved=loadCfg();
-  if(saved){
-    if(saved.start) startInput.value=saved.start;
-    setLevel(saved.level||1);
-    if(saved.m6){ M6=saved.m6; m6Input.value=saved.m6; }
+  // ---------- restore + đồng bộ server (D1) ----------
+  var RUN_CANEDIT=false;
+  function applyCfg(c){
+    if(!c) return;
+    if(c.start) startInput.value=c.start;
+    setLevel(c.level||1);
+    if(c.m6){ M6=c.m6; m6Input.value=c.m6; } else { M6=null; m6Input.value=""; }
     registered=true;
   }
+  function pushRun(cfg){   // cfg=null để xoá; chỉ ghi khi đã đăng nhập
+    if(!RUN_CANEDIT) return;
+    fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({kind:'settings',run:cfg})})
+      .then(function(r){ if(r.status===401){ RUN_CANEDIT=false; setRunAuth(); alert('Phiên đăng nhập đã hết. Vào /admin đăng nhập lại để đồng bộ.'); } }).catch(function(){});
+  }
+  function setRunAuth(){
+    var el=document.getElementById('authbar'); if(!el) return;
+    el.innerHTML = RUN_CANEDIT
+      ? '<span class="st"><span class="dot"></span>Đang đăng nhập · đồng bộ mọi máy</span><a href="/admin/">Hồ sơ</a>'
+      : '<span class="st"><span class="dot off"></span>Chế độ xem (chỉ máy này)</span><a href="/admin/">Đăng nhập để đồng bộ</a>';
+  }
+  var saved=loadCfg(); if(saved) applyCfg(saved);
+  setRunAuth();
 
   // ---------- events ----------
   startInput.addEventListener("change",function(){ if(registered){registered=false;} render(); });
@@ -405,12 +425,13 @@
     if(registered){registered=false;} render();
   });
   document.getElementById("regBtn").addEventListener("click",function(){
-    registered=true; saveCfg({start:startInput.value,level:level,m6:M6});
+    registered=true; var cfg={start:startInput.value,level:level,m6:M6};
+    saveCfg(cfg); pushRun(cfg);
     render(); window.scrollTo({top:0,behavior:"smooth"});
   });
   cancelBtn.addEventListener("click",function(){
     if(window.confirm("Hủy chế độ? Xoá ngày bắt đầu, trình độ và pace đã lưu.")){
-      clearCfg(); registered=false;
+      clearCfg(); pushRun(null); registered=false;
       startInput.value=iso(mondayThisWeek()); setLevel(1); M6=null; m6Input.value="";
       render();
     }
@@ -420,6 +441,16 @@
   });
 
   render();
+
+  // me → state → (lần đầu) tự đẩy cfg local lên server để đồng bộ sang máy khác
+  fetch('/api/me',{credentials:'same-origin'}).then(function(r){return r.ok?r.json():null;})
+    .then(function(d){
+      RUN_CANEDIT=!!(d&&d.user); setRunAuth();
+      return fetch('/api/state',{credentials:'same-origin'}).then(function(r){return r.ok?r.json():null;}).then(function(s){
+        if(s&&s.run){ applyCfg(s.run); saveCfg(s.run); render(); }           // server có → dùng (đồng bộ mọi máy)
+        else if(RUN_CANEDIT){ var lc=loadCfg(); if(lc) pushRun(lc); }         // server trống + đã đăng nhập → migrate local lên
+      });
+    }).catch(function(){});
 })();
 </script>
 </body>

@@ -47,6 +47,11 @@ export async function onRequestPost(context) {
           "INSERT INTO settings (k,v) VALUES ('noequip',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v"
         ).bind(body.noequip ? "1" : "0"));
       }
+      if (body.run !== undefined) {
+        stmts.push(body.run === null
+          ? env.DB.prepare("DELETE FROM settings WHERE k='run'")
+          : env.DB.prepare("INSERT INTO settings (k,v) VALUES ('run',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(JSON.stringify(body.run)));
+      }
       if (stmts.length) await env.DB.batch(stmts);
       return json({ ok: true });
     }

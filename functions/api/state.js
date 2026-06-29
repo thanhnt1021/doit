@@ -15,10 +15,11 @@ export async function onRequestGet(context) {
   const date = new URL(request.url).searchParams.get("date") || "";
   try {
     const settings = await env.DB.prepare("SELECT k, v FROM settings").all();
-    let levels = {}, noequip = false;
+    let levels = {}, noequip = false, run = null;
     for (const row of settings.results || []) {
       if (row.k === "levels") { try { levels = JSON.parse(row.v); } catch (e) {} }
       if (row.k === "noequip") noequip = row.v === "1";
+      if (row.k === "run") { try { run = JSON.parse(row.v); } catch (e) {} }
     }
     const done = {};
     if (date) {
@@ -28,7 +29,7 @@ export async function onRequestGet(context) {
         .all();
       for (const row of rows.results || []) if (row.done) done[row.exercise] = true;
     }
-    return json({ levels, noequip, done });
+    return json({ levels, noequip, run, done });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }
