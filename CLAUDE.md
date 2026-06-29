@@ -3,6 +3,16 @@
 ## Ngôn ngữ
 Luôn giao tiếp bằng tiếng Việt có dấu.
 
+## ⚠️ Luật BẮT BUỘC: phải thử chạy thật, không được tự nhận "không làm được"
+- **Trước khi nói "tôi không có quyền / không vào được / bạn phải tự làm" → PHẢI kiểm tra credentials/tool thật trước.** Ví dụ: `npx wrangler whoami`, `gh auth status`, thử gọi API. Đã kết nối sẵn thì làm luôn, đừng đẩy việc về cho user.
+- **Đã build/connect thì PHẢI chạy thử end-to-end** (curl API, `wrangler pages dev`, mở app) rồi mới báo xong. Cấm báo "xong" chỉ dựa vào đọc code.
+- Account Cloudflare `wrangler` đang login: `hentaii.kidd@gmail.com` (có quyền `d1 write` + `pages write`) — tạo D1, chạy schema, deploy được trực tiếp.
+
+## Database (Cloudflare D1)
+- DB `doit-db` đã tạo · `database_id` trong `wrangler.toml` (binding `DB`).
+- API: `functions/api/state.js` (GET đọc theo ngày) · `functions/api/save.js` (POST ghi). Schema: `db/schema.sql`.
+- Bind production qua `wrangler.toml` (Pages đọc khi build Git). Chi tiết: `db/DATABASE_SETUP.md`.
+
 ## Git Config
 - **Account**: thanhnt1021
 - **Repo**: https://github.com/thanhnt1021/doit

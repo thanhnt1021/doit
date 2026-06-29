@@ -1,0 +1,10 @@
+# Cấu hình Cloudflare Pages + D1 cho project "doit".
+# Khi push lên main, Pages đọc file này và tự bind D1 (binding DB) cho /api.
+name = "doit"
+compatibility_date = "2025-06-01"
+pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "doit-db"
+database_id = "6fab28d9-665f-4fe4-9edb-45c58f6213ef"

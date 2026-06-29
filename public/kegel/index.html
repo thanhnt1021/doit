@@ -157,6 +157,14 @@
   .pm-link{display:inline-block;margin-top:11px;font:700 12px var(--sans);color:#0A0E2A;background:var(--reverse);border-radius:9px;padding:8px 13px;text-decoration:none}
   .find-link{display:inline-block;margin-top:14px;font:700 12px var(--sans);color:#0E1417;background:var(--release);border-radius:9px;padding:9px 14px;text-decoration:none}
 
+  .posfig{display:block;width:84px;height:50px;color:var(--c,var(--release));margin-bottom:10px}
+  .kprog-h{font:700 11px var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:16px 0 7px}
+  .kprog{display:flex;flex-wrap:wrap;gap:8px}
+  .kdone{font:600 13px var(--sans);color:var(--text);background:var(--surface2);border:1px solid var(--line);border-radius:11px;padding:10px 13px;min-height:42px;display:inline-flex;align-items:center;gap:7px;cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none;transition:border-color .2s,background .2s}
+  .kdone .kx{font:700 13px var(--mono);color:var(--muted)}
+  .kdone.is-done{border-color:var(--release);background:#16242A}
+  .kdone.is-done .kx{color:var(--release)}
+
   /* TIMELINE */
   .timeline{list-style:none;position:relative;padding-left:8px}
   .timeline::before{content:"";position:absolute;left:21px;top:10px;bottom:10px;width:2px;background:linear-gradient(var(--engage),var(--release),var(--reverse))}
@@ -322,24 +330,30 @@
     <p class="lead">Siết sàn chậu ngay trong 3 tư thế, kèm chuyển động. Luyện <b style="color:var(--text)">sức bền</b> (đây mới là cái giúp giữ lâu). Lịch ở trên xoay vòng 3 tư thế cho mày, đây là cách làm từng tư thế:</p>
 
     <div class="ex-grid">
-      <div class="ex" style="--c:var(--release)">
+      <div class="ex" style="--c:var(--release)" data-load data-mode="pos1" tabindex="0" role="button">
+        <svg class="posfig" viewBox="0 0 88 52" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="48" x2="82" y2="48"/><circle cx="16" cy="40" r="5" fill="currentColor" stroke="none"/><path d="M22 40 L50 28 L64 30 L64 47"/></svg>
         <span class="tag">Tối T2 · nằm ngửa</span><h3>Tư thế 1</h3>
         <p class="dose">Nằm ngửa gối co, siết 5s/thả 5s + nâng-hạ hông. Khó dần: 1 chân duỗi → 2 chân duỗi đẩy gót.</p>
+        <p class="go">BẤM ĐỂ TẬP →</p>
         <a class="ex-link" href="https://www.youtube.com/results?search_query=kegel+exercises+men+lying+down" target="_blank" rel="noopener">▶ Xem mẫu</a>
       </div>
-      <div class="ex" style="--c:var(--release)">
+      <div class="ex" style="--c:var(--release)" data-load data-mode="pos2" tabindex="0" role="button">
+        <svg class="posfig" viewBox="0 0 88 52" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="48" x2="82" y2="48"/><circle cx="16" cy="22" r="5" fill="currentColor" stroke="none"/><path d="M21 24 L52 38 L74 44"/><path d="M28 30 L28 47 L42 47"/></svg>
         <span class="tag">Tối T5 · chống tay</span><h3>Tư thế 2</h3>
         <p class="dose">Plank chống khuỷu, giữ thân thẳng + nghiêng hông tới-lui, ép-mở bả vai. Chủ yếu là giữ thân (sức bền).</p>
+        <p class="go">BẤM ĐỂ TẬP →</p>
         <a class="ex-link" href="https://www.youtube.com/results?search_query=pelvic+floor+exercise+plank+position" target="_blank" rel="noopener">▶ Xem mẫu</a>
       </div>
-      <div class="ex" style="--c:var(--release)">
+      <div class="ex" style="--c:var(--release)" data-load data-mode="pos3" tabindex="0" role="button">
+        <svg class="posfig" viewBox="0 0 88 52" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="48" x2="82" y2="48"/><circle cx="44" cy="14" r="5" fill="currentColor" stroke="none"/><path d="M44 19 L44 38"/><path d="M44 38 L30 47"/><path d="M44 38 L44 47"/></svg>
         <span class="tag">Tối T7 · quỳ gối</span><h3>Tư thế 3</h3>
         <p class="dose">Quỳ 2 gối rộng bằng vai, lưng thẳng, siết theo nhịp. Khó nhất, thân không tựa gì.</p>
+        <p class="go">BẤM ĐỂ TẬP →</p>
         <a class="ex-link" href="https://www.youtube.com/results?search_query=pelvic+floor+exercises+kneeling" target="_blank" rel="noopener">▶ Xem mẫu</a>
       </div>
     </div>
     <div class="today" style="margin-top:14px">
-      <p class="theme" style="margin:0">Tăng dần mỗi 6 tuần: siết <b style="color:var(--text)">5s → 10s → 15s</b> (thả 5s). Mỗi bài 30→45→60 giây, lặp 2 lần. Bấm bài "Giữ ngắn / Giữ dài" ở đồng hồ trên để đếm nhịp giúp.</p>
+      <p class="theme" style="margin:0">Tăng dần mỗi 6 tuần: siết <b style="color:var(--text)">5s → 10s → 15s</b> (thả 5s). Mỗi bài 30→45→60 giây, lặp 2 lần. Bấm thẳng 1 tư thế ở trên → đồng hồ đếm nhịp 5s/5s đúng tư thế đó.</p>
     </div>
   </section>
 
@@ -472,6 +486,24 @@
         {label:"Giữ siết",dur:4,key:"hold",s0:.92,s1:1,ty0:-20,ty1:-26,bt:"in",detail:"Giữ siết, hít vào sâu trong 4 nhịp"},
         {label:"Giữ siết",dur:4,key:"hold",s0:1,s1:.92,ty0:-26,ty1:-20,bt:"out",detail:"Vẫn giữ siết, thở ra chậm trong 4 nhịp"},
         {label:"Thả lỏng",dur:4,key:"release",s0:.92,s1:.62,ty0:-20,ty1:0,bt:"free",detail:"Buông hoàn toàn, thở thoải mái"}
+      ]},
+    pos1:{name:"Tư thế 1 · nằm ngửa",target:6,desc:"nằm ngửa gối co · siết 5s / thả 5s",
+      pattern:'<b>Thở ra</b> khi siết + nâng hông · <b>Hít vào</b> khi hạ',
+      phases:[
+        {label:"Siết & nâng hông",dur:5,key:"engage",s0:.62,s1:1,ty0:0,ty1:-26,bt:"out",detail:"Siết sàn chậu, nâng hông lên, thở ra"},
+        {label:"Hạ & thả lỏng",dur:5,key:"release",s0:1,s1:.62,ty0:-26,ty1:0,bt:"in",detail:"Hạ hông xuống, buông lỏng, hít vào"}
+      ]},
+    pos2:{name:"Tư thế 2 · chống tay",target:6,desc:"plank chống khuỷu · siết 5s / thả 5s",
+      pattern:'<b>Giữ thân thẳng</b> · thở đều, không nín hơi',
+      phases:[
+        {label:"Siết & giữ thân",dur:5,key:"engage",s0:.62,s1:1,ty0:0,ty1:-26,bt:"free",detail:"Giữ plank thẳng, siết sàn chậu, thở đều"},
+        {label:"Thả nhẹ",dur:5,key:"release",s0:1,s1:.62,ty0:-26,ty1:0,bt:"free",detail:"Buông sàn chậu, vẫn giữ thân, thở đều"}
+      ]},
+    pos3:{name:"Tư thế 3 · quỳ gối",target:6,desc:"quỳ gối lưng thẳng · siết 5s / thả 5s",
+      pattern:'<b>Lưng thẳng</b> · thở ra khi siết, hít vào khi thả',
+      phases:[
+        {label:"Siết & giữ",dur:5,key:"engage",s0:.62,s1:1,ty0:0,ty1:-26,bt:"out",detail:"Quỳ thẳng lưng, siết sàn chậu lên, thở ra"},
+        {label:"Thả lỏng",dur:5,key:"release",s0:1,s1:.62,ty0:-26,ty1:0,bt:"in",detail:"Buông lỏng hoàn toàn, hít vào"}
       ]}
   };
   var ORDER=["short","long","quick","reverse","elevator","breath"];
@@ -611,7 +643,10 @@
     if(!code) return '';
     var p=PM[code];
     var url="https://www.youtube.com/results?search_query="+encodeURIComponent(p.yt);
-    return '<div class="slot-h pm" style="margin-top:15px">🌙 Tối</div><div class="pm-card"><div class="pmt">'+p.tag+'</div><div class="pmn">'+p.name+'</div><div class="pmc">'+p.cue+'</div><a class="pm-link" href="'+url+'" target="_blank" rel="noopener">▶ Xem mẫu</a></div>';
+    var isPos=/^pos/.test(code);
+    var loadAttr=isPos?' data-load data-mode="'+code+'" tabindex="0" role="button" style="cursor:pointer"':'';
+    var go=isPos?'<div class="go" style="color:var(--reverse);margin-top:9px">BẤM ĐỂ TẬP →</div>':'';
+    return '<div class="slot-h pm" style="margin-top:15px">🌙 Tối</div><div class="pm-card"'+loadAttr+'><div class="pmt">'+p.tag+'</div><div class="pmn">'+p.name+'</div><div class="pmc">'+p.cue+'</div>'+go+'<a class="pm-link" href="'+url+'" target="_blank" rel="noopener">▶ Xem mẫu</a></div>';
   }
   var tb=document.getElementById("todayBox");
   if(today&&today.rest){
@@ -620,7 +655,8 @@
     tb.innerHTML='<p class="eyebrow">Buổi hôm nay · '+today.d+' · '+dateStr+'</p>'
       +'<div class="slot-h am">🌅 Sáng · '+today.theme+'</div><p class="theme" style="margin-bottom:9px">Bấm 1 bài để nhảy lên đồng hồ tập (làm bất cứ đâu):</p>'
       +'<div class="chips">'+today.ex.map(function(k){return chipHTML(k,false);}).join("")+'</div>'
-      +pmHTML(today.pm);
+      +pmHTML(today.pm)
+      +'<div id="kProgress"></div>';
   }
   document.getElementById("weekBox").innerHTML=WEEK.map(function(w){
     var cls="wday"+(w.dow===dow?" is-today":"")+(w.rest?" is-rest":"");
@@ -628,6 +664,51 @@
     var pm=(!w.rest&&w.pm)?'<div class="wpm">🌙 '+PM[w.pm].short+'</div>':'';
     return '<div class="'+cls+'"><span class="dlabel">'+w.lab+'</span><div class="dex">'+ex+pm+'</div></div>';
   }).join("");
+
+  /* ---------- Đánh dấu xong hôm nay (lưu DB /api, fallback localStorage) ---------- */
+  var PIN=(function(){try{return localStorage.getItem('doit-pin')||'';}catch(e){return '';}})();
+  function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+  function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+  function pad(n){return n<10?'0'+n:''+n;}
+  var todayKey=now.getFullYear()+'-'+pad(now.getMonth()+1)+'-'+pad(now.getDate());
+  var kdone={};
+  var progItems=[];
+  if(today&&!today.rest){
+    today.ex.forEach(function(k){progItems.push({key:'am:'+k,name:MODES[k].name,slot:'🌅'});});
+    if(today.pm) progItems.push({key:'pm:'+today.pm,name:PM[today.pm].short,slot:'🌙'});
+  }
+  function kSend(body){
+    return fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json','x-pin':PIN},body:JSON.stringify(body)})
+      .then(function(r){ if(r.status===401){ var p=window.prompt('Nhập mã PIN để lưu (Cloudflare APP_PIN):',PIN||''); if(p!=null){PIN=p;lsSet('doit-pin',p);kSend(body);} } })
+      .catch(function(){});
+  }
+  function renderProgress(){
+    var el=document.getElementById('kProgress'); if(!el) return;
+    if(!progItems.length){ el.innerHTML=''; return; }
+    el.innerHTML='<div class="kprog-h">Đánh dấu xong hôm nay</div><div class="kprog">'
+      +progItems.map(function(it){var d=!!kdone[it.key];
+        return '<button class="kdone'+(d?' is-done':'')+'" data-kdone="'+it.key+'"><span class="kx">'+(d?'✓':'○')+'</span>'+it.slot+' '+it.name+'</button>';}).join('')
+      +'</div>';
+  }
+  function kToggle(key){
+    kdone[key]=!kdone[key];
+    lsSet('keg-done-'+todayKey,JSON.stringify(kdone));
+    renderProgress();
+    kSend({kind:'done',date:todayKey,exercise:'keg:'+key,done:!!kdone[key]});
+  }
+  (function loadKDone(){
+    var r=lsGet('keg-done-'+todayKey); if(r){try{kdone=JSON.parse(r)||{};}catch(e){}}
+    renderProgress();
+    fetch('/api/state?date='+encodeURIComponent(todayKey)).then(function(r){return r.ok?r.json():null;}).then(function(d){
+      if(!d||d.error||!d.done) return;
+      kdone={}; for(var k in d.done){ if(k.indexOf('keg:')===0) kdone[k.slice(4)]=true; }
+      lsSet('keg-done-'+todayKey,JSON.stringify(kdone)); renderProgress();
+    }).catch(function(){});
+  })();
+  document.addEventListener('click',function(ev){
+    var b=ev.target.closest('[data-kdone]'); if(!b) return;
+    kToggle(b.getAttribute('data-kdone'));
+  });
 
   startBtn.addEventListener("click",function(){running?pause():start();});
   resetBtn.addEventListener("click",function(){if(raf)cancelAnimationFrame(raf);raf=null;reps=0;repsEl.textContent=0;setIdle();});

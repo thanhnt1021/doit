@@ -33,3 +33,7 @@ dist-ssr
 # Python
 __pycache__/
 *.pyc
+
+# Canva hook sentinel (project khong dung Canva)
+.canva-verified.json
+.canva-map.json
