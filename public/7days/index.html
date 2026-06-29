@@ -102,6 +102,11 @@
   .it:last-child{border-bottom:none}
   .it .nm{font-weight:600} .it .cs{font-family:var(--mono);font-size:11.5px;color:var(--muted);white-space:nowrap}
   .it a{font:700 12px var(--mono);color:var(--run);text-decoration:none}
+  .cslot{padding:9px 0;border-bottom:1px solid var(--line)} .cslot:last-child{border-bottom:none}
+  .crow{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13.5px}
+  .crow .nm{font-weight:600} .crow .cs{font-family:var(--mono);font-size:11.5px;color:var(--muted);white-space:nowrap}
+  .crow>a{font:700 12px var(--mono);color:var(--run);text-decoration:none}
+  .calt{font-size:11.5px;color:var(--muted);margin-top:5px} .calt a{color:var(--run);text-decoration:none;font-weight:600}
   .kegitems{display:flex;flex-wrap:wrap;gap:7px}
   .ktag{font:600 13px var(--sans);color:var(--text);background:var(--surface2);border:1px solid rgba(154,166,240,.25);border-radius:9px;padding:9px 12px;min-height:40px;display:inline-flex;align-items:center;text-decoration:none;cursor:pointer;touch-action:manipulation;transition:border-color .2s}
   .ktag:hover{border-color:var(--kegel)}
@@ -234,6 +239,12 @@
   var MOB=[["Giãn hip flexor (couch stretch)","couch stretch hip flexor","mỗi bên 45s"],["90/90 hông","90 90 hip stretch","mỗi bên 45s"],["Mèo - bò","cat cow stretch","10 nhịp"],["World's greatest stretch","worlds greatest stretch","mỗi bên 5"],["Xoay hông","hip circle mobility","30s"]];
   var CORE_LIGHT=[["Dead bug","dead bug exercise","3×8/bên"],["Side plank","side plank","2×30s/bên"],["Glute bridge (kích hoạt)","glute bridge exercise","2×15"]];
   var WARMUP=[["Xoay vai 2 chiều","arm circles warm up","30s mỗi chiều"],["Đá chân trước-sau","leg swings warm up","10/bên"],["Khởi động cổ tay","wrist warm up for push ups","30s"],["Mèo - bò (cột sống)","cat cow stretch","10 nhịp"],["Kéo bả vai Y-T-W","prone y t w raises","1 hiệp × 10"],["Squat làm nóng (không tạ)","bodyweight squat warm up","15 cái"]];
+  /* Lõi cuối buổi: mỗi nhóm có bài chính + dễ hơn + khó hơn. back có bài thay thế khi buổi đã dính Superman */
+  var CORE={
+    ab:{main:["Plank (chống ngửa)","plank exercise","3×30-45s"],easier:["Dead bug","dead bug exercise","3×8/bên"],harder:["Hollow hold","hollow body hold","3×20-30s"]},
+    back:{main:["Superman (lưng dưới)","superman exercise back","3×12"],alt:["Bird-dog (chim-chó)","bird dog exercise","3×10/bên"],easier:["Bird-dog","bird dog exercise","3×10/bên"],harder:["Superman bơi","superman swim exercise","3×30s"]},
+    side:{main:["Side plank","side plank","3×30s/bên"],easier:["Side plank gối co","side plank knees","3×30s/bên"],harder:["Side plank nâng chân","side plank leg raise","3×12/bên"]}
+  };
 
   /* ---------- date state ---------- */
   function midnight(d){var x=new Date(d);x.setHours(0,0,0,0);return x;}
@@ -264,6 +275,23 @@
       +'</div>';
   }
 
+  function coreRow(ex){return '<div class="crow"><span class="nm">'+ex[0]+'</span><span class="cs">'+ex[2]+'</span><a href="'+yt(ex[1])+'" target="_blank" rel="noopener">▶</a></div>';}
+  function coreLink(label,ex){return '<a href="'+yt(ex[1])+'" target="_blank" rel="noopener">'+label+': '+ex[0]+' ▶</a>';}
+  function coreSlot(rowEx,alts){return '<div class="cslot">'+coreRow(rowEx)+'<div class="calt">'+alts.join(' · ')+'</div></div>';}
+  function coreBlock(noEq){
+    var b=CORE.back, backMain=noEq?b.alt:b.main;
+    var backAlts=noEq?[coreLink("Vẫn muốn Superman",b.main),coreLink("Khó hơn",b.harder)]
+                     :[coreLink("Dễ hơn",b.easier),coreLink("Khó hơn",b.harder)];
+    var h='<div class="pair">Lõi (cuối buổi)</div><div class="blk core"><h3>Core — bụng + lưng + nghiêng · chọn 1 độ khó/nhóm</h3>'
+      +'<p class="bnote">Mỗi nhóm tập 1 bài. Bị trùng với bài trong buổi thì lấy bản thay thế ngay dưới.</p>'
+      +coreSlot(CORE.ab.main,[coreLink("Dễ hơn",CORE.ab.easier),coreLink("Khó hơn",CORE.ab.harder)])
+      +coreSlot(backMain,backAlts)
+      +(noEq?'<p class="bnote" style="margin:6px 0 0;color:var(--strength)">↑ Buổi không dụng cụ đã có Superman ở phần kéo → lõi đổi sang Bird-dog cho khỏi trùng.</p>':'')
+      +coreSlot(CORE.side.main,[coreLink("Dễ hơn",CORE.side.easier),coreLink("Khó hơn",CORE.side.harder)])
+      +'</div>';
+    return h;
+  }
+
   function strengthSession(editable,legsLight){
     var h="";
     h+='<div class="blk warm"><h3>Khởi động (5 phút)</h3><p class="bnote">Làm trước, để khớp nóng rồi mới vào bài chính.</p>'
@@ -271,11 +299,7 @@
       +'</div>';
     if(legsLight) h+='<div class="runref"><b>Mai long run</b> → hôm nay tập chân (squat + hinge) <b>nhẹ thôi</b>: bớt 1 hiệp, đừng tập tới kiệt. Giữ chân tươi cho buổi dài.</div>';
     PAIRS.forEach(function(pr){ h+='<div class="pair">'+pr[2]+'</div>'+card(pr[0],editable)+card(pr[1],editable); });
-    h+='<div class="pair">Lõi (cuối buổi)</div><div class="blk core"><h3>Core — đủ bụng + lưng + nghiêng</h3>'
-      +'<div class="it"><span class="nm">Plank (chống ngửa)</span><span class="cs">3×30-45s</span><a href="'+yt("plank exercise")+'" target="_blank" rel="noopener">▶</a></div>'
-      +'<div class="it"><span class="nm">Superman (lưng dưới)</span><span class="cs">3×12</span><a href="'+yt("superman exercise back")+'" target="_blank" rel="noopener">▶</a></div>'
-      +'<div class="it"><span class="nm">Side plank (nghiêng)</span><span class="cs">3×30s/bên</span><a href="'+yt("side plank")+'" target="_blank" rel="noopener">▶</a></div>'
-      +'</div>';
+    h+=coreBlock(noEquip);
     return h;
   }
 
