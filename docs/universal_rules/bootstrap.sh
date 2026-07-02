@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Universal Workflow Bootstrap Script
-# https://github.com/hentaiikidd/universal-workflow
+# https://github.com/thanhnt1021/universal-workflow
 #
 # Usage (from project root):
-#   curl -fsSL https://raw.githubusercontent.com/hentaiikidd/universal-workflow/main/bootstrap.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/thanhnt1021/universal-workflow/main/bootstrap.sh | bash
 #   or: bash bootstrap.sh
 #   or: BOOTSTRAP_SSH_KEY=~/.ssh/my_key bash bootstrap.sh
 
@@ -22,11 +22,11 @@ mkdir -p docs/universal_rules
 CLONE_DIR="/tmp/_uw_$$"
 
 if GIT_SSH_COMMAND="ssh -i $SSH_KEY -o StrictHostKeyChecking=no" \
-   git clone --quiet git@github.com:hentaiikidd/universal-workflow.git "$CLONE_DIR" 2>/dev/null; then
+   git clone --quiet git@github.com:thanhnt1021/universal-workflow.git "$CLONE_DIR" 2>/dev/null; then
   echo "✅ Cloned (via SSH)"
 else
   echo "   SSH failed, trying HTTPS..."
-  if git clone --quiet https://github.com/hentaiikidd/universal-workflow.git "$CLONE_DIR" 2>/dev/null; then
+  if git clone --quiet https://github.com/thanhnt1021/universal-workflow.git "$CLONE_DIR" 2>/dev/null; then
     echo "✅ Cloned (via HTTPS)"
   else
     echo "❌ Clone failed. Check network / SSH key."
@@ -39,12 +39,14 @@ fi
 # Copy rules (*.md + bootstrap.sh + subdirectories)
 cp "$CLONE_DIR"/*.md docs/universal_rules/
 cp "$CLONE_DIR"/bootstrap.sh docs/universal_rules/
+# VERSION + MANIFEST.txt: dấu vân tay SSOT để check drift (xem WORKFLOWS.md sync uni)
+cp "$CLONE_DIR"/VERSION "$CLONE_DIR"/MANIFEST.txt docs/universal_rules/ 2>/dev/null || true
 for sub in rules templates skills hooks scripts _meta; do
   [ -d "$CLONE_DIR/$sub" ] && cp -r "$CLONE_DIR/$sub" docs/universal_rules/
 done
 
-# Remove uni repo's own README from project's universal_rules (it's not a rule file)
-rm -f docs/universal_rules/README.md
+# Remove uni repo's own README/CLAUDE.md from project's universal_rules (not rule files)
+rm -f docs/universal_rules/README.md docs/universal_rules/CLAUDE.md
 
 echo "✅ Rules copied to docs/universal_rules/"
 

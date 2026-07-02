@@ -2,6 +2,20 @@
 
 Áp dụng khi project có giao diện người dùng (web, mobile app, PWA).
 
+## Favicon — LUÔN tự tạo (bắt buộc mọi website)
+Cứ làm website (bất kỳ subdomain / route nào) thì **mặc định tự tạo 1 favicon**, không cần hỏi — đừng để tab trình duyệt trống/icon mặc định.
+- Tạo `public/favicon.svg` (SVG bo góc, on-theme với màu thương hiệu của site). SVG = 1 file, scale mọi size, không cần tool binary.
+- Thêm vào `<head>` MỌI trang HTML (mọi route): `<link rel="icon" href="/favicon.svg" type="image/svg+xml">`. Đặt ở root `public/` để dùng chung cho cả subdomain + tất cả route.
+- 1 favicon dùng chung cho cả site (subdomain) là đủ; chỉ làm icon riêng theo route khi user yêu cầu rõ.
+- Verify sau deploy: `curl -I https://<domain>/favicon.svg` → 200, `content-type: image/svg+xml`.
+- Mẫu tối giản (đổi màu theo theme):
+  ```svg
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+    <rect width="32" height="32" rx="7" fill="#17130E"/>
+    <line x1="9" y1="23" x2="23" y2="9" stroke="#C6A85F" stroke-width="3.6" stroke-linecap="round"/>
+  </svg>
+  ```
+
 ## Mobile-First
 
 - Thiết kế và test mobile trước, sau đó mở rộng ra desktop

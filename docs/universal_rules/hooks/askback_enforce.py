@@ -111,6 +111,7 @@ if event == "Stop":
         sys.exit(0)
 
     # Violation: ask-back triggered but AskUserQuestion not used
+    # LƯU Ý: exit 2 → harness chỉ feed STDERR về cho Claude; in stdout là mất lý do.
     print(
         "\n"
         "VIOLATION: Ask-back was triggered but questions were output as plain text.\n"
@@ -120,7 +121,8 @@ if event == "Stop":
         "\n"
         "ACTION REQUIRED: Call AskUserQuestion tool now with your clarification questions\n"
         "(max 4 questions per call, recommended option first).\n"
-        "Do NOT output any text questions — go straight to the tool call."
+        "Do NOT output any text questions — go straight to the tool call.",
+        file=sys.stderr,
     )
     sys.exit(2)
 

@@ -75,6 +75,22 @@ Qua `hooks/install_hooks.py` → `~/.claude/settings.json`:
 
 > Khi viết hook mới: muốn **chặn** một hành động → gắn vào `PreToolUse` và `exit 2`. Gắn vào `Stop`/`PostToolUse` chỉ để **quan sát/nhắc**, không chặn được.
 
+## 5. Luật viết hook — học từ sự cố thật (bắt buộc tuân theo)
+
+**A. Lý do chặn PHẢI in ra `stderr`, không phải `stdout`.**
+Exit `2` → harness chỉ feed **stderr** về cho Claude. `print()` mặc định ra stdout → Claude chỉ thấy `"No stderr output"`, phải tự mở file hook mò lý do. Luôn dùng `print(..., file=sys.stderr)` (hoặc JSON `{"decision":"block","reason":...}` ra stdout theo protocol).
+_Sự cố thật (6/2026): goal hook + canva hook chặn commit/edit mà không nói được vì sao — mất thời gian debug thay vì sửa đúng ngay._
+
+**B. Hook đăng ký GLOBAL (`~/.claude/settings.json`) BẮT BUỘC có scope-guard.**
+Hook chỉ có nghĩa ở một loại project (Canva, mobile, Cloudflare...) mà cắm global sẽ **false-positive ở mọi project khác**. Đầu hook phải tự kiểm tra sentinel rồi `exit 0` nếu không đúng scope — ví dụ: `if not os.path.exists(os.path.join(os.getcwd(), ".canva-map.json")): sys.exit(0)`.
+_Sự cố thật (6/2026): `canva_crosscheck_enforce.py` (chuyên C-HX) cắm global matcher Edit|Write → chặn nhầm 2 edit HTML thường ở project iloveus vì strip tag xong tưởng code JS là văn xuôi bị xoá._
+
+**C. Hook đặc thù project → đăng ký ở `.claude/settings.json` CỦA PROJECT ĐÓ**, không phải global. Global chỉ dành cho hook áp dụng mọi project (notify, diacritics, goal...). Khi buộc phải global (muốn hoạt động cả khi mở project bằng đường khác) → quay lại luật B.
+
+**D. Hook xử lý lệnh `git` phải tôn trọng `git -C <path>`** — repo đích không phải lúc nào cũng là `os.getcwd()`. Parse `-C` trước khi tìm file trong repo (xem `goal_tracking_enforce.py` hàm `git_target_dir`).
+
+**E. Fail-open:** mọi exception trong hook → `exit 0` (cho qua), đừng bao giờ làm vỡ phiên vì hook lỗi.
+
 ---
 
 ## Liên kết

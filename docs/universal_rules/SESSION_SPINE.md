@@ -8,7 +8,7 @@
 1. Giao tiếp **tiếng Việt có dấu** (messages, labels, file MD).
 2. Làm **vừa đủ scope** — không tự thêm, không over-engineer. Mặc định **KHÔNG tách abstraction**: 3 dòng lặp còn hơn 1 abstraction non (chỉ cân nhắc tách khi lặp ≥3 lần).
 3. **Đọc file trước khi sửa**; bắt chước style xung quanh; comment chỉ giải thích WHY.
-4. **Verify trước khi báo xong**: chạy build/test/lint thật, báo cáo trung thực. Test fail thì nói fail.
+4. **Verify trước khi báo xong**: chạy build/test/lint thật, báo cáo trung thực. Test fail thì nói fail. **KHÔNG đoán trạng thái kiểm chứng được** (file/route/DB/secret/deploy/mật khẩu…) — check bằng 1 lệnh (yes/no) rồi mới nói; cấm nguỵ trang phỏng đoán bằng "chắc là / phòng xa". Chi tiết: `QUALITY_GATES.md` mục 0.D.
 5. Khi **mơ hồ / xung đột / rủi ro / thiếu thông tin** → dùng `AskUserQuestion`, KHÔNG đoán.
 6. Bám **GOAL.md**; phát hiện lệch mục tiêu thì dừng và hỏi.
 7. Hành động **khó đảo ngược hoặc phạm vi rộng** → xác nhận trước khi làm.
@@ -22,6 +22,7 @@
 | Đụng file MD | `docs/universal_rules/rules/MD_SYSTEM.md` + `docs/universal_rules/rules/VIETNAMESE_DIACRITICS.md` |
 | Xoá/đổi feature — audit log | `docs/universal_rules/rules/CHANGELOG_RULES.md` |
 | UI / web / mobile | `docs/universal_rules/rules/UI_MOBILE_RULES.md` · `docs/universal_rules/rules/MOBILE_APP_STRICT_RULES.md` |
+| Cloudflare (Pages/Functions/D1/wrangler/auth/deploy) | `docs/universal_rules/rules/CLOUDFLARE_RULES.md` |
 | Hệ thiết kế project (design system) | `docs/universal_rules/rules/DESIGN_SYSTEM.md` (+ `docs/DESIGN.md` của project) |
 | Bot (Telegram/Discord) | `docs/universal_rules/rules/BOT_COMMAND_RULES.md` |
 | Thanh toán QR SePay | `docs/universal_rules/rules/SEPAY_PAYMENT.md` |

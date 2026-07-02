@@ -1,14 +1,21 @@
 #!/usr/bin/env python3
 """Goal tracking enforcement hook for Claude Code.
 
-Blocks git commit if GOAL.md has not been updated today.
-Forces Claude to update GOAL.md before committing — no more lost context.
+Blocks git commit if GOAL.md has not been updated today OR still contains
+template placeholders. Forces Claude to update GOAL.md before committing —
+no more lost context, no more "điền mỗi ngày cho qua gate".
 
 Events handled:
-  PreToolUse(Bash) — if command contains 'git commit', check GOAL.md._Last reviewed_
+  PreToolUse(Bash) — if command contains 'git commit', check GOAL.md
+
+Notes:
+  - Lý do chặn in ra STDERR (exit 2 → harness chỉ feed stderr về Claude).
+  - Hỗ trợ `git -C <path> commit`: check GOAL.md của repo ĐÍCH, không phải cwd.
 """
 import json
 import os
+import re
+import shlex
 import sys
 from datetime import date
 
@@ -27,10 +34,25 @@ command = tool_input.get("command", "")
 if "git commit" not in command:
     sys.exit(0)
 
+
+def git_target_dir(cmd: str) -> str:
+    """Repo đích của lệnh git: tôn trọng `git -C <path>`, mặc định cwd."""
+    try:
+        tokens = shlex.split(cmd)
+    except ValueError:
+        return os.getcwd()
+    for i, tok in enumerate(tokens):
+        if tok == "git" and i + 2 < len(tokens) and tokens[i + 1] == "-C":
+            return os.path.expanduser(tokens[i + 2])
+    return os.getcwd()
+
+
+base = git_target_dir(command)
+
 # Find GOAL.md
 goal_candidates = [
-    os.path.join(os.getcwd(), "docs", "GOAL.md"),
-    os.path.join(os.getcwd(), "GOAL.md"),
+    os.path.join(base, "docs", "GOAL.md"),
+    os.path.join(base, "GOAL.md"),
 ]
 
 goal_path = None
@@ -43,11 +65,36 @@ if goal_path is None:
     # No GOAL.md — warn but don't block
     sys.exit(0)
 
-# Check _Last reviewed_ date
-today = date.today().strftime("%Y-%m-%d")
-
 with open(goal_path, "r", encoding="utf-8") as f:
     content = f.read()
+
+# ── Check 1: template placeholders còn sót → GOAL.md chưa được điền thật ──────
+# Các pattern đặc trưng của GOAL_TEMPLATE.md (đừng khớp nội dung thật).
+PLACEHOLDERS = [
+    r"\[YYYY-MM-DD\]",
+    r"\[Viết 1-2 câu",
+    r"\[Tiêu chí \d",
+    r"\[mô tả\]",
+    r"\[Mô tả trạng thái hiện tại",
+    r"\[Thứ dễ bị lạc vào",
+    r"\[Item chưa quyết định",
+]
+found = [pat for pat in PLACEHOLDERS if re.search(pat, content)]
+if found:
+    print(
+        "\n"
+        f"BLOCKED: {os.path.relpath(goal_path, base)} vẫn còn placeholder template — GOAL chưa được điền thật.\n"
+        f"  Placeholder còn sót: {', '.join(found)}\n"
+        "\n"
+        "BẮT BUỘC trước khi commit: điền GOAL.md bằng nội dung THẬT của project\n"
+        "(mục tiêu, tiêu chí thành công, milestones, trạng thái hiện tại).\n"
+        "Điền mỗi ngày _Last reviewed_ mà giữ nguyên placeholder = KHÔNG qua gate.",
+        file=sys.stderr,
+    )
+    sys.exit(2)
+
+# ── Check 2: _Last reviewed_ phải là hôm nay ─────────────────────────────────
+today = date.today().strftime("%Y-%m-%d")
 
 if f"_Last reviewed: {today}_" in content:
     sys.exit(0)  # Up to date — allow commit
@@ -66,6 +113,7 @@ print(
     "  4. Tick milestone nếu hoàn thành\n"
     "  5. Ghi rõ PENDING tasks (chưa xong) để không mất context\n"
     "\n"
-    "Sau khi update GOAL.md → chạy lại git commit."
+    "Sau khi update GOAL.md → chạy lại git commit.",
+    file=sys.stderr,
 )
 sys.exit(2)

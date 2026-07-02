@@ -181,6 +181,19 @@ pip audit --strict          # Fail nếu có bất kỳ vulnerability nào
 
 ---
 
+## 4.5 Scaffold / fork hygiene — khi copy auth kit hoặc project mẫu
+
+Khi fork một kit (auth, payment, bot...) từ project cũ sang project mới, BẮT BUỘC:
+
+- [ ] **Đổi mọi định danh mang tên project cũ**: tên cookie/session (`doit_session` → `<project>_session`), tên bucket, prefix key, comment... Grep tên project cũ trong toàn bộ kit trước khi dùng: `grep -ri "<tên-project-cũ>" functions/ src/`.
+  _Lý do (sự cố thật 6/2026): auth kit fork từ doit mang nguyên cookie `doit_session` sang iloveus + makeitworks production — cookie trùng tên giữa các site cùng parent domain có thể ghi đè session của nhau._
+- [ ] **Default credential (seed user/password) PHẢI đổi ngay khi site live** — và KHÔNG dùng chung một credential cho nhiều project. Sau khi user đổi, cập nhật doc (đừng để doc ghi password cũ).
+  _Lý do: `123456` dùng chung 3 project + ghi công khai trong git doc = lộ 1 nơi thủng cả cụm._
+- [ ] **Secret sinh mới cho mỗi project** (`SESSION_SECRET`, API key...) — không copy secret giữa project.
+- [ ] Doc setup của kit để checklist `[ ]` chưa tick — chỉ tick sau khi verify trên project MỚI (xem MD_SYSTEM.md, luật template honesty).
+
+---
+
 ## 5. Template `docs/SECURITY.md` (project-level)
 
 ```markdown

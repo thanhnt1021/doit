@@ -51,6 +51,9 @@ project-root/
 - `read context` đọc `universal_rules/` nhưng **KHÔNG load nội dung đã skill-hóa** (tdk, security, payment, oauth, mobile, bot) — chúng tự kích hoạt qua skill khi đúng tình huống, hoặc trigger bằng lệnh (`tdk:`, `check quality`, `check growth`, `setup server`, `check code`).
   _Lý do: các file này lớn (~90KB riêng tdk). Load mỗi session = lãng phí context window. Chỉ load khi cần (lazy-load qua skill)._
 
+- **Template/doc KHÔNG được pre-tick `[x]` hay ghi "✅ Đã làm sẵn" cho việc CHƯA verify.** Checklist trong template luôn để `[ ]`; chỉ tick sau khi đã chạy lệnh kiểm chứng thật (query DB, curl, ls...). Doc mô tả trạng thái phải là trạng thái ĐÃ xác minh, không phải trạng thái kỳ vọng.
+  _Lý do (sự cố thật 6/2026): `DATABASE_SETUP.md` scaffold ghi sẵn `[x] Seed user...` trong khi D1 thực tế 0 bảng — user đọc doc tưởng đã có, mất thời gian truy ngược "seed từ đâu ra". Doc nói dối còn tệ hơn không có doc. Cùng họ với QUALITY_GATES 0.D (không đoán trạng thái kiểm chứng được)._
+
 ## docs/MD_FILES_TO_UPDATE.md
 
 File tracking để đảm bảo docs luôn đồng bộ với code — populate khi bắt đầu feature, clear sau khi commit.

@@ -23,6 +23,16 @@ _Lý do tồn tại: commit broken code vào repo nghĩa là mọi người pull
 
 _Lý do: báo "xong" mà chưa chạy là cái bẫy tốn kém nhất — user tin tưởng deploy/build tiếp dựa trên một lời tuyên bố sai. Một lần nói dối kết quả (dù vô tình) phá vỡ toàn bộ độ tin cậy. Thà nói "tôi chưa verify được phần X" còn hơn "all good" rồi vỡ ở production._
 
+**D. KHÔNG đoán trạng thái kiểm chứng được — phải CHECK (yes/no)**
+
+Áp dụng cho MỌI câu khẳng định về trạng thái, không chỉ lúc báo "xong". Trước khi nói một trạng thái là đúng/sai, hỏi: **"Cái này kiểm chứng được bằng 1 lệnh không?"**
+- **Kiểm chứng được** (file tồn tại chưa, route trả 200 chưa, mật khẩu đổi chưa, secret set chưa, build deploy xong chưa, record có trong DB chưa, biến môi trường có chưa...) → **CHẠY lệnh check rồi mới phát biểu**. Câu trả lời phải là yes/no kèm bằng chứng (`curl`, `grep`, query DB, `wrangler ... list`, đọc file). Đây là tư duy coding cơ bản: `if (check())`, không phải `assume()`.
+- **CẤM** khẳng định trạng thái bằng phỏng đoán rồi nguỵ trang bằng "chắc là / có lẽ / phòng xa / thường thì". Nếu chưa check mà vẫn phải nói → ghi rõ **"tôi CHƯA kiểm tra"**, đừng trình bày như sự thật.
+- "Không có cách nào biết" hầu như luôn SAI khi đó là trạng thái hệ thống/dữ liệu — gần như luôn có 1 lệnh để biết. Nếu thật sự không check được (vd thông tin chỉ user mới biết, không lộ ra API) → **hỏi user**, không đoán.
+- Phân biệt: **fact kiểm chứng được → CHECK** (không hỏi, không đoán); **quyết định của user → HỎI** (AskUserQuestion). Cả hai đều KHÔNG được đoán thay.
+
+_Lý do: phán một trạng thái sai (vd "bạn chưa đổi mật khẩu" khi user đã đổi) vừa sai vừa xúc phạm — nó nói với user rằng ta lười bấm 1 lệnh để biết sự thật. Check tốn 1 giây; đoán sai tốn niềm tin._
+
 ## 1. Type / Lint Check
 
 > Lệnh dưới dùng `pnpm` cho project MỚI (mặc định), `npm` cho project legacy có `package-lock.json` — xem `docs/universal_rules/rules/NEW_PROJECT_SETUP.md`. Thay `pnpm`↔`npm` theo lock file thực tế của repo.

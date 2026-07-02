@@ -53,7 +53,7 @@ Bộ workflow rules dùng chung cho mọi project làm việc với **Claude Cod
 ### Cách 1 — Nhanh nhất: chạy script (curl)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hentaiikidd/universal-workflow/main/bootstrap.sh | bash
+curl -fsSL https://raw.githubusercontent.com/thanhnt1021/universal-workflow/main/bootstrap.sh | bash
 ```
 
 Script tự động:
@@ -65,7 +65,7 @@ Script tự động:
 
 > **SSH key khác mặc định?**
 > ```bash
-> curl -fsSL https://raw.githubusercontent.com/hentaiikidd/universal-workflow/main/bootstrap.sh \
+> curl -fsSL https://raw.githubusercontent.com/thanhnt1021/universal-workflow/main/bootstrap.sh \
 >   | BOOTSTRAP_SSH_KEY=~/.ssh/my_key bash
 > ```
 
@@ -81,7 +81,7 @@ mkdir -p docs/universal_rules
 
 # SSH (recommended cho server)
 GIT_SSH_COMMAND="ssh -i ~/.ssh/id_rsa" \
-  git clone git@github.com:hentaiikidd/universal-workflow.git /tmp/_uw
+  git clone git@github.com:thanhnt1021/universal-workflow.git /tmp/_uw
 cp /tmp/_uw/*.md docs/universal_rules/
 for d in rules templates skills hooks scripts _meta; do
   cp -r /tmp/_uw/$d docs/universal_rules/ 2>/dev/null || true
@@ -93,7 +93,7 @@ rm -rf /tmp/_uw
 >
 > **Máy local / có HTTPS credentials?**
 > ```bash
-> git clone https://github.com/hentaiikidd/universal-workflow.git /tmp/_uw
+> git clone https://github.com/thanhnt1021/universal-workflow.git /tmp/_uw
 > cp /tmp/_uw/*.md docs/universal_rules/
 > rm -rf /tmp/_uw
 > ```
@@ -171,7 +171,7 @@ fi
 # Đích đến BẮT BUỘC: docs/universal_rules/ — KHÔNG PHẢI root
 mkdir -p docs/universal_rules
 GIT_SSH_COMMAND="ssh -i ~/.ssh/id_rsa" \
-  git clone git@github.com:hentaiikidd/universal-workflow.git /tmp/_uw \
+  git clone git@github.com:thanhnt1021/universal-workflow.git /tmp/_uw \
   && cp /tmp/_uw/*.md docs/universal_rules/ \
   && for d in rules templates skills hooks scripts _meta; do cp -r /tmp/_uw/$d docs/universal_rules/ 2>/dev/null; done; \
   rm -rf /tmp/_uw
