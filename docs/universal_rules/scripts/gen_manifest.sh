@@ -16,6 +16,7 @@ find . -type f \
   ! -name ".DS_Store" \
   ! -path "*/__pycache__/*" \
   ! -name "telegram_config.env" \
+  ! -name "LOCAL_ONLY.txt" \
   ! -path "./README.md" \
   ! -path "./CLAUDE.md" \
   ! -path "./.gitignore" \

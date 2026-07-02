@@ -200,7 +200,7 @@ shasum -a 256 -c MANIFEST.txt --quiet && echo "✓ khớp SSOT $(cat VERSION)" |
 4. **Thực hiện** cập nhật:
    - Copy file mới/thay đổi từ repo → `docs/universal_rules/` (gồm cả `VERSION` + `MANIFEST.txt`)
    - Copy subdirectories (`rules/`, `templates/`, `skills/`, `hooks/`, `scripts/`, `_meta/`) nếu có
-   - Xoá file không còn trong repo (trừ file project-specific — vd hook/playbook riêng như bộ Canva của C-HX)
+   - Xoá file không còn trong repo — **TRỪ** file khai trong `docs/universal_rules/LOCAL_ONLY.txt` (file riêng của project, vd bộ Canva của C-HX — xem `rules/FILE_OWNERSHIP.md`)
    - **KHÔNG copy** `README.md` của repo vào `docs/universal_rules/` (đó là README của repo, không phải rule file)
    - Nếu `hooks/` đổi → copy bản mới vào `~/.claude/universal-hooks/` (nơi hook chạy THẬT, được `~/.claude/settings.json` trỏ tới)
 5. **Tạo file project-specific nếu chưa có:**
@@ -213,6 +213,7 @@ shasum -a 256 -c MANIFEST.txt --quiet && echo "✓ khớp SSOT $(cat VERSION)" |
 ### Chiều PUSH — rule mới/sửa sinh ra Ở PROJECT (bắt buộc, đừng để rule kẹt lại project):
 
 Khi một phiên làm việc tạo/sửa rule trong `docs/universal_rules/` của project (bài học mới, mục rule mới):
+0. **Phân loại trước** theo `rules/FILE_OWNERSHIP.md`: file trong `LOCAL_ONLY.txt` → KHÔNG đẩy lên SSOT; file MỚI chưa rõ chung/riêng → **AskUserQuestion** rồi mới đi tiếp.
 1. Copy file đó về repo local `~/PycharmProjects/universal-workflow/` (đúng đường dẫn tương ứng)
 2. Bump `VERSION` (patch: sửa nội dung; minor: thêm file/mục lớn) + chạy `bash scripts/gen_manifest.sh`
 3. Commit + push repo (`gh auth switch --user thanhnt1021` trước)

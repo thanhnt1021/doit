@@ -18,6 +18,7 @@
 |---|---|
 | Code feature mới / fix bug ở codebase lớn | `docs/PROJECT_SUMMARY.md` (đọc TRƯỚC để định vị — nếu project có) |
 | Bắt đầu việc / branch / commit / push | `docs/universal_rules/rules/GIT_WORKFLOW.md` |
+| File chung hay riêng? Push đi đâu, pull kiểu gì (SSOT vs project vs cá nhân) | `docs/universal_rules/rules/FILE_OWNERSHIP.md` |
 | Trước khi commit | `docs/universal_rules/rules/QUALITY_GATES.md` |
 | Đụng file MD | `docs/universal_rules/rules/MD_SYSTEM.md` + `docs/universal_rules/rules/VIETNAMESE_DIACRITICS.md` |
 | Xoá/đổi feature — audit log | `docs/universal_rules/rules/CHANGELOG_RULES.md` |

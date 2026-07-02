@@ -30,6 +30,7 @@ docs/universal_rules/
 | Tình huống | File |
 |---|---|
 | Bắt đầu việc / branch / commit / push | `docs/universal_rules/rules/GIT_WORKFLOW.md` |
+| File chung hay riêng? Push đi đâu, pull kiểu gì (SSOT vs project vs cá nhân) | `docs/universal_rules/rules/FILE_OWNERSHIP.md` |
 | Trước khi commit (quality gate) | `docs/universal_rules/rules/QUALITY_GATES.md` |
 | Đụng file MD | `docs/universal_rules/rules/MD_SYSTEM.md` |
 | Dự án tiếng Việt | `docs/universal_rules/rules/VIETNAMESE_DIACRITICS.md` |
