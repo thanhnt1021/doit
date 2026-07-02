@@ -30,24 +30,31 @@ if event != "PreToolUse" or tool_name != "Bash":
 
 command = tool_input.get("command", "")
 
-# Only care about git commit commands
-if "git commit" not in command:
-    sys.exit(0)
 
-
-def git_target_dir(cmd: str) -> str:
-    """Repo đích của lệnh git: tôn trọng `git -C <path>`, mặc định cwd."""
+def parse_git_commit(cmd: str):
+    """(is_commit, base_dir). Nhận cả `git commit` LẪN `git -C <path> commit`
+    (check chuỗi 'git commit' sẽ MISS dạng -C — bug đã gặp 7/2026)."""
     try:
         tokens = shlex.split(cmd)
     except ValueError:
-        return os.getcwd()
+        return ("git commit" in cmd, os.getcwd())
     for i, tok in enumerate(tokens):
-        if tok == "git" and i + 2 < len(tokens) and tokens[i + 1] == "-C":
-            return os.path.expanduser(tokens[i + 2])
-    return os.getcwd()
+        if tok != "git":
+            continue
+        base, j = os.getcwd(), i + 1
+        # nuốt các global flag dạng `-C <path>` / `-c key=val` trước subcommand
+        while j < len(tokens) - 1 and tokens[j] in ("-C", "-c"):
+            if tokens[j] == "-C":
+                base = os.path.expanduser(tokens[j + 1])
+            j += 2
+        if j < len(tokens) and tokens[j] == "commit":
+            return (True, base)
+    return (False, os.getcwd())
 
 
-base = git_target_dir(command)
+is_commit, base = parse_git_commit(command)
+if not is_commit:
+    sys.exit(0)
 
 # Find GOAL.md
 goal_candidates = [
