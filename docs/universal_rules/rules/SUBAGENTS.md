@@ -40,6 +40,22 @@ _Lý do tồn tại: với task lớn, biết cách giao việc cho subagent (ch
 
 **Hệ quả thực tế cho bộ rules này:** đây là lý do `docs/universal_rules/rules/OUTCOME.md` ép ghi PENDING tasks vào `GOAL.md` — để khi context bị nén/mất, vẫn khôi phục được trạng thái từ file trên đĩa thay vì chỉ dựa vào trí nhớ hội thoại.
 
+## 4. Orchestrator — main session giám sát & bắt làm lại (pattern "đạo diễn")
+
+Main session (model mạnh nhất — Fable/Opus) KHÔNG tự cày việc lớn; nó **spawn worker, đọc output, thẩm định, thấy sai thì ra lệnh làm lại kèm chỉ dẫn sửa cụ thể**. Người dùng chỉ cần nói: _"spawn agent làm X, canh nó, sai thì bắt làm lại"_.
+
+**Vòng lặp chuẩn (re-take loop):**
+1. **Spawn** worker bằng Agent tool (`run_in_background: true` nếu muốn canh nhiều con song song) — brief như đồng nghiệp mới (mục 1).
+2. **Thẩm định** output theo tiêu chí ĐÃ VIẾT RA TRƯỚC khi spawn (rubric/checklist — không chấm cảm tính).
+3. Sai/thiếu → **SendMessage cho ĐÚNG agent đó** (theo tên/ID) với chỉ dẫn sửa cụ thể — agent giữ nguyên context cũ, KHÔNG spawn con mới làm lại từ đầu (mất context = lặp lại lỗi).
+4. Đạt → nhận kết quả, chuyển bước tiếp / worker kế tiếp.
+
+**Quy tắc:**
+- Main giữ context MỎNG: chỉ giữ rubric + kết luận từng worker; chi tiết nặng để worker gánh.
+- Phân vai model: main = model mạnh (thẩm định, quyết định); worker mặc định kế thừa model chính — chỉ hạ tier cho việc cơ học rõ ràng.
+- Việc lặp máy móc với cấu trúc biết trước (N mục × review × verify) → dùng **Workflow** (pipeline/adversarial-verify/judge-panel) thay vì tự tay điều phối từng con — deterministic, tự re-run được.
+- Ghi kết quả từng vòng vào file (GOAL.md PENDING / file report) — main session cũng có thể bị nén context (mục 3).
+
 ---
 
 ## Liên kết
