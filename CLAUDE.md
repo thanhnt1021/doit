@@ -43,4 +43,4 @@ git remote set-url origin https://github.com/thanhnt1021/doit.git  # reset lại
 - Inline styles (dark theme, mobile-first)
 - Google Fonts: Crimson Pro, JetBrains Mono
 
-> Đọc docs/universal_rules/INDEX.md để áp dụng universal workflow rules.
+> Đọc docs/univ3/SPINE.md (+ docs/univ3/INDEX.md) để áp dụng universal workflow rules (univ3 v4.0.1). Skill Cloudflare có sẵn tại docs/univ3/skills/cloudflare · wrangler · workers-best-practices.

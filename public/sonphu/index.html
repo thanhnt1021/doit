@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0E1417">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<title>Sơn — Về dáng 75kg</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0E1417; --surface:#172127; --surface2:#1E2A30; --line:rgba(255,255,255,.09);
+    --text:#ECE6DC; --muted:#93A0A6; --acc:#E7A93C; --acc2:#4FC4BE; --bad:#E78C8C; --good:#5BD78C;
+    --sans:'Be Vietnam Pro',system-ui,-apple-system,sans-serif; --mono:'Space Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased;
+    overscroll-behavior-y:none;-webkit-tap-highlight-color:transparent;
+    background-image:radial-gradient(900px 500px at 50% -10%, rgba(231,169,60,.08), transparent 70%);}
+  .wrap{max-width:580px;margin:0 auto;
+    padding:max(34px,env(safe-area-inset-top)) calc(18px + env(safe-area-inset-right)) calc(64px + env(safe-area-inset-bottom)) calc(18px + env(safe-area-inset-left));}
+  .hero{text-align:center;padding:4px 0 8px}
+  .eyebrow{font:700 11px/1.4 var(--mono);letter-spacing:.2em;text-transform:uppercase;color:var(--acc)}
+  .hero h1{font-weight:800;font-size:clamp(34px,10vw,50px);letter-spacing:-.02em;margin:9px 0 6px;line-height:1.02}
+  .lede{color:var(--muted);font-size:14.5px;max-width:38ch;margin:0 auto}
+
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 17px;margin:16px 0}
+  h2.sec{font-size:13px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:26px 0 10px}
+
+  /* Bet card */
+  .bet{background:linear-gradient(160deg,#2A2410,#172127);border:1px solid rgba(231,169,60,.35);border-radius:18px;padding:18px;margin:18px 0}
+  .bet .eyebrow{color:var(--acc)}
+  .bet h3{font-size:20px;font-weight:800;margin:6px 0 2px;line-height:1.2}
+  .bet .prize{font-size:13px;color:var(--muted);margin-bottom:14px}
+  .bet .prize b{color:var(--acc)}
+  .bar{height:12px;background:var(--surface2);border-radius:99px;overflow:hidden;border:1px solid var(--line)}
+  .bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--acc),#F2C56B);border-radius:99px;transition:width .5s}
+  .betgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:14px}
+  .betcell{background:var(--surface2);border:1px solid var(--line);border-radius:11px;padding:10px;text-align:center}
+  .betcell .k{font:700 9.5px var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+  .betcell .v{font:700 20px var(--mono);color:var(--text);margin-top:2px;line-height:1.1}
+  .betcell .v small{font-size:11px;color:var(--muted);font-weight:400}
+  .betcell.hl .v{color:var(--acc)}
+
+  /* Stat chips */
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:6px 0}
+  .stat{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:12px 10px;text-align:center}
+  .stat .k{font:700 9.5px var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+  .stat .v{font:700 19px var(--mono);color:var(--acc2);margin-top:3px}
+  .stat .v small{font-size:11px;color:var(--muted);font-weight:400}
+
+  /* Nutrition */
+  .macro{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:6px}
+  .macro .m{background:var(--surface2);border:1px solid var(--line);border-radius:11px;padding:11px 13px}
+  .macro .m .k{font:700 10px var(--mono);text-transform:uppercase;color:var(--muted)}
+  .macro .m .v{font:700 22px var(--mono);color:var(--text);margin-top:2px}
+  .macro .m .v small{font-size:12px;color:var(--muted);font-weight:400}
+  .rules{list-style:none;margin-top:10px}
+  .rules li{position:relative;padding:8px 0 8px 26px;font-size:13.5px;border-top:1px solid var(--line)}
+  .rules li:first-child{border-top:none}
+  .rules li::before{content:"";position:absolute;left:4px;top:15px;width:8px;height:8px;border-radius:50%;background:var(--acc)}
+  .rules li b{color:var(--text)}
+  .rules li.beer::before{background:var(--bad)}
+  .meal{margin-top:8px}
+  .meal .row{display:grid;grid-template-columns:64px 1fr;gap:11px;padding:8px 0;border-top:1px solid var(--line);font-size:13px}
+  .meal .row:first-child{border-top:none}
+  .meal .t{font:700 12px var(--mono);color:var(--acc);text-transform:uppercase}
+  .meal .d b{color:var(--text)}
+
+  /* Workout accordion */
+  details{background:var(--surface);border:1px solid var(--line);border-radius:13px;margin-bottom:8px;overflow:hidden}
+  details[open]{border-color:rgba(79,196,190,.3)}
+  summary{cursor:pointer;list-style:none;padding:14px 15px;font-weight:700;font-size:15px;display:flex;align-items:center;gap:10px;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+  summary::-webkit-details-marker{display:none}
+  summary .tag{font:700 10px var(--mono);color:#0E1417;background:var(--acc2);border-radius:5px;padding:2px 7px}
+  summary .chev{margin-left:auto;color:var(--muted);font:700 13px var(--mono);transition:transform .2s}
+  details[open] summary .chev{transform:rotate(90deg)}
+  .ex{padding:0 15px 6px}
+  .ex .exrow{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:baseline;padding:9px 0;border-top:1px solid var(--line);font-size:14px}
+  .ex .exrow .n b{color:var(--text)}
+  .ex .exrow .n small{display:block;color:var(--muted);font-size:11.5px;margin-top:1px}
+  .ex .exrow .s{font:700 13px var(--mono);color:var(--acc2);white-space:nowrap}
+  .ex .note{font-size:12.5px;color:var(--muted);padding:11px 0 13px;border-top:1px solid var(--line);margin-top:2px}
+
+  /* Tracker */
+  .track label{display:block;font-size:12.5px;color:var(--muted);font-weight:600;margin-bottom:6px}
+  .track .in{display:flex;gap:8px}
+  .track input{flex:1;font:700 16px var(--mono);background:var(--surface2);color:var(--text);border:1px solid var(--line);border-radius:9px;padding:11px 12px;min-height:48px;color-scheme:dark}
+  .track button{font:800 14px var(--sans);color:#0E1417;background:var(--acc);border:none;border-radius:10px;padding:0 18px;min-height:48px;cursor:pointer;touch-action:manipulation}
+  .track button:hover{filter:brightness(1.08)}
+  .wlog{margin-top:12px;display:grid;gap:6px}
+  .wlog .wl{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;background:var(--surface2);border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13px}
+  .wlog .wl .dt{font:700 12px var(--mono);color:var(--muted)}
+  .wlog .wl .kg{font:700 15px var(--mono);color:var(--text)}
+  .wlog .wl .dl{font:700 12px var(--mono)}
+  .wlog .wl .dl.dn{color:var(--good)} .wlog .wl .dl.up{color:var(--bad)}
+  .wlog .wl .x{color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px}
+  .empty{color:var(--muted);font-size:12.5px;text-align:center;padding:10px}
+
+  .week{display:grid;gap:8px;margin-top:4px}
+  .wd{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+  .wd .box{width:24px;height:24px;border-radius:7px;border:2px solid var(--muted);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-weight:800;color:#0E1417;transition:.15s}
+  .wd.on .box{background:var(--good);border-color:var(--good)}
+  .wd .lab{font-weight:700;font-size:14px}
+  .wd .lab small{display:block;color:var(--muted);font-size:11.5px;font-weight:400}
+  .wd.on .lab{color:var(--muted)}
+  .streak{text-align:center;font:700 13px var(--mono);color:var(--acc);margin-top:12px}
+
+  footer{margin-top:34px;text-align:center;color:var(--muted);font-size:12px;border-top:1px solid var(--line);padding-top:18px}
+  footer a{color:var(--acc2);text-decoration:none;font-weight:700}
+  :focus-visible{outline:2px solid var(--acc2);outline-offset:3px;border-radius:8px}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header class="hero">
+    <p class="eyebrow">Recomp · Từ số 0</p>
+    <h1>Sơn — Về dáng</h1>
+    <p class="lede">90kg → 75kg. 3 buổi/tuần, ăn ngoài vẫn được, bia vẫn có. Không cực đoan — chỉ cần đều.</p>
+  </header>
+
+  <!-- BET -->
+  <div class="bet">
+    <p class="eyebrow">💰 Kèo iPhone 18</p>
+    <h3>Về 75kg trước 31/12/2026</h3>
+    <p class="prize">Thắng kèo là ẵm <b>iPhone 18</b>. Thua thì… vẫn khỏe ra. Kèo nào cũng lời.</p>
+    <div class="bar"><i id="betbar"></i></div>
+    <div class="betgrid">
+      <div class="betcell hl"><div class="k">Còn phải giảm</div><div class="v" id="bet-left">— <small>kg</small></div></div>
+      <div class="betcell"><div class="k">Còn lại</div><div class="v" id="bet-weeks">— <small>tuần</small></div></div>
+      <div class="betcell"><div class="k">Cần giảm</div><div class="v" id="bet-rate">— <small>kg/tuần</small></div></div>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="k">Hiện tại</div><div class="v" id="s-now">90<small>kg</small></div></div>
+    <div class="stat"><div class="k">Chiều cao</div><div class="v">1m75</div></div>
+    <div class="stat"><div class="k">BMI</div><div class="v" id="s-bmi">29.4</div></div>
+  </div>
+
+  <!-- NUTRITION -->
+  <h2 class="sec">🍚 Ăn uống — đủ đạm là thắng</h2>
+  <div class="panel">
+    <div class="macro">
+      <div class="m"><div class="k">Calo mục tiêu</div><div class="v">1900 <small>kcal/ngày</small></div></div>
+      <div class="m"><div class="k">Đạm mục tiêu</div><div class="v">170 <small>g/ngày</small></div></div>
+    </div>
+    <ul class="rules">
+      <li><b>Đạm trước, cơm sau.</b> Mỗi bữa 1–2 món đạm (thịt/cá/trứng), ăn hết đạm rồi mới tới cơm.</li>
+      <li><b>Cơm còn nửa chén.</b> Bụng no là do rau + đạm, không phải cơm. Rau ăn thả ga.</li>
+      <li><b>Không uống calo.</b> Trà sữa, nước ngọt, cà phê sữa = cắt. Nước lọc / trà đá / cà phê đen.</li>
+      <li><b>10.000 bước/ngày.</b> Bận thì đi bộ chính là buổi "tập" thứ 4. Đỗ xe xa, đi thang bộ.</li>
+      <li class="beer"><b>Bia ≤ 3 lon/tuần.</b> 1 lon ≈ 150 kcal. Ngày uống bia thì <b>bỏ cơm</b> bữa đó để bù. Uống xong uống thêm 500ml nước.</li>
+    </ul>
+    <div class="meal">
+      <div class="row"><div class="t">Sáng</div><div class="d"><b>Bánh mì trứng thịt</b> / bún phở thêm 1 quả trứng. Ưu tiên đạm, đủ no tới trưa.</div></div>
+      <div class="row"><div class="t">Trưa</div><div class="d"><b>Cơm bình dân:</b> 2 món mặn (gà/cá/trứng/thịt luộc), 1 đĩa rau to, nửa chén cơm.</div></div>
+      <div class="row"><div class="t">Xế</div><div class="d"><b>Snack đạm:</b> 1 hộp sữa không đường / 2 trứng luộc / 1 hũ sữa chua. Chặn cơn đói chiều.</div></div>
+      <div class="row"><div class="t">Tối</div><div class="d"><b>Nhẹ hơn trưa:</b> đạm + rau, ít/không cơm. Nếu tối có bia → bỏ cơm.</div></div>
+    </div>
+  </div>
+
+  <!-- WORKOUT -->
+  <h2 class="sec">🏋️ Lịch tập — 3 buổi full-body/tuần</h2>
+  <p class="lede" style="text-align:left;margin:0 0 10px;max-width:none">Tập cách ngày (VD T2–T4–T6). Mỗi buổi 40–45'. Có gym thì dùng máy/tạ đòn, ở nhà thì dùng tạ tay + chống đẩy (ghi trong ghi chú mỗi buổi).</p>
+
+  <details open>
+    <summary><span class="tag">Buổi 1</span> Toàn thân A <span class="chev">›</span></summary>
+    <div class="ex">
+      <div class="exrow"><div class="n"><b>Squat ôm tạ (Goblet Squat)</b><small>Đùi + mông. Ở nhà: squat tay không / ôm chai nước</small></div><div class="s">3 × 12</div></div>
+      <div class="exrow"><div class="n"><b>Đẩy ngực (máy/tạ tay)</b><small>Ngực + tay sau. Ở nhà: chống đẩy (gối chạm đất nếu khó)</small></div><div class="s">3 × 10</div></div>
+      <div class="exrow"><div class="n"><b>Chèo tạ 1 tay (Row)</b><small>Lưng. Ở nhà: chèo dây kháng lực / chai nước</small></div><div class="s">3 × 12</div></div>
+      <div class="exrow"><div class="n"><b>Plank giữ</b><small>Bụng lõi. Giữ thẳng người</small></div><div class="s">3 × 30–45s</div></div>
+      <div class="note">💡 Tăng dần: làm đủ 3×12 nhẹ nhàng → tuần sau tăng tạ 1 nấc. Nghỉ 60–90s giữa hiệp.</div>
+    </div>
+  </details>
+
+  <details>
+    <summary><span class="tag">Buổi 2</span> Toàn thân B <span class="chev">›</span></summary>
+    <div class="ex">
+      <div class="exrow"><div class="n"><b>Deadlift Romania (tạ tay)</b><small>Đùi sau + mông. Lưng thẳng, đẩy hông ra sau</small></div><div class="s">3 × 10</div></div>
+      <div class="exrow"><div class="n"><b>Đẩy vai (tạ tay)</b><small>Vai. Ở nhà: đẩy chai nước qua đầu</small></div><div class="s">3 × 10</div></div>
+      <div class="exrow"><div class="n"><b>Kéo xô / Lat pulldown</b><small>Lưng xô. Ở nhà: chèo dây kháng lực</small></div><div class="s">3 × 12</div></div>
+      <div class="exrow"><div class="n"><b>Gập bụng (nằm nâng chân)</b><small>Bụng dưới</small></div><div class="s">3 × 12</div></div>
+      <div class="note">💡 Deadlift đau lưng = sai kỹ thuật, giảm tạ lại và quay video tự soi.</div>
+    </div>
+  </details>
+
+  <details>
+    <summary><span class="tag">Buổi 3</span> Toàn thân C <span class="chev">›</span></summary>
+    <div class="ex">
+      <div class="exrow"><div class="n"><b>Lunge bước tới</b><small>Đùi + mông + thăng bằng. Mỗi chân 10</small></div><div class="s">3 × 10/chân</div></div>
+      <div class="exrow"><div class="n"><b>Đẩy ngực dốc lên (Incline)</b><small>Ngực trên. Ở nhà: chống đẩy tay kê cao</small></div><div class="s">3 × 10</div></div>
+      <div class="exrow"><div class="n"><b>Chèo ngồi (Seated Row)</b><small>Lưng giữa. Bóp bả vai lại</small></div><div class="s">3 × 12</div></div>
+      <div class="exrow"><div class="n"><b>Đi bộ ôm tạ (Farmer Walk)</b><small>Toàn thân + lõi. Ôm 2 tạ đi 30m</small></div><div class="s">3 × 30m</div></div>
+      <div class="note">💡 Buổi này xong đi bộ nhanh thêm 10' cho đủ mồ hôi.</div>
+    </div>
+  </details>
+
+  <!-- TRACKER -->
+  <h2 class="sec">📉 Theo dõi cân nặng</h2>
+  <div class="panel track">
+    <label>Cân buổi sáng (bụng đói, sau đi vệ sinh) — nhập kg</label>
+    <div class="in">
+      <input id="w-input" type="number" inputmode="decimal" step="0.1" placeholder="VD 89.5">
+      <button id="w-add">Lưu</button>
+    </div>
+    <div class="wlog" id="w-log"></div>
+  </div>
+
+  <h2 class="sec">✅ Buổi tập tuần này</h2>
+  <div class="panel">
+    <div class="week" id="week"></div>
+    <div class="streak" id="streak"></div>
+  </div>
+
+  <footer>
+    Làm cho Sơn 💪 · <a href="/hoangtung1">Xem chế độ của Tùng →</a><br>
+    <span style="font-size:11px">Đều hơn hoàn hảo. Bỏ 1 buổi không sao, bỏ 1 tuần mới là vấn đề.</span>
+  </footer>
+</main>
+
+<script>
+(function(){
+  var GOAL = 75, START = 90, HEIGHT = 1.75, DEADLINE = new Date('2026-12-31T23:59:59');
+  var LS_W = 'sonphu_weights_v1', LS_S = 'sonphu_sessions_v1';
+
+  function load(k, d){ try{ return JSON.parse(localStorage.getItem(k)) || d; }catch(e){ return d; } }
+  function save(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+  function fmtDate(iso){ var d=new Date(iso); return d.getDate()+'/'+(d.getMonth()+1); }
+
+  // ---- current weight = latest log or START ----
+  function currentWeight(){
+    var w = load(LS_W, []);
+    return w.length ? w[w.length-1].kg : START;
+  }
+
+  // ---- BET card ----
+  function renderBet(){
+    var cur = currentWeight();
+    var left = Math.max(0, cur - GOAL);
+    var lost = Math.max(0, START - cur);
+    var total = START - GOAL;
+    var pct = Math.min(100, Math.round(lost/total*100));
+    var now = new Date();
+    var ms = DEADLINE - now;
+    var weeks = Math.max(0, Math.ceil(ms/(7*864e5)));
+    var rate = weeks>0 ? (left/weeks) : left;
+    document.getElementById('betbar').style.width = pct+'%';
+    document.getElementById('bet-left').innerHTML = left.toFixed(1)+' <small>kg</small>';
+    document.getElementById('bet-weeks').innerHTML = weeks+' <small>tuần</small>';
+    document.getElementById('bet-rate').innerHTML = rate.toFixed(2)+' <small>kg/tuần</small>';
+    document.getElementById('s-now').innerHTML = cur.toFixed(1).replace(/\.0$/,'')+'<small>kg</small>';
+    document.getElementById('s-bmi').textContent = (cur/(HEIGHT*HEIGHT)).toFixed(1);
+  }
+
+  // ---- Weight log ----
+  function renderLog(){
+    var w = load(LS_W, []);
+    var el = document.getElementById('w-log');
+    if(!w.length){ el.innerHTML = '<div class="empty">Chưa có số liệu. Nhập cân đầu tiên đi Sơn.</div>'; return; }
+    var html = '';
+    for(var i=w.length-1;i>=0;i--){
+      var prev = i>0 ? w[i-1].kg : null;
+      var dl = prev==null ? '' : (w[i].kg-prev);
+      var cls = dl===''?'' : (dl<=0?'dn':'up');
+      var dtxt = dl===''?'—' : (dl>0?'+':'')+dl.toFixed(1);
+      html += '<div class="wl"><span class="dt">'+fmtDate(w[i].t)+'</span>'
+            + '<span class="kg">'+w[i].kg.toFixed(1)+' kg</span>'
+            + '<span class="dl '+cls+'">'+dtxt+'</span>'
+            + '<span class="x" data-i="'+i+'">✕</span></div>';
+    }
+    el.innerHTML = html;
+    el.querySelectorAll('.x').forEach(function(x){
+      x.onclick = function(){ var arr=load(LS_W,[]); arr.splice(+this.dataset.i,1); save(LS_W,arr); renderLog(); renderBet(); };
+    });
+  }
+  document.getElementById('w-add').onclick = function(){
+    var v = parseFloat(document.getElementById('w-input').value);
+    if(!v || v<40 || v>200){ document.getElementById('w-input').focus(); return; }
+    var arr = load(LS_W, []);
+    arr.push({ kg:v, t:new Date().toISOString() });
+    save(LS_W, arr);
+    document.getElementById('w-input').value='';
+    renderLog(); renderBet();
+  };
+
+  // ---- Weekly sessions ----
+  function weekKey(){ var d=new Date(); var onejan=new Date(d.getFullYear(),0,1); var wk=Math.ceil((((d-onejan)/864e5)+onejan.getDay()+1)/7); return d.getFullYear()+'-W'+wk; }
+  var SESSIONS = ['Buổi 1 · Toàn thân A','Buổi 2 · Toàn thân B','Buổi 3 · Toàn thân C'];
+  function renderWeek(){
+    var store = load(LS_S, {}); var wk = weekKey(); var done = store[wk] || [false,false,false];
+    var el = document.getElementById('week'); el.innerHTML='';
+    SESSIONS.forEach(function(name,i){
+      var div = document.createElement('div');
+      div.className = 'wd' + (done[i]?' on':'');
+      div.innerHTML = '<div class="box">'+(done[i]?'✓':'')+'</div><div class="lab">'+name.split(' · ')[0]+'<small>'+name.split(' · ')[1]+'</small></div>';
+      div.onclick = function(){
+        var s=load(LS_S,{}); var d=s[wk]||[false,false,false]; d[i]=!d[i]; s[wk]=d; save(LS_S,s); renderWeek();
+      };
+      el.appendChild(div);
+    });
+    var cnt = done.filter(Boolean).length;
+    document.getElementById('streak').textContent = 'Tuần này: '+cnt+'/3 buổi'+(cnt===3?' — full combo 🔥':'');
+  }
+
+  renderBet(); renderLog(); renderWeek();
+})();
+</script>
+</body>
+</html>

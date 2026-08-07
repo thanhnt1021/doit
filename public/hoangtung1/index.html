@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0E1417">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<title>Tùng — Comeback nhậu-proof</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0E1417; --surface:#172127; --surface2:#1E2A30; --line:rgba(255,255,255,.09);
+    --text:#ECE6DC; --muted:#93A0A6; --acc:#4FC4BE; --acc2:#9AA6F0; --bad:#E78C8C; --good:#5BD78C; --beer:#E7A93C;
+    --sans:'Be Vietnam Pro',system-ui,-apple-system,sans-serif; --mono:'Space Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased;
+    overscroll-behavior-y:none;-webkit-tap-highlight-color:transparent;
+    background-image:radial-gradient(900px 500px at 50% -10%, rgba(79,196,190,.08), transparent 70%);}
+  .wrap{max-width:580px;margin:0 auto;
+    padding:max(34px,env(safe-area-inset-top)) calc(18px + env(safe-area-inset-right)) calc(64px + env(safe-area-inset-bottom)) calc(18px + env(safe-area-inset-left));}
+  .hero{text-align:center;padding:4px 0 8px}
+  .eyebrow{font:700 11px/1.4 var(--mono);letter-spacing:.2em;text-transform:uppercase;color:var(--acc)}
+  .hero h1{font-weight:800;font-size:clamp(34px,10vw,50px);letter-spacing:-.02em;margin:9px 0 6px;line-height:1.02}
+  .lede{color:var(--muted);font-size:14.5px;max-width:40ch;margin:0 auto}
+
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 17px;margin:16px 0}
+  h2.sec{font-size:13px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:26px 0 10px}
+
+  /* Beer strategy card */
+  .bet{background:linear-gradient(160deg,#2A2410,#172127);border:1px solid rgba(231,169,60,.35);border-radius:18px;padding:18px;margin:18px 0}
+  .bet .eyebrow{color:var(--beer)}
+  .bet h3{font-size:20px;font-weight:800;margin:6px 0 2px;line-height:1.2}
+  .bet .prize{font-size:13px;color:var(--muted);margin-bottom:14px}
+  .bet .prize b{color:var(--beer)}
+  .betgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+  .betcell{background:var(--surface2);border:1px solid var(--line);border-radius:11px;padding:10px;text-align:center}
+  .betcell .k{font:700 9.5px var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+  .betcell .v{font:700 18px var(--mono);color:var(--text);margin-top:2px;line-height:1.1}
+  .betcell .v small{font-size:11px;color:var(--muted);font-weight:400}
+  .betcell.hl .v{color:var(--beer)}
+
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:6px 0}
+  .stat{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:12px 10px;text-align:center}
+  .stat .k{font:700 9.5px var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+  .stat .v{font:700 19px var(--mono);color:var(--acc);margin-top:3px}
+  .stat .v small{font-size:11px;color:var(--muted);font-weight:400}
+
+  .macro{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:6px}
+  .macro .m{background:var(--surface2);border:1px solid var(--line);border-radius:11px;padding:11px 13px}
+  .macro .m .k{font:700 10px var(--mono);text-transform:uppercase;color:var(--muted)}
+  .macro .m .v{font:700 22px var(--mono);color:var(--text);margin-top:2px}
+  .macro .m .v small{font-size:12px;color:var(--muted);font-weight:400}
+  .rules{list-style:none;margin-top:10px}
+  .rules li{position:relative;padding:8px 0 8px 26px;font-size:13.5px;border-top:1px solid var(--line)}
+  .rules li:first-child{border-top:none}
+  .rules li::before{content:"";position:absolute;left:4px;top:15px;width:8px;height:8px;border-radius:50%;background:var(--acc)}
+  .rules li b{color:var(--text)}
+  .rules li.beer::before{background:var(--beer)}
+  .meal{margin-top:8px}
+  .meal .row{display:grid;grid-template-columns:74px 1fr;gap:11px;padding:8px 0;border-top:1px solid var(--line);font-size:13px}
+  .meal .row:first-child{border-top:none}
+  .meal .t{font:700 12px var(--mono);color:var(--acc);text-transform:uppercase}
+  .meal .d b{color:var(--text)}
+
+  details{background:var(--surface);border:1px solid var(--line);border-radius:13px;margin-bottom:8px;overflow:hidden}
+  details[open]{border-color:rgba(79,196,190,.3)}
+  summary{cursor:pointer;list-style:none;padding:14px 15px;font-weight:700;font-size:15px;display:flex;align-items:center;gap:10px;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+  summary::-webkit-details-marker{display:none}
+  summary .tag{font:700 10px var(--mono);color:#0E1417;background:var(--acc);border-radius:5px;padding:2px 7px}
+  summary .tag.run{background:var(--acc2)}
+  summary .chev{margin-left:auto;color:var(--muted);font:700 13px var(--mono);transition:transform .2s}
+  details[open] summary .chev{transform:rotate(90deg)}
+  .ex{padding:0 15px 6px}
+  .ex .exrow{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:baseline;padding:9px 0;border-top:1px solid var(--line);font-size:14px}
+  .ex .exrow .n b{color:var(--text)}
+  .ex .exrow .n small{display:block;color:var(--muted);font-size:11.5px;margin-top:1px}
+  .ex .exrow .s{font:700 13px var(--mono);color:var(--acc);white-space:nowrap}
+  .ex .note{font-size:12.5px;color:var(--muted);padding:11px 0 13px;border-top:1px solid var(--line);margin-top:2px}
+
+  .track label{display:block;font-size:12.5px;color:var(--muted);font-weight:600;margin-bottom:6px}
+  .track .in{display:flex;gap:8px}
+  .track input{flex:1;font:700 16px var(--mono);background:var(--surface2);color:var(--text);border:1px solid var(--line);border-radius:9px;padding:11px 12px;min-height:48px;color-scheme:dark}
+  .track button{font:800 14px var(--sans);color:#0E1417;background:var(--acc);border:none;border-radius:10px;padding:0 18px;min-height:48px;cursor:pointer;touch-action:manipulation}
+  .track button:hover{filter:brightness(1.08)}
+  .wlog{margin-top:12px;display:grid;gap:6px}
+  .wlog .wl{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;background:var(--surface2);border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13px}
+  .wlog .wl .dt{font:700 12px var(--mono);color:var(--muted)}
+  .wlog .wl .kg{font:700 15px var(--mono);color:var(--text)}
+  .wlog .wl .dl{font:700 12px var(--mono)}
+  .wlog .wl .dl.dn{color:var(--good)} .wlog .wl .dl.up{color:var(--bad)}
+  .wlog .wl .x{color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px}
+  .empty{color:var(--muted);font-size:12.5px;text-align:center;padding:10px}
+
+  .week{display:grid;gap:8px;margin-top:4px}
+  .wd{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+  .wd .box{width:24px;height:24px;border-radius:7px;border:2px solid var(--muted);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-weight:800;color:#0E1417;transition:.15s}
+  .wd.on .box{background:var(--good);border-color:var(--good)}
+  .wd .lab{font-weight:700;font-size:14px}
+  .wd .lab small{display:block;color:var(--muted);font-size:11.5px;font-weight:400}
+  .wd.on .lab{color:var(--muted)}
+  .streak{text-align:center;font:700 13px var(--mono);color:var(--acc);margin-top:12px}
+
+  footer{margin-top:34px;text-align:center;color:var(--muted);font-size:12px;border-top:1px solid var(--line);padding-top:18px}
+  footer a{color:var(--acc2);text-decoration:none;font-weight:700}
+  :focus-visible{outline:2px solid var(--acc);outline-offset:3px;border-radius:8px}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header class="hero">
+    <p class="eyebrow">Recomp · Comeback sau 2 năm</p>
+    <h1>Tùng — Comeback</h1>
+    <p class="lede">Có nền chạy FM, chỉ là ngủ đông 2 năm. Vẫn nhậu 4–5 lít/tuần — nhưng cơ vẫn lên, bụng vẫn gọn. Chơi hệ thông minh.</p>
+  </header>
+
+  <!-- BEER STRATEGY -->
+  <div class="bet">
+    <p class="eyebrow">🍺 Ngân sách bia — sống chung, không cấm</p>
+    <h3>4–5 lít bia/tuần đã tính sẵn</h3>
+    <p class="prize">Bia không phải kẻ thù, <b>bia mất kiểm soát</b> mới là. Đây là số liệu thật để không tự lừa mình.</p>
+    <div class="betgrid">
+      <div class="betcell hl"><div class="k">Bia/tuần</div><div class="v">4–5 <small>lít</small></div></div>
+      <div class="betcell hl"><div class="k">≈ Calo bia</div><div class="v">2000 <small>kcal/tuần</small></div></div>
+      <div class="betcell"><div class="k">Bù mỗi ngày</div><div class="v">−300 <small>kcal ăn</small></div></div>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="k">Hiện tại</div><div class="v" id="s-now">72<small>kg</small></div></div>
+    <div class="stat"><div class="k">Chiều cao</div><div class="v">1m75</div></div>
+    <div class="stat"><div class="k">BMI</div><div class="v" id="s-bmi">23.5</div></div>
+  </div>
+
+  <!-- BEER RULES -->
+  <h2 class="sec">🍺 5 luật nhậu-proof</h2>
+  <div class="panel">
+    <ul class="rules">
+      <li class="beer"><b>Dồn nhậu cuối tuần.</b> Nhậu 2–3 buổi/tuần dồn lại, chừa đầu tuần để tập tỉnh táo. Đừng rải đều 7 ngày.</li>
+      <li class="beer"><b>Chọn bia, né rượu ngọt.</b> Bia &lt; cocktail/rượu pha đường. Tuyệt đối không thêm nước ngọt/sting vào.</li>
+      <li class="beer"><b>1 ly nước / 1 lon bia.</b> Uống xen nước lọc → uống chậm hơn, ít hơn, sáng mai đỡ vật.</li>
+      <li><b>Mồi nhậu chọn đạm.</b> Đồ nướng/luộc/hấp/gỏi (thịt, hải sản, đậu) thay vì khoai chiên, nem rán, mì xào cuối tiệc.</li>
+      <li><b>Ngày nhậu: ăn nạc ban ngày.</b> Sáng+trưa ăn đạm + rau, cắt tinh bột & đồ mỡ để "chừa quota" cho bia tối.</li>
+    </ul>
+  </div>
+
+  <!-- NUTRITION -->
+  <h2 class="sec">🍚 Ăn uống — đạm là bất khả xâm phạm</h2>
+  <div class="panel">
+    <div class="macro">
+      <div class="m"><div class="k">Calo mục tiêu</div><div class="v">2500 <small>kcal/ngày*</small></div></div>
+      <div class="m"><div class="k">Đạm mục tiêu</div><div class="v">140 <small>g/ngày</small></div></div>
+    </div>
+    <ul class="rules">
+      <li><b>Đạm 140g mỗi ngày, kể cả ngày nhậu.</b> Cồn phá cơ — đạm cao là lá chắn giữ cơ. Ưu tiên thịt nạc, cá, trứng, sữa.</li>
+      <li><b>*2500 là ngày không nhậu.</b> Ngày nhậu: ăn ~1900 kcal đồ ăn + bia → vẫn hòa vốn cả tuần.</li>
+      <li><b>Carb quanh buổi tập.</b> Ăn cơm/khoai/chuối trước & sau tập để nạp năng lượng + hồi cơ. Tận dụng nền chạy.</li>
+    </ul>
+    <div class="meal">
+      <div class="row"><div class="t">Sáng</div><div class="d"><b>Đạm mạnh:</b> 3 trứng + bánh mì / phở thêm trứng+thịt. Nạp đạm sớm.</div></div>
+      <div class="row"><div class="t">Trưa</div><div class="d"><b>Cơm bình dân:</b> thịt/cá nạc + rau nhiều + cơm vừa (ngày tập ăn thêm cơm).</div></div>
+      <div class="row"><div class="t">Xế</div><div class="d"><b>Snack đạm:</b> sữa/whey/ức gà. Đặc biệt trước buổi tập chiều.</div></div>
+      <div class="row"><div class="t">Tối tỉnh</div><div class="d"><b>Đạm + rau + ít cơm.</b> Ngày không nhậu ăn đủ để hồi phục.</div></div>
+      <div class="row"><div class="t">Tối nhậu</div><div class="d"><b>Bia + mồi đạm nướng/luộc.</b> Xen nước lọc. Về nhà uống thêm 500ml nước + 1 viên B tổng hợp.</div></div>
+    </div>
+  </div>
+
+  <!-- WORKOUT -->
+  <h2 class="sec">🏋️ Lịch tập — 3 buổi tạ + chạy Zone 2</h2>
+  <p class="lede" style="text-align:left;margin:0 0 10px;max-width:none">Xếp 3 buổi tạ vào ngày <b>không nhậu</b> (VD T2–T4–T6). Cuối tuần nhậu thì thay bằng 1 buổi chạy Zone 2 nhẹ để đốt bia + hồi phục — tận dụng nền FM cũ.</p>
+
+  <details open>
+    <summary><span class="tag">Buổi 1</span> Toàn thân A <span class="chev">›</span></summary>
+    <div class="ex">
+      <div class="exrow"><div class="n"><b>Squat đòn (Barbell Squat)</b><small>Nền tảng chân + mông. Warm-up chạy nhẹ 5' trước</small></div><div class="s">3 × 8</div></div>
+      <div class="exrow"><div class="n"><b>Đẩy ngực đòn (Bench Press)</b><small>Ngực + tay sau</small></div><div class="s">3 × 8</div></div>
+      <div class="exrow"><div class="n"><b>Kéo xô (Lat Pulldown)</b><small>Lưng xô. Bóp bả vai</small></div><div class="s">3 × 10</div></div>
+      <div class="exrow"><div class="n"><b>Plank</b><small>Lõi</small></div><div class="s">3 × 45s</div></div>
+      <div class="note">💡 Comeback sau 2 năm: tuần 1–2 tập nhẹ 60% sức cho gân cốt quen lại, đừng ham nặng gánh chấn thương.</div>
+    </div>
+  </details>
+
+  <details>
+    <summary><span class="tag">Buổi 2</span> Toàn thân B <span class="chev">›</span></summary>
+    <div class="ex">
+      <div class="exrow"><div class="n"><b>Deadlift Romania</b><small>Đùi sau + mông. Lưng thẳng</small></div><div class="s">3 × 8</div></div>
+      <div class="exrow"><div class="n"><b>Đẩy vai đòn (Overhead Press)</b><small>Vai</small></div><div class="s">3 × 8</div></div>
+      <div class="exrow"><div class="n"><b>Chèo ngồi (Seated Cable Row)</b><small>Lưng giữa</small></div><div class="s">3 × 10</div></div>
+      <div class="exrow"><div class="n"><b>Nâng chân treo xà (Leg Raise)</b><small>Bụng dưới</small></div><div class="s">3 × 12</div></div>
+      <div class="note">💡 Sau buổi này chạy Zone 2 easy 15–20' nếu còn sức — vừa đốt mỡ vừa dùng lại nền tim mạch.</div>
+    </div>
+  </details>
+
+  <details>
+    <summary><span class="tag">Buổi 3</span> Toàn thân C <span class="chev">›</span></summary>
+    <div class="ex">
+      <div class="exrow"><div class="n"><b>Đạp đùi (Leg Press)</b><small>Đùi trước + mông</small></div><div class="s">3 × 10</div></div>
+      <div class="exrow"><div class="n"><b>Đẩy ngực dốc tạ tay (Incline DB)</b><small>Ngực trên</small></div><div class="s">3 × 10</div></div>
+      <div class="exrow"><div class="n"><b>Hít xà / kéo xô hỗ trợ</b><small>Lưng + tay trước. Làm hết sức</small></div><div class="s">3 × tối đa</div></div>
+      <div class="exrow"><div class="n"><b>Cuốn tay + đạp bắp chân</b><small>Tay trước + bắp chân</small></div><div class="s">3 × 12</div></div>
+      <div class="note">💡 Tăng tạ khi làm đủ số hiệp thấy còn dư 1–2 cái ở hiệp cuối.</div>
+    </div>
+  </details>
+
+  <details>
+    <summary><span class="tag run">Bonus</span> Chạy Zone 2 (ngày nhậu / hồi phục) <span class="chev">›</span></summary>
+    <div class="ex">
+      <div class="exrow"><div class="n"><b>Chạy easy Zone 2</b><small>Nhịp tim ~65–75% max, vẫn nói chuyện được. Đốt mỡ + hồi phục</small></div><div class="s">20–35'</div></div>
+      <div class="note">💡 Sáng sau hôm nhậu đừng nằm bẹp — chạy/đi bộ nhẹ 20' giúp hết vật nhanh & giữ thói quen. Không ép pace, chỉ giữ chân chạy.</div>
+    </div>
+  </details>
+
+  <!-- TRACKER -->
+  <h2 class="sec">📈 Theo dõi cân nặng</h2>
+  <div class="panel track">
+    <label>Cân buổi sáng (bụng đói, sau đi vệ sinh) — nhập kg</label>
+    <div class="in">
+      <input id="w-input" type="number" inputmode="decimal" step="0.1" placeholder="VD 72.0">
+      <button id="w-add">Lưu</button>
+    </div>
+    <div class="wlog" id="w-log"></div>
+  </div>
+
+  <h2 class="sec">✅ Buổi tập tuần này</h2>
+  <div class="panel">
+    <div class="week" id="week"></div>
+    <div class="streak" id="streak"></div>
+  </div>
+
+  <footer>
+    Làm cho Tùng 🍺💪 · <a href="/sonphu">Xem chế độ của Sơn →</a><br>
+    <span style="font-size:11px">Mục tiêu không phải six-pack — là lên cơ, gọn bụng, khỏe để nhậu bền.</span>
+  </footer>
+</main>
+
+<script>
+(function(){
+  var HEIGHT = 1.75, START = 72;
+  var LS_W = 'tung_weights_v1', LS_S = 'tung_sessions_v1';
+
+  function load(k, d){ try{ return JSON.parse(localStorage.getItem(k)) || d; }catch(e){ return d; } }
+  function save(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+  function fmtDate(iso){ var d=new Date(iso); return d.getDate()+'/'+(d.getMonth()+1); }
+
+  function currentWeight(){ var w=load(LS_W,[]); return w.length ? w[w.length-1].kg : START; }
+  function renderStats(){
+    var cur = currentWeight();
+    document.getElementById('s-now').innerHTML = cur.toFixed(1).replace(/\.0$/,'')+'<small>kg</small>';
+    document.getElementById('s-bmi').textContent = (cur/(HEIGHT*HEIGHT)).toFixed(1);
+  }
+
+  function renderLog(){
+    var w = load(LS_W, []);
+    var el = document.getElementById('w-log');
+    if(!w.length){ el.innerHTML = '<div class="empty">Chưa có số liệu. Nhập cân đầu tiên đi Tùng.</div>'; return; }
+    var html = '';
+    for(var i=w.length-1;i>=0;i--){
+      var prev = i>0 ? w[i-1].kg : null;
+      var dl = prev==null ? '' : (w[i].kg-prev);
+      var cls = dl===''?'' : (dl<=0?'dn':'up');
+      var dtxt = dl===''?'—' : (dl>0?'+':'')+dl.toFixed(1);
+      html += '<div class="wl"><span class="dt">'+fmtDate(w[i].t)+'</span>'
+            + '<span class="kg">'+w[i].kg.toFixed(1)+' kg</span>'
+            + '<span class="dl '+cls+'">'+dtxt+'</span>'
+            + '<span class="x" data-i="'+i+'">✕</span></div>';
+    }
+    el.innerHTML = html;
+    el.querySelectorAll('.x').forEach(function(x){
+      x.onclick = function(){ var arr=load(LS_W,[]); arr.splice(+this.dataset.i,1); save(LS_W,arr); renderLog(); renderStats(); };
+    });
+  }
+  document.getElementById('w-add').onclick = function(){
+    var v = parseFloat(document.getElementById('w-input').value);
+    if(!v || v<40 || v>200){ document.getElementById('w-input').focus(); return; }
+    var arr = load(LS_W, []);
+    arr.push({ kg:v, t:new Date().toISOString() });
+    save(LS_W, arr);
+    document.getElementById('w-input').value='';
+    renderLog(); renderStats();
+  };
+
+  function weekKey(){ var d=new Date(); var onejan=new Date(d.getFullYear(),0,1); var wk=Math.ceil((((d-onejan)/864e5)+onejan.getDay()+1)/7); return d.getFullYear()+'-W'+wk; }
+  var SESSIONS = [['Buổi 1','Toàn thân A'],['Buổi 2','Toàn thân B'],['Buổi 3','Toàn thân C'],['Bonus','Chạy Zone 2']];
+  function renderWeek(){
+    var store = load(LS_S, {}); var wk = weekKey(); var done = store[wk] || [false,false,false,false];
+    var el = document.getElementById('week'); el.innerHTML='';
+    SESSIONS.forEach(function(s,i){
+      var div = document.createElement('div');
+      div.className = 'wd' + (done[i]?' on':'');
+      div.innerHTML = '<div class="box">'+(done[i]?'✓':'')+'</div><div class="lab">'+s[0]+'<small>'+s[1]+'</small></div>';
+      div.onclick = function(){
+        var st=load(LS_S,{}); var d=st[wk]||[false,false,false,false]; d[i]=!d[i]; st[wk]=d; save(LS_S,st); renderWeek();
+      };
+      el.appendChild(div);
+    });
+    var lift = done.slice(0,3).filter(Boolean).length;
+    document.getElementById('streak').textContent = 'Tuần này: '+lift+'/3 buổi tạ'+(done[3]?' + chạy ✔':'')+(lift===3?' — chuẩn bài 🔥':'');
+  }
+
+  renderStats(); renderLog(); renderWeek();
+})();
+</script>
+</body>
+</html>
