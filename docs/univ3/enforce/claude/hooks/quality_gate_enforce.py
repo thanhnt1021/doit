@@ -17,6 +17,27 @@ import os
 import re
 import sys
 
+# ── Khối chỉ dẫn "viết lại cho gọn" — MỘT nguồn: stop_viet_lai.py ──────────────
+# WHY: cổng `Stop` chặn SAU khi chữ đã hiện lên màn founder; không giấu được bản 1
+# (giới hạn harness). Thứ sửa được là ĐỘ DÀI bản viết lại — đo 28-29/08: 39 cặp tin
+# giống nhau ≥0,60 = 36.642 ký tự founder đọc hai lần.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+    import stop_viet_lai as _SVL
+except Exception:
+    _SVL = None
+
+
+def _viet_lai(ly_do, sid=None, transcript=None, van_ban=None):
+    if _SVL is None:
+        return ly_do
+    try:
+        return _SVL.them(ly_do, van_ban=van_ban, sid=sid, transcript=transcript)
+    except Exception:
+        return ly_do
+
+
+
 TMPDIR = "/tmp/claude_hooks"
 os.makedirs(TMPDIR, exist_ok=True)
 
@@ -132,14 +153,14 @@ def main():
                 f.write("1")
         except Exception:
             pass
-        sys.stderr.write(
+        sys.stderr.write(_viet_lai(
             "VERIFY BEFORE DONE: Bạn đã sửa file code và báo hoàn thành nhưng CHƯA chạy "
             "kiểm tra nào (build/test/lint/typecheck).\n\n"
             "RULE (QUALITY_GATES): chạy lệnh verify phù hợp với dự án, xem kết quả thật, "
             "rồi mới kết luận. Nếu test fail -> báo fail kèm output, đừng nói đã xong.\n\n"
             "ACTION: chạy verify ngay bây giờ. (Nếu dự án thật sự không có bước verify, "
-            "nói rõ lý do thay vì tuyên bố hoàn thành.)"
-        )
+            "nói rõ lý do thay vì tuyên bố hoàn thành.)",
+            sid=session_id, transcript=data.get("transcript_path", "")))
         sys.exit(2)
 
     sys.exit(0)

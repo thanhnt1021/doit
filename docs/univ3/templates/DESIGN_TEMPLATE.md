@@ -1,6 +1,6 @@
 # DESIGN — Hệ thiết kế <Tên Project>
 
-> Nguồn sự thật UI-UX của project này. Đọc TRƯỚC khi đụng giao diện. Quy tắc: `docs/universal_rules/rules/DESIGN_SYSTEM.md`.
+> Nguồn sự thật UI-UX của project này. Đọc TRƯỚC khi đụng giao diện. Quy tắc: skill `mobile-webapp` (`docs/univ3/skills/mobile-webapp/SKILL.md`).
 > Đổi nguyên tắc ở đây = `Constitution change` → ghi `docs/CHANGELOG.md`.
 
 ## Nguồn thiết kế

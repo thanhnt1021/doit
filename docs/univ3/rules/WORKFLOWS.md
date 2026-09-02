@@ -23,7 +23,7 @@ Bảng lệnh tóm tắt ở `INDEX.md`. Luật bất biến ở `SPINE.md`. Git
 1. Implement từng function/fix một theo thứ tự đã chốt — không làm hết rồi mới test.
 2. Test kỹ sau mỗi bước (quick deploy verify / test endpoint trực tiếp) → confirm works → mới sang bước sau.
 3. **Trước quick deploy lần cuối → `check code` BẮT BUỘC** (skill app-security / `rules/GATES.md` §Security §0).
-4. Xong → quick deploy → báo cáo tổng kết → **DỪNG chờ feedback**.
+4. Xong → **tự động commit (local) + deploy demo** → báo cáo tổng kết → **DỪNG chờ feedback**. (Commit + deploy demo an toàn — làm luôn; **KHÔNG tự `push`/`merge`**, chờ lệnh rõ.)
 5. Gặp vấn đề loop >2 lần → dừng, tham vấn user, không tự thử mãi.
 
 ## `full update` — one-shot cuối task (lệnh rõ của user = được phép commit/push/merge/deploy)
@@ -37,22 +37,33 @@ Bảng lệnh tóm tắt ở `INDEX.md`. Luật bất biến ở `SPINE.md`. Git
 
 > Bất kỳ bước fail / merge conflict → **DỪNG ngay**, báo user, không tự resolve. (`full update` không gồm deploy demo — dùng `quick deploy` riêng nếu cần.)
 
-## `sync uni` — đồng bộ với SSOT repo `thanhnt1021/univ3`
+## `sync uni` — CHẠY SCRIPT, CẤM LÀM TAY
 
-Repo SSOT: `git@github.com:thanhnt1021/univ3.git` (PRIVATE, clone bằng `gh`/git đã auth — tài khoản `thanhnt1021`). Bản trong `docs/univ3/` của mỗi project chỉ là cache; có `VERSION` + `MANIFEST.txt` (sha256). **Drift check 1 lệnh** (chạy trong thư mục univ3):
+Repo SSOT: `git@github.com:thanhnt1021/univ3.git` (PRIVATE, tài khoản `thanhnt1021`). Bản trong `docs/univ3/` mỗi project chỉ là cache.
+
+> **BÀI HỌC 2026-08-25 — vì sao mục này bị viết lại:** thứ tự đúng đã nằm sẵn ở đây bằng chữ, model vẫn tự diễn lại thành "pull đè trước, vá sau" → suýt mất watchdog + cổng trần-worker vừa dựng xong trên máy. **Luật markdown = xác suất; script + cổng exit≠0 = tất định.** Nên các bước làm tay đã bị XOÁ khỏi mục này — còn để lại là còn có người diễn lại.
+
+**3 lệnh, đúng thứ tự này, không có đường khác:**
 ```bash
-shasum -a 256 -c MANIFEST.txt --quiet && echo "✓ khớp SSOT $(cat VERSION)" || echo "⚠️ DRIFT — sync uni"
+~/.claude/universal-hooks/sync-uni.sh check   # backup + bảng khác biệt 3 nguồn + đếm hook. KHÔNG ghi gì.
+#   (MODEL đọc bảng diff → quyết giữ bản nào → gộp TAY vào clone SSOT script đã in đường dẫn)
+~/.claude/universal-hooks/sync-uni.sh push --bump minor -m "..."   # bump VERSION + gen_manifest + verify + push SSOT
+~/.claude/universal-hooks/sync-uni.sh pull    # chỉ chạy được khi check SẠCH; rsync về + install.py + cổng cuối
 ```
 
-**Chiều PULL** (`sync uni`): clone repo → `diff MANIFEST.txt` (khớp → "đã mới nhất", DỪNG) → báo file thay đổi/mới/xoá → copy về (gồm `VERSION`+`MANIFEST`) → xoá file không còn trong repo TRỪ file khai trong `LOCAL_ONLY.txt` → KHÔNG overwrite `CLAUDE.md`/`AGENTS.md`/`README.md`/`docs/GOAL.md`/`docs/CHANGELOG.md` nếu đã có → hook đổi thì cài lại (`install.py`) → báo cáo → DỪNG chờ user `commit`.
+**Phân vai — script KHÔNG tự gộp, KHÔNG tự sửa file luật:**
 
-**Chiều PUSH — QUY TRÌNH DUY NHẤT** (rule mới/sửa sinh ở project phải chảy ngược, đừng để kẹt):
-0. Phân loại theo §File-Ownership: file trong `LOCAL_ONLY.txt` → KHÔNG đẩy; file mới chưa rõ chung/riêng → HỎI rồi mới đi tiếp.
-1. Copy file về SSOT clone `~/PycharmProjects/univ3-ssot/` (clone lại nếu chưa có — xem `HUONG_DAN.md` §Cập nhật), đúng đường dẫn tương ứng.
-2. Bump `VERSION` (patch: sửa nội dung; minor: thêm file/mục lớn) + chạy `bash scripts/gen_manifest.sh` (+ `python3 scripts/gen_agents_md.py` nếu sửa SPINE).
-3. Commit + push repo SSOT (`gh auth switch --user thanhnt1021` trước nếu đang tài khoản khác).
-4. Nhắc: project khác nhận bản mới khi `sync uni`.
-> _Chỉ có MỘT quy trình push-SSOT này. Không copy `*.md` flat, không bỏ qua VERSION/manifest — làm sai phá drift-check._
+| | Việc |
+|---|---|
+| **SCRIPT** (máy móc, không được sai) | backup 3 nguồn ra 2 nơi · liệt kê khác biệt **A repo ⇄ B SSOT ⇄ C `~/.claude` đang chạy** + in `diff` từng tệp · đếm/liệt kê hook `settings.json` trước-sau · **CHẶN CỨNG exit 4** khi local/máy có thứ SSOT chưa có · verify shasum + VERSION + hook-không-giảm + script-không-mất · **tự khôi phục từ backup** khi cổng đỏ |
+| **MODEL** (phán đoán, bash làm không nổi) | đọc bảng diff · quyết giữ bản nào · gộp tay · xử mâu thuẫn · ghi rõ trong báo cáo đã quyết gì và vì sao |
+
+- **Nguồn C (`~/.claude/` đang chạy) là nguồn hay bị bỏ quên nhất** — hook + script vừa dựng nằm ở đó trước khi kịp lên SSOT. `check` bắt buộc soi nguồn này.
+- Tệp CỐ Ý chỉ ở máy → khai `~/.claude/universal-hooks/LOCAL_ONLY.txt` (hoặc `docs/univ3/LOCAL_ONLY.txt`), 1 tên/dòng — hết bị báo drift.
+- Hook/script MỚI đẩy lên SSOT phải thêm tên vào `HOOK_FILES` trong `install.py`, không thì máy/project khác không nhận được.
+- Xung đột lúc `push` (worker khác vừa push) → script **DỪNG**, không tự resolve. Báo rồi hỏi.
+- **Vùng tạm gắn định danh project — CẤM lấy phần tử đầu tiên khi bung ký tự đại diện.** `/tmp/sync-uni-state/` dùng CHUNG cả máy: `cat /tmp/sync-uni-state/*/clone.txt | head -1` ra clone của project KHÁC (25/8 đã chép đè lên việc dở của `vevoi`). Cần clone của mình → `sync-uni.sh clone`. Clone mang dấu `.git/univ3-owner`; `push`/`pull` lệch dấu → exit 7. Hook `sync_state_owner_enforce.py` chặn tất định mọi lệnh GHI trỏ sang vùng project khác.
+- Sau `pull`: `git add docs/univ3 AGENTS.md` — **CẤM `git add -A`**.
 
 ## §File-Ownership — file này CỦA AI, push ĐI ĐÂU?
 
@@ -66,6 +77,28 @@ shasum -a 256 -c MANIFEST.txt --quiet && echo "✓ khớp SSOT $(cat VERSION)" |
 | 4. Cá nhân/nhạy cảm | Secret, `.env`, token, tài liệu cá nhân | KHÔNG push đâu — `.gitignore` |
 
 Decision tree khi commit: file có trong MANIFEST → loại 1 (bắt buộc chiều PUSH). File MỚI trong univ3 → **HỎI bắt buộc** (A. chung→SSOT / B. riêng→thêm `LOCAL_ONLY.txt` / C. nhạy cảm→`.gitignore`). File ngoài univ3 → repo project (nhưng nếu chứa BÀI HỌC dùng chung → hỏi trích phần chung về SSOT). File lạ mình KHÔNG tạo → KHÔNG tự commit, HỎI. `MANIFEST.txt` = ranh giới máy-đọc "chung"; `LOCAL_ONLY.txt` = ý định người khai "riêng".
+
+## §Buổi-sáng — gom cổng HOOK vào MỘT lượt duyệt, rồi chạy một mạch
+
+> Chốt 26/08/2026. Founder xả task buổi sáng rồi **đi tập gym** — từ lúc đó mỗi câu hỏi là
+> một phiên đứng im. Nên mọi thứ cần chủ nhà chốt phải dồn về ĐẦU NGÀY, một lượt.
+
+1. **Trước khi làm bất cứ việc nào** (founder mở đầu bằng *"có cái gì cần hook không, đẩy
+   lên confirm trước hết"*): rà cả mớ task hôm nay xem việc nào **cần hook mới** hoặc **cần
+   nới hook đang có** — nặng nhất là việc **sửa dữ liệu** và việc **đụng tệp dùng chung**
+   (`.htaccess`, `nginx.conf`, sheet, DB). Gom TẤT CẢ vào **một lượt `AskUserQuestion` duy
+   nhất**. Không có gì cần hook thì nói thẳng "không cần", đừng hỏi lấy lệ.
+2. **Founder duyệt xong + xả hết task → coi như founder đã đi vắng.** Từ đó **chỉ việc
+   chạy**: không hỏi nữa, không dựng thêm cổng chặn để chờ người. Gặp chỗ mơ hồ mà không
+   phá được gì → chọn phương án an toàn nhất, GHI vào báo cáo, đi tiếp.
+3. **Sau MỖI lệnh founder gửi thêm: hỏi lại một câu "còn task gì nữa không"** — nhưng
+   **vẫn chạy tiếp bình thường, không dừng chờ trả lời**. Task bổ sung thì lặp lại bước 1
+   cho riêng nó: cần hook thì gom `AskUserQuestion` một lượt, không cần thì làm luôn.
+4. **Cần báo tiến độ/kết quả cho founder (đang đi vắng)** → chạy `~/.claude/universal-hooks/tg-notify.sh "nội dung"` — nhóm đích đã cố định sẵn trong `telegram_config.env`, **CẤM đi dò token/hỏi chọn nhóm**.
+
+Hệ quả bắt buộc với hook: hook **không được `ask`** trong ngày làm việc — chỉ `allow` kèm
+nhắc, hoặc `deny` cho thứ làm mất dữ liệu / mất việc của người khác. Cần người quyết →
+đưa vào lượt duyệt buổi sáng, đừng chặn giữa chừng.
 
 ## §Goal Protocol (tóm tắt — chi tiết `rules/DOCS.md`)
 

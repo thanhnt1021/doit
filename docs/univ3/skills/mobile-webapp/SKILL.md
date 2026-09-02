@@ -110,7 +110,7 @@ Trên desktop, app hiển thị dạng "khung điện thoại" giữa nền xám
 /* Nền desktop + shadow tạo cảm giác phone frame (đổi màu theo theme) */
 @media (min-width: 640px) {
   body { background: linear-gradient(180deg, #f0f2f5, #e8eaed); }
-  .app-container { min-height: 100dvh; box-shadow: 0 0 40px rgba(0,0,0,0.06); }
+  .app-container { min-height: 100svh; box-shadow: 0 0 40px rgba(0,0,0,0.06); }
 }
 
 /* Template BẮT BUỘC cho mọi position:fixed mới (nav, FAB, action bar, overlay) */
@@ -194,13 +194,14 @@ Thông tin quan trọng: luôn visible, hoặc toggle bằng tap/click — khôn
 
 ---
 
-## 7. Height units — `dvh` KHÔNG `vh`
+## 7. Height units — `svh` cho layout "vừa 1 màn", KHÔNG `vh`/`dvh`
 
-`100vh` không trừ thanh địa chỉ browser → content bị che dưới đáy. Dùng `100dvh` (dynamic viewport height) tự điều chỉnh.
+`100vh` không trừ thanh địa chỉ browser → content bị che dưới đáy. NHƯNG với layout PHẢI "vừa đúng 1 màn không scroll" (app-shell, splash, hero full-screen) → dùng **`100svh`** (small viewport height = khi thanh URL Safari đang HIỆN), KHÔNG `100dvh`.
+Lý do: `100dvh` = viewport khi thanh URL Safari đã THU (lớn hơn); layout khớp `dvh` sẽ TRÀN/scroll ngay khi thanh URL Safari xuất hiện lúc mới mở trang. `svh` là mẫu số nhỏ nhất → không bao giờ tràn.
 
 ```css
-body { min-height: 100dvh; }
-.modal-fullscreen .dialog { height: 100dvh; }
+body { min-height: 100svh; }              /* "vừa 1 màn": svh, không dvh */
+.modal-fullscreen .dialog { height: 100svh; }
 ```
 
 ---
@@ -307,14 +308,82 @@ const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent); // wrap trong useEff
 
 ---
 
+## 15. ⭐ Verify UI mobile = iOS Simulator (Safari THẬT) — CẤM chrome-devtools phone view
+
+> Founder chốt (GLOBAL): xác nhận "vừa 1 màn / responsive OK" trên điện thoại **PHẢI** dùng iOS Simulator chụp Safari thật. **CẤM** dùng chrome-devtools phone emulation để kết luận.
+
+**Vì sao cấm chrome-devtools phone view:** phone emulation của Chrome **bỏ sót** thanh URL Safari (nằm DƯỚI trên iPhone) + status bar (trên) + cách iOS tính viewport → trang "trông vừa 1 màn" trong Chrome nhưng mở Safari iPhone thật thì **tràn/scroll**. Đây là lỗi thật hay bị dính.
+
+**AI ĐƯỢC BOOT — 1 DEVICE TẠI 1 THỜI ĐIỂM (bài học 2026-08-24):** 4 worker UI song song, con nào cũng tự boot "1 device rộng + 1 vừa" → 5 simulator cùng lúc, 708 tiến trình CoreSimulator, load average 566, còn ~63MB RAM trống, máy founder gần đơ.
+- Worker **THI CÔNG KHÔNG boot** simulator — tự xác minh bằng `grep` / đọc lại `file:dòng` / đếm bằng script / tính contrast bằng script / đọc thẳng giá trị CSS, rồi kết thúc báo cáo bằng mục **"CẦN QA KIỂM"** (trang nào · soi điểm gì · so ảnh nào).
+- **MỘT worker QA duy nhất** chạy sau cùng, boot **ĐÚNG 1 device**, gom kiểm toàn bộ trong một lượt.
+- So 2 cỡ màn → **TUẦN TỰ**: `shutdown` con thứ nhất xong mới boot con thứ hai. Chi tiết điều phối: `rules/AGENTS-ORCH.md` §QA-tập-trung. Hook `sim_one_device_enforce.py` chặn tất định lệnh boot con thứ hai.
+
+**Quy trình chuẩn (tất định, chụp Safari thật):**
+```bash
+# 0. LUÔN xem có device nào đang chạy chưa — DÙNG LẠI thay vì boot thêm con mới.
+xcrun simctl list devices booted        # có sẵn con agent-* -> lấy UDID đó, nhảy tới bước 2
+
+# 1. Chưa có con nào -> boot ĐÚNG 1 device, đúng device NGƯỜI DÙNG THỰC DÙNG (mặc định iPhone Pro / Pro Max
+#    đời hiện tại — hỏi/known device của user). KHÔNG ép optimize cho iPhone SE nếu user không dùng SE.
+# CẤM đưa cửa sổ Simulator lên trước (che màn hình người dùng) — dùng DEVICE RIÊNG + headless.
+bash ~/.claude/universal-hooks/sim-headless.sh boot      # tự tạo/tái dùng device agent-<thư mục>, in UDID
+UDID=$(bash ~/.claude/universal-hooks/sim-headless.sh udid)
+
+# 2. Phục vụ trang qua http server (KHÔNG mở file://, Safari xử lý khác)
+#    BẮT BUỘC mẫu TỰ DỌN: mỗi lệnh Bash của agent là 1 shell RIÊNG -> `kill %1` ở lệnh SAU vô tác dụng,
+#    server sống mãi. Nên bước 2->4 phải nằm trong CÙNG MỘT lệnh Bash, có trap dọn kể cả khi lỗi.
+python3 -m http.server 8080 --bind 127.0.0.1 & SRV=$!   # bind 127.0.0.1: không hở ra mạng LAN
+trap 'kill $SRV 2>/dev/null' EXIT INT TERM
+
+# 3. Mở trong Safari của simulator
+xcrun simctl openurl "$UDID" "http://localhost:8080/trang.html"
+
+# 4. Chụp màn hình Safari thật rồi ĐỌC ảnh (xem có tràn/scroll/che không)
+xcrun simctl io "$UDID" screenshot /tmp/sim-shot.png
+
+# 5. Cần cỡ màn thứ hai -> TẮT con thứ nhất TRƯỚC rồi mới boot con sau (CẤM chạy song song)
+xcrun simctl shutdown "$UDID"
+SIM_NAME=agent-max SIM_DEVICE="iPhone 17 Pro Max" bash ~/.claude/universal-hooks/sim-headless.sh boot
+
+# 6. Xong việc: tắt device + TỰ TẮT http server, không bỏ lại tiến trình rác
+xcrun simctl shutdown all; kill $SRV 2>/dev/null      # $SRV, KHÔNG dùng %1 (job control chết qua shell khác)
+```
+> **Luật tiến trình nền:** dựng gì thì tự tắt nấy. Báo cáo cuối phải ghi rõ **đã tắt PID nào**.
+> Kiểm trước khi báo xong: `ps -eo pid,etime,command | grep -E "http.server|ms-playwright"` — còn sót là VI PHẠM.
+
+**Chụp bằng Playwright** — `close()` phải ở `finally`, KHÔNG đặt cuối script (script lỗi giữa chừng thì browser sống mãi, ăn RAM):
+```js
+const browser = await chromium.launch();
+try {
+  const page = await browser.newPage();
+  await page.goto(url); await page.screenshot({ path: out });
+} finally {
+  await browser.close();          // chạy kể cả khi throw ở trên
+}
+```
+
+**CẤM chiếm máy người dùng khi verify** (hook `no_steal_focus_enforce.py` chặn tất định): không đưa cửa sổ Simulator lên trước, không AppleScript `activate`/`AXRaise`, không `cliclick`/CGEvent bơm chuột thật. Cần tương tác thì bơm `PointerEvent`/`dispatchEvent` bằng JS trong trang, hoặc XCUITest. Bắt buộc nhìn tận mắt thì `open -g -a Simulator` (mở ở NỀN). Chi tiết: skill **ios-native-app** §"Test không chiếm máy người dùng".
+
+**Trang bị auth-gate** (login chặn, không vào thẳng được): **STUB** — copy HTML ra `_mtest.html`, stub `fetch`/API trả dữ liệu giả, **VẪN nhúng topbar + bottom-nav thật** để screenshot có đủ chrome (nếu bỏ nav đi thì đo sai chiều cao). Rồi phục vụ `_mtest.html` qua http.server như trên.
+
+**CSS bắt buộc khi verify:** layout "vừa 1 màn" dùng **`100svh`** KHÔNG `100dvh` (mục 7) — `svh` = viewport khi thanh URL Safari đang HIỆN, mẫu số nhỏ nhất, không bao giờ tràn.
+
+**Check trên ảnh:** không scroll dọc ngoài ý muốn · bottom-nav không bị thanh URL Safari che · status bar/notch không đè content · không tràn ngang. Chưa mở simulator mà nói "vừa 1 màn" = VI PHẠM (chrome-devtools không đủ tin).
+
+_(Xem thêm rule verify: `rules/GATES.md` §0 — verify bằng công cụ, không đoán trạng thái.)_
+
+---
+
 ## Verify trước khi báo xong
+- [ ] **Confirm view phone (§15)**: đã mở iOS Simulator (`xcrun simctl`) chụp Safari THẬT trên **device người dùng thực dùng** (mặc định iPhone Pro / Pro Max đời hiện tại — hỏi/known device của user; KHÔNG ép optimize cho iPhone SE nếu user không dùng SE vì màn nhỏ ép co dúm layout). Cần thêm 1 cỡ màn nữa thì làm TUẦN TỰ (shutdown con trước rồi mới boot con sau), KHÔNG boot song song. KHÔNG kết luận bằng chrome-devtools phone view.
 - [ ] **Viewport theo mục 0**: default KHÔNG khoá zoom; nếu khoá thì đã ghi lý do (game/canvas/map).
-- [ ] Test ở 375px (iPhone SE): không horizontal scroll, không vỡ layout.
+- [ ] Không horizontal scroll, không vỡ layout ở bề rộng device thật của user (test 375px iPhone SE chỉ khi user thực sự dùng SE).
 - [ ] Mở keyboard: bottom-nav KHÔNG bị đẩy lên / biến mất.
 - [ ] Focus input: KHÔNG bị iOS auto-zoom (mọi input ≥ 16px).
 - [ ] Grep parent chain của mọi fixed element: không có `transform`/`filter`/`animation…both` gây lệch.
 - [ ] Mọi fixed/modal centered trong phone frame ở ≥640px và ≥768px.
 - [ ] Safe-area top/bottom đúng trên máy có notch; content không bị nav che (`viewport-fit=cover`).
 - [ ] Tap feedback chỉ qua `:active`; không info nào ẩn sau hover.
-- [ ] Dùng `dvh` (không `vh`); colors/spacing qua CSS vars; text tiếng Việt CÓ DẤU.
+- [ ] Layout "vừa 1 màn" dùng `svh` (không `vh`/`dvh` — mục 7); colors/spacing qua CSS vars; text tiếng Việt CÓ DẤU.
 - [ ] **OG share card (§14)**: `curl -s <trang> | grep og:image` có URL tuyệt đối; `curl -I <og-url>` → 200 + `image/*`. Gửi link ra card có ảnh + tiêu đề.

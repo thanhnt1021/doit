@@ -250,11 +250,11 @@ certbot --nginx -d myapp.com -d www.myapp.com
 ### 3.1 Install & Setup
 
 ```bash
-npm install -g pm2
+pnpm add -g pm2
 
 # Start app
 cd /home/deploy/myapp
-pm2 start npm --name "myapp" -- start
+pm2 start pnpm --name "myapp" -- start
 # hoặc
 pm2 start ecosystem.config.js
 
@@ -492,13 +492,13 @@ cd $APP_DIR
 git pull origin main
 
 # Install dependencies
-npm ci --production=false
+pnpm install --frozen-lockfile --prod=false
 
 # Build
-npm run build
+pnpm run build
 
 # Run migrations (if applicable)
-npx prisma migrate deploy
+pnpm dlx prisma migrate deploy
 
 # Restart
 pm2 restart $APP_NAME
@@ -511,8 +511,8 @@ else
     echo "$(date): Deploy FAILED ❌ — health check failed"
     # Rollback
     git checkout HEAD~1
-    npm ci --production=false
-    npm run build
+    pnpm install --frozen-lockfile --prod=false
+    pnpm run build
     pm2 restart $APP_NAME
     echo "$(date): Rolled back to previous version"
     exit 1
@@ -539,7 +539,7 @@ pm2 reload myapp    # Rolling restart, 0 downtime
 cd /home/deploy/myapp
 git log --oneline -5              # Find previous commit
 git checkout <commit-hash>        # Checkout
-npm ci --production=false && npm run build
+pnpm install --frozen-lockfile --prod=false && pnpm run build
 pm2 restart myapp
 
 # Verify
@@ -732,7 +732,7 @@ NETWORK:
 APP:
   □ .env file not in git? (.gitignore)
   □ Secrets not hardcoded?
-  □ Dependencies updated? (npm audit, pip audit)
+  □ Dependencies updated? (pnpm audit, pip audit)
   □ Database credentials not default?
   □ File upload restrictions?
 
@@ -925,8 +925,8 @@ sudo fail2ban-client status sshd
 #### Quarterly — MANUAL, ~30 phút
 
 ```bash
-# 1. npm/pip audit — CVE mới tuần nào cũng có
-npm audit --audit-level=high                # hoặc pip-audit
+# 1. pnpm/pip audit — CVE mới tuần nào cũng có
+pnpm audit --audit-level=high                # hoặc pip-audit
 
 # 2. Docker base images — patch security
 docker compose pull
@@ -945,7 +945,7 @@ echo | openssl s_client -servername $DOMAIN -connect $DOMAIN:443 2>/dev/null | \
 
 #### Per-feature deploy — code-level
 
-Trước mỗi `quick deploy`: `SECURITY_CHECKLIST.md §0` — grep RCE risk + input validation + `npm audit` sau `npm install`.
+Trước mỗi `quick deploy`: `SECURITY_CHECKLIST.md §0` — grep RCE risk + input validation + `pnpm audit` sau `pnpm install`.
 
 #### Per-OS-upgrade — CRITICAL
 
@@ -1182,7 +1182,7 @@ BEFORE DEPLOY:
 
 DEPLOY:
   □ git pull
-  □ npm ci / pip install
+  □ pnpm install --frozen-lockfile / pip install
   □ Build
   □ Migrate
   □ Restart process

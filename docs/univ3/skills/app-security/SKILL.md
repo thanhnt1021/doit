@@ -11,7 +11,7 @@ description: TỰ ĐỘNG bật khi viết/sửa code có auth (login/session/JW
 ## Khi nào dùng skill này
 - Thêm/sửa endpoint, route, hoặc xử lý input của user (body/params/headers).
 - Có auth, payment, file upload, hoặc xử lý dữ liệu nhạy cảm (PII, token, secret).
-- Sau mỗi `npm install` / `pip install` (kéo theo dependency mới).
+- Sau mỗi `pnpm install` / `pip install` (kéo theo dependency mới).
 - Trước mỗi `quick deploy` / `check code` — chạy MUST DO §0 mọi lần, không chờ "nghi có lỗ hổng".
 
 ## Checklist cốt lõi (bắt buộc)
@@ -46,8 +46,8 @@ description: TỰ ĐỘNG bật khi viết/sửa code có auth (login/session/JW
 - [ ] `X-Frame-Options SAMEORIGIN`, `X-Content-Type-Options nosniff`, `Referrer-Policy strict-origin-when-cross-origin`, `Permissions-Policy` (camera/mic/geo off). CSP bắt đầu report-only, tune dần.
 
 **Dependency audit — sau mỗi install:**
-- [ ] Node: `npm audit --audit-level=high`. Python: `pip audit`. Có high/critical → fix TRƯỚC khi tiếp tục.
-- [ ] Commit lock file (`package-lock.json` / `requirements.txt`) cùng code thay đổi.
+- [ ] Node: `pnpm audit --audit-level=high`. Python: `pip audit`. Có high/critical → fix TRƯỚC khi tiếp tục.
+- [ ] Commit lock file (`pnpm-lock.yaml` / `requirements.txt`) cùng code thay đổi.
 
 ## Cạm bẫy / lỗi hay gặp
 - "Sanitize" rồi vẫn truyền user input vào shell → vẫn RCE. Đáp án đúng: KHÔNG truyền, dùng API/arg array.
@@ -60,5 +60,5 @@ description: TỰ ĐỘNG bật khi viết/sửa code có auth (login/session/JW
 ## Verify trước khi báo xong
 - [ ] Đã chạy grep RCE §0 trên files vừa sửa, không có hit nguy hiểm (hoặc đã verify trusted source).
 - [ ] Mọi endpoint mới: auth + input validation + (nếu tốn resource) rate limiting đầy đủ.
-- [ ] Đã chạy `npm audit` / `pip audit`, không còn high/critical; lock file đã commit.
+- [ ] Đã chạy `pnpm audit` / `pip audit`, không còn high/critical; lock file đã commit.
 - [ ] Không có secret/PII trong code và log.

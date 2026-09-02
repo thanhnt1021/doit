@@ -19,7 +19,13 @@ import shlex
 import sys
 
 # Hard cap so a runaway spine file can never flood the context window.
-MAX_CHARS = 6000
+# 28/08/2026 — NÂNG 6000 -> 16000 sau khi ĐO: `docs/SESSION_SPINE.md` của ChicHub dài
+# 14.971 ký tự (10 luật) nên cắt ở 6000 chỉ nạp tới §6; §7 (khẳng định phải có lệnh),
+# §8 (gọi worker bằng mã), §9 (số 0 không là bằng chứng), §10 (trùng vùng -> SendMessage)
+# BỊ NUỐT — tức bốn luật đã dày công dựng cổng enforce lại không hề vào context phiên nào.
+# Đo lệnh: `echo '{"cwd":"<dự án>"}' | python3 session_context.py` -> chỉ thấy #1..#6.
+# 16.000 ký tự ~ 4k token/phiên: đắt hơn, nhưng rẻ hơn nhiều so với mất luật.
+MAX_CHARS = 16000
 
 REL_OVERRIDE = os.path.join("docs", "SESSION_SPINE.md")          # project-specific, NGOÀI univ3
 REL_TEMPLATE = os.path.join("docs", "univ3", "SPINE.md")         # generic template (published, univ3)

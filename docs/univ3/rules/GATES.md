@@ -14,6 +14,8 @@ Gom mọi "cổng" phải qua: verify trước khi báo xong · an toàn hành �
 
 **C. Verify đối kháng (task lớn: ≥3 file, backend/API, infra)**
 - Sau khi làm xong, rà lại với tâm thế **"thử làm nó vỡ"**: edge case, input rỗng/sai, concurrency, regression tính năng cũ liên quan. Ghi lại lệnh đã chạy để user tự kiểm.
+- **UI mobile**: xác nhận "vừa 1 màn / responsive OK" trên điện thoại PHẢI dùng **iOS Simulator** (Safari thật, `xcrun simctl`) — CẤM kết luận bằng chrome-devtools phone view (bỏ sót thanh URL Safari + status bar → tưởng fit mà thật thì tràn); hook `no_chrome_phone_verify_enforce.py` chặn tất định resize/emulate về khổ điện thoại, áp cho cả subagent. **Nhưng chỉ MỘT worker QA được boot, và đúng 1 device tại 1 thời điểm** — worker thi công không tự boot, kết thúc bằng mục "CẦN QA KIỂM"; hook `sim_one_device_enforce.py` chặn lệnh boot con thứ hai. How-to: skill **mobile-webapp** §15 · điều phối: `rules/AGENTS-ORCH.md` §QA-tập-trung.
+- **Test không chiếm máy người dùng**: người dùng đang làm việc trên chính máy đó — CẤM đưa cửa sổ Simulator lên trước, CẤM AppleScript `activate`/`AXRaise`, CẤM `cliclick`/CGEvent bơm chuột thật. Dùng `bash ~/.claude/universal-hooks/sim-headless.sh` (device riêng, `simctl` headless) hoặc XCUITest. Hook `no_steal_focus_enforce.py` chặn tất định.
 
 **D. KHÔNG đoán trạng thái kiểm chứng được — phải CHECK (yes/no)**
 - Trước khi khẳng định một trạng thái, hỏi: **"Cái này kiểm chứng được bằng 1 lệnh không?"**
@@ -46,7 +48,7 @@ Hai câu hỏi trước khi chạy: **(1) Đảo ngược dễ không?** (undo 1
 3. **Runtime**: quick deploy + verify tính năng mới trên môi trường thật; không regression tính năng cũ liên quan.
 4. **Docs sync**: update `docs/MD_FILES_TO_UPDATE.md` list → update hết → clear. Env/service/dep mới → `docs/REQUIREMENTS_CHECK.md`. Hoàn thành milestone → `docs/GOAL.md`. Thay đổi 4 loại catalog-level → `docs/CHANGELOG.md` (xem `rules/DOCS.md`).
 5. **Env sync**: `.env.example` đồng bộ `.env` (cùng key, khác value); `.gitignore` chứa `.env*`; không có `.env` trong staged.
-6. **Dependency audit**: `npm audit --audit-level=high` / `pip audit` → zero high/critical. Commit lock file cùng code.
+6. **Dependency audit**: `pnpm audit --audit-level=high` / `pip audit` → zero high/critical. Commit lock file cùng code.
 7. **Diacritics**: grep string tiếng Việt trong file vừa sửa — mọi user-facing string đủ dấu (ZERO tolerance).
 8. **Commit message**: `type: mô tả ngắn (imperative)` + body giải thích **WHY**. Types: feat/fix/docs/chore/refactor/style/test. KHÔNG tự thêm dòng `Co-Authored-By` (harness tự chèn).
 
@@ -54,8 +56,8 @@ Hai câu hỏi trước khi chạy: **(1) Đảo ngược dễ không?** (undo 1
 
 - Cấu trúc: `.env` (secret thật, không commit) · `.env.example` (key + placeholder, commit) · `.gitignore` chứa `.env*` + `!.env.example`. Thêm/xoá biến trong `.env` → update `.env.example` **cùng commit**.
 - **`.gitignore` BẮT BUỘC chặn thêm** (ngoài `.env*`): `.claude/settings.local.json` (Claude Code nuốt nguyên lệnh Bash — hardcode key/token trong lệnh là LỘ), `secret.key`, `*.key`, `*.pem`, `credentials*.json`/`serviceaccount*.json`, và mọi file dump source (`full_project_source.txt`, `old.txt`).
-- KHÔNG BAO GIỜ log secret, hardcode secret, hay ghi giá trị thật vào file được commit — **kể cả trong lệnh Bash, file test, hay tài liệu `.md`** (đây là nguồn lộ hay bị quên nhất). Đọc key/token từ `os.environ`, đừng viết thẳng vào lệnh. KHÔNG dùng production secret ở dev/staging.
-- Git pre-commit đã quét pattern secret (sk-…, bot token, DB URL có mật khẩu, private key) và chặn commit `.claude/settings.local.json`/`secret.key`. Đừng `--no-verify` để lách.
+- KHÔNG BAO GIỜ log secret, hardcode secret, hay ghi giá trị thật vào file được commit — **kể cả trong lệnh Bash, file test, hay tài liệu `.md`** (đây là nguồn lộ hay bị quên nhất). Đọc key/token từ `os.environ`, đừng viết thẳng vào lệnh. KHÔNG dùng production secret ở dev/staging. Hook `no_secret_in_file_enforce.py` chặn tất định mọi Write/Edit/Bash ghi giá trị thật ra tệp không phải `.env` (tài liệu chỉ được ghi TÊN BIẾN) — **máy local cũng áp dụng, KHÔNG CÓ NGOẠI LỆ**; lý do “tệp này không public trên web nên không sao” đã bị bác bỏ.
+- Git pre-commit đã quét pattern secret (sk-…, bot token, DB URL có mật khẩu, private key) và chặn commit `.claude/settings.local.json`/`secret.key`. Đừng `--no-verify` để lách. **Script deploy BẮT BUỘC lọc qua `templates/deploy_guard.py`** (`from deploy_guard import guard_or_die` rồi `files = guard_or_die(files)`) — chặn `.env`/`docs/`/`*.bak-*`/`*.md`/`*.log` ra web thật, fail closed.
 - **Rotation khi nghi lộ (trong 15 phút)**: revoke/rotate tại nguồn → update `.env` mọi env → restart → verify. Secret đã commit vào git → **xoá file ≠ xoá history**: phải `git filter-branch`/BFG hoặc chấp nhận đã lộ và rotate. Kiểm access log.
 
 ## §Security §0 — `check code` trước mỗi quick deploy
@@ -68,7 +70,7 @@ Có kết quả → verify input đến từ **trusted source** (constant/env/DB
 
 **B. Input validation cho endpoint mới**: user input → shell command? KHÔNG BAO GIỜ (kể cả sau "sanitize"). → file path? `path.basename()` + whitelist. → DB query? parameterized/ORM, không string concat. → HTML render? escape/auto-escape. Endpoint cần auth? có middleware. Tốn resource? có rate-limit.
 
-**C. Dependency audit** ngay sau `npm install`/`pip install` (§Commit 6). High/critical → fix trước khi tiếp.
+**C. Dependency audit** ngay sau `pnpm install`/`pip install` (§Commit 6). High/critical → fix trước khi tiếp.
 
 **D. Rate-limit / chống abuse** (local mượt ≠ production sống sót — 1 IP/bot bắn ngàn req/s sẽ chiếm hết CPU/RAM/DB-conn, đẩy user thật ra ngoài). Mọi endpoint public phải có chốt:
 - **Login / OTP / reset-password / endpoint tốn tài nguyên** (query nặng, gọi API trả phí, upload): BẮT BUỘC rate-limit → trả `429 Too Many Requests` (từ chối SỚM, trước khi chạm logic/DB — chặn rẻ nhất). Login thêm khoá tạm sau N lần sai (chống brute-force).

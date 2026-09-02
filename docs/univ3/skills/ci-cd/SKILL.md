@@ -27,7 +27,16 @@ Chung cho mọi template:
 - [ ] Setup GitHub Secrets: `SERVER_HOST`, `SERVER_USER`, `SSH_PRIVATE_KEY` (ed25519); thêm `DOCKER_USERNAME`, `DOCKER_TOKEN` nếu dùng Docker.
 - [ ] Thay tất cả `[PLACEHOLDER]`: `[PROJECT_NAME]`, `[NODE_VERSION]`, `[PYTHON_VERSION]`, `[MAIN_FILE]`, `[SERVICE_NAME]`, `[DOCKER_USERNAME]`, `[PORT]`.
 
+## Build MỘT lần rồi promote — đừng build lại cho từng môi trường
+Có staging + production thì **build 1 artifact duy nhất**, kiểm ở staging, rồi **chép đúng artifact đó** sang prod. Build lại cho prod là vừa tốn gấp đôi, vừa mất bảo đảm "thứ đã kiểm chính là thứ đem chạy".
+
+- [ ] **Không nhúng biến môi trường vào lúc build.** Next.js thay `process.env.NEXT_PUBLIC_*` bằng literal ngay lúc `next build` (cả bundle server) — mỗi giá trị khác nhau là một bản build khác nhau. Vite `import.meta.env.VITE_*`, CRA `REACT_APP_*` cũng vậy. Kiểm bằng `grep -o '^[A-Z_]*=' .env | grep -E 'NEXT_PUBLIC_|VITE_|REACT_APP_'` ở từng môi trường: **khác nhau chỗ nào là chỗ đó chặn dùng chung bản build**. Đổi sang biến không tiền tố, đọc phía server lúc CHẠY.
+- [ ] **Build ở đường dẫn TRUNG LẬP**, đừng build trong thư mục của một môi trường rồi bê sang môi trường kia. Bundle có nhúng đường dẫn thư mục build (Next: `.next/server/**` — kiểm bằng `grep -rl "<đường-dẫn-build>" <distDir> | wc -l`). Build ở thư mục riêng dùng chung thì hai bên nhận đường dẫn giống hệt nhau, không bên nào phụ thuộc bên kia.
+- [ ] **Giữ nguyên cổng staging.** Dùng chung artifact KHÔNG có nghĩa bỏ được lưới an toàn: thứ tự bắt buộc vẫn là promote staging → smoke → chỉ khi xanh mới promote prod. DB, `.env`, dữ liệu thật hai bên vẫn khác nhau.
+- [ ] **Chờ app ấm sau khi reload rồi mới smoke.** `pm2 reload` / `systemctl reload` trả về ngay khi vừa ra lệnh, chưa đợi tiến trình mới nghe cổng → `curl` liền sau đó gặp 502 dù app hoàn toàn lành. Vòng chờ tới khi trả 200 (vài chục giây) chứ đừng kết luận gãy ngay.
+
 ## Cạm bẫy / lỗi hay gặp
+- Kết luận "không dùng chung được bản build" khi mới thấy đường dẫn tuyệt đối trong bundle — phần lớn là **định danh module**, không phải chỗ đọc đĩa. Mổ theo nhóm tệp rồi mới kết luận.
 - Quên `--frozen-lockfile` (Node) → cài lệch version so với lockfile.
 - Để `deploy` chạy cả trên `pull_request` → deploy nhầm từ PR; phải kiểm tra `github.event_name == 'push'`.
 - Còn sót `[PLACEHOLDER]` chưa thay → workflow fail hoặc deploy sai service.

@@ -42,6 +42,8 @@ if not is_commit:
 goal_candidates = [
     os.path.join(base, "docs", "GOAL.md"),
     os.path.join(base, "GOAL.md"),
+    # Docs chung: monorepo dời docs ra <parent>/docs/<ten-project>/ (subproject sạch).
+    os.path.join(os.path.dirname(base), "docs", os.path.basename(base), "GOAL.md"),
 ]
 
 goal_path = None

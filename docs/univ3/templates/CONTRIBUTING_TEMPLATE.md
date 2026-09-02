@@ -41,7 +41,7 @@ Format: `[type]/[short-description]`
 
 Ví dụ: `feature/user-auth`, `fix/login-crash`, `docs/api-reference`
 
-> Chi tiết: `docs/universal_rules/rules/GIT_WORKFLOW.md`
+> Chi tiết: `docs/univ3/rules/GIT.md`
 
 ## Commit Convention
 
@@ -55,7 +55,7 @@ chore: upgrade next.js to 16.1
 refactor: extract validation logic to utils
 ```
 
-> Chi tiết: `docs/universal_rules/rules/QUALITY_GATES.md` §6
+> Chi tiết: `docs/univ3/rules/GATES.md` §Commit Checklist
 
 ## Pull Request Process
 

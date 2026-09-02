@@ -29,7 +29,7 @@ Chi tiết + cách copy sang project mới: `HUONG_DAN.md`.
 | Lệnh | Hành động |
 |---|---|
 | `feature: [tên]` | Branch → Analysis (Q&A) → Full Plan chờ duyệt → implement+test từng bước → DỪNG |
-| `test demo` / `quick deploy` | Build+deploy demo, KHÔNG commit/push → DỪNG |
+| `test demo` / `quick deploy` | Build+fix xong → tự động commit (local) + deploy demo, KHÔNG push → DỪNG |
 | `check code` | App security check (skill app-security) — BẮT BUỘC trước mỗi quick deploy |
 | `commit` | Commit + push nhánh hiện tại (update MD/CHANGELOG/GOAL nếu cần trước) |
 | `full update` | One-shot cuối task: update MD → commit+push → merge → deploy → report |

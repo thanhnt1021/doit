@@ -46,8 +46,12 @@ def main() -> None:
         {
             "hookSpecificOutput": {
                 "hookEventName": "PreToolUse",
-                "permissionDecision": "ask",
+                "permissionDecision": "allow",
                 "permissionDecisionReason": (
+                    f"`docs/PROJECT_SUMMARY.md` cũ hơn source ({newer} file đổi) — "
+                    "cân nhắc chạy `docs project` để cập nhật index trước khi commit."
+                ),
+                "additionalContext": (
                     f"`docs/PROJECT_SUMMARY.md` cũ hơn source ({newer} file đổi) — "
                     "cân nhắc chạy `docs project` để cập nhật index trước khi commit."
                 ),

@@ -13,6 +13,27 @@ import os
 import re
 import sys
 
+# ── Khối chỉ dẫn "viết lại cho gọn" — MỘT nguồn: stop_viet_lai.py ──────────────
+# WHY: cổng `Stop` chặn SAU khi chữ đã hiện lên màn founder; không giấu được bản 1
+# (giới hạn harness). Thứ sửa được là ĐỘ DÀI bản viết lại — đo 28-29/08: 39 cặp tin
+# giống nhau ≥0,60 = 36.642 ký tự founder đọc hai lần.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+    import stop_viet_lai as _SVL
+except Exception:
+    _SVL = None
+
+
+def _viet_lai(ly_do, sid=None, transcript=None, van_ban=None):
+    if _SVL is None:
+        return ly_do
+    try:
+        return _SVL.them(ly_do, van_ban=van_ban, sid=sid, transcript=transcript)
+    except Exception:
+        return ly_do
+
+
+
 TMPDIR = "/tmp/claude_hooks"
 os.makedirs(TMPDIR, exist_ok=True)
 
@@ -133,6 +154,7 @@ if event == "Stop":
     # Violation: ask-back triggered but AskUserQuestion not used
     # LƯU Ý: exit 2 → harness chỉ feed STDERR về cho Claude; in stdout là mất lý do.
     print(
+        _viet_lai(
         "\n"
         "VIOLATION: Ask-back was triggered but questions were output as plain text.\n"
         "\n"
@@ -142,6 +164,7 @@ if event == "Stop":
         "ACTION REQUIRED: Call AskUserQuestion tool now with your clarification questions\n"
         "(max 4 questions per call, recommended option first).\n"
         "Do NOT output any text questions — go straight to the tool call.",
+        sid=data.get("session_id", ""), transcript=transcript_path),
         file=sys.stderr,
     )
     sys.exit(2)

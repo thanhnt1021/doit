@@ -16,7 +16,7 @@ import sys
 GATE_REMINDER = """\
 ⚠️ LỆNH TẠO/SỬA/VIẾT — CHẠY GATE 4 BƯỚC TRƯỚC KHI SẢN XUẤT (memory: pre-build-gate). CẤM bỏ bước:
   1) LUẬT NÀO CHI PHỐI? Mở ĐỌC NGAY (trước khi làm): CLAUDE.md + universal_rules liên quan +
-     doc founder nhắc (vd FULL_PRODUCT_BUILD_v4.0.md). Nhắc 1 doc = CHẠY quy trình doc đó từ đầu
+     doc founder nhắc (vd FULL_PRODUCT_BUILD_v4.1.md). Nhắc 1 doc = CHẠY quy trình doc đó từ đầu
      (v4.0 → Phase 0 Project Diagnostic → Phase 1 Problem Statement/5Whys/4Risks → mới Phase 2 PRD),
      KHÔNG trích lẻ. "Problem trước, build sau — chưa có Problem Statement rõ → không build."
   2) ĐANG Ở BƯỚC NÀO? Chẩn đoán trạng thái; thiếu artifact tiền đề (Problem Statement, flow đã chốt)

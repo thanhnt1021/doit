@@ -3,3 +3,4 @@ __pycache__/
 .DS_Store
 enforce/claude/hooks/telegram_config.env
 LOCAL_ONLY.txt
+_meta/backups/

@@ -12,15 +12,15 @@
 
 ## Flow tóm tắt
 ```
-feature: [tên] → git checkout -b feature/[tên] → code+fix → quick deploy (KHÔNG commit) → DỪNG báo cáo
-[lặp: fix → quick deploy → chờ]
-commit → update MD list + clear → milestone xong đề xuất update GOAL → (sửa univ3 → push SSOT trước)
-       → git add [file] && git commit → git push -u origin HEAD → git status verify
+feature: [tên] → git checkout -b feature/[tên] → code+fix → TỰ ĐỘNG commit (local) + deploy demo → DỪNG báo cáo
+[lặp: fix → commit + deploy demo → chờ]
+push (lệnh rõ) → update MD list + clear → milestone xong đề xuất update GOAL → (sửa univ3 → push SSOT trước)
+       → git push -u origin HEAD → git status verify
 merge main → git checkout main && git merge --no-ff feature/[tên] → git push → git status → deploy
 ```
 
 ## Deploy — 3 chế độ
-- **Quick deploy** (iterate, chưa commit): build từ code hiện tại (uncommitted OK), sync sang demo, restart. Không cần push.
+- **Quick deploy** (iterate): build/fix xong → **tự động commit (local)** rồi sync sang demo, restart. Không push. (Commit + deploy demo an toàn, đảo ngược được — làm luôn, không chờ lệnh.)
 - **Full deploy** (sau commit): pull GitHub → build → deploy (share link demo).
 - **Production**: chỉ khi user nói "merge main"/"lên production".
 
