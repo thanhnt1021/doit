@@ -11,8 +11,7 @@ import { signedArea, ringBBox } from '../types';
 import {
   convexHull,
   fitsInSheet,
-  hullDiameter,
-  minWidthOfHull,
+  minAreaRect,
   orient,
   ringInsideRing,
   translateRing,
@@ -507,8 +506,12 @@ export function parseDxf(text: string, opts: ParseOptions = {}): ParseResult {
     const allRings = [outer, ...holesN];
     const area = Math.abs(signedArea(outer)) - holesN.reduce((s, h) => s + Math.abs(signedArea(h)), 0);
     const hull = convexHull(outer);
-    const mw = minWidthOfHull(hull).width;
-    const ml = hullDiameter(hull);
+    // Kích thước hiển thị = KHUNG BAO NHỎ NHẤT KHI XOAY, không phải bbox theo trục
+    // toạ độ gốc: thanh sườn cong nằm chéo trong bản vẽ nên bbox cho số vô nghĩa
+    // (P0 ra 3409×3996 trong khi thanh thật 5253×1172).
+    const rect = minAreaRect(hull);
+    const mw = rect.width;
+    const ml = rect.length;
     const fits = fitsInSheet(hull, sheetW, sheetH, 1);
     if (!fits) tooBig++;
     parts.push({

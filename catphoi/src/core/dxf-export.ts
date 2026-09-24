@@ -10,6 +10,27 @@
  */
 import type { Part, Placement, Point, Ring, SheetLayout } from '../types';
 import { applyPlacementRing, ringBBox } from '../types';
+import { labelPoint, offsetRingsForKerf, toAsciiLabel } from './geometry';
+
+/**
+ * Tuỳ chọn xuất file dùng chung cho DXF và G-code.
+ * - `labels`: tên do người dùng tự đặt, tra theo Part.id. Không có thì dùng chính Part.id.
+ * - `kerf`: bề rộng mạch cắt (mm). > 0 thì đường cắt được nở ra ngoài kerf/2 cho
+ *   bao ngoài và thu vào kerf/2 cho lỗ. 0 = không bù (mặc định).
+ */
+export interface ExportExtras {
+  labels?: Record<string, string>;
+  kerf?: number;
+  /** Khoảng cách giữa các tấm khi xuất 1 file nhiều tấm, mm. Mặc định 200. */
+  sheetGap?: number;
+}
+
+/** Tên hiển thị của một lần đặt chi tiết (đã bỏ dấu để ghi vào DXF R12 / G-code). */
+export function placementLabel(part: Part, instance: number, labels?: Record<string, string>): string {
+  const raw = (labels?.[part.id] ?? '').trim();
+  const base = toAsciiLabel(raw) || part.id;
+  return part.qty > 1 ? `${base}#${instance + 1}` : base;
+}
 
 const NL = '\r\n';
 const DEC = 6;
@@ -79,26 +100,31 @@ function rectRing(x0: number, y0: number, w: number, h: number): Ring {
 interface PlacedEntity {
   rings: Ring[];
   label: string;
-  center: Point;
+  /** Điểm đặt nhãn — LUÔN nằm trong hình của chính chi tiết đó. */
+  at: Point;
   labelHeight: number;
 }
 
 function placedEntities(
-  sheet: SheetLayout, partsById: Map<string, Part>, dx: number, dy: number
+  sheet: SheetLayout, partsById: Map<string, Part>, dx: number, dy: number, extra: ExportExtras = {}
 ): PlacedEntity[] {
   const out: PlacedEntity[] = [];
+  const kerf = Math.max(0, extra.kerf ?? 0);
   for (const pl of sheet.placements) {
     const part = partsById.get(pl.partId);
     if (!part) continue;
     const moved: Placement = { ...pl, x: pl.x + dx, y: pl.y + dy };
-    const rings = part.rings.map((r) => applyPlacementRing(r, moved));
-    const b = ringBBox(rings[0]);
+    const nominal = part.rings.map((r) => applyPlacementRing(r, moved));
+    // Đường cắt ghi ra file = hình danh nghĩa đã bù kerf (nếu bật).
+    const rings = offsetRingsForKerf(nominal, kerf);
+    const b = ringBBox(nominal[0]);
     const w = b.maxX - b.minX;
     const h = b.maxY - b.minY;
     out.push({
       rings,
-      label: part.qty > 1 ? `${part.id}#${pl.instance + 1}` : part.id,
-      center: { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 },
+      label: placementLabel(part, pl.instance, extra.labels),
+      // Trọng tâm thô của thanh cong chữ S rơi RA NGOÀI hình → dùng điểm cực.
+      at: labelPoint(nominal),
       labelHeight: Math.max(20, Math.min(80, Math.min(w, h) / 6)),
     });
   }
@@ -106,13 +132,15 @@ function placedEntities(
 }
 
 /** Xuất 1 tấm ra DXF R12. */
-export function exportSheetDxfR12(sheet: SheetLayout, partsById: Map<string, Part>): string {
-  const ents = placedEntities(sheet, partsById, 0, 0);
+export function exportSheetDxfR12(
+  sheet: SheetLayout, partsById: Map<string, Part>, extra: ExportExtras = {}
+): string {
+  const ents = placedEntities(sheet, partsById, 0, 0, extra);
   let body = g(0, 'SECTION') + g(2, 'ENTITIES');
   body += polyline(rectRing(0, 0, sheet.width, sheet.height), 'SHEET');
   for (const e of ents) {
     for (const r of e.rings) body += polyline(r, 'CUT');
-    body += text(e.center, e.labelHeight, e.label, 'LABEL');
+    body += text(e.at, e.labelHeight, e.label, 'LABEL');
   }
   body += g(0, 'ENDSEC');
   return header(0, 0, sheet.width, sheet.height) + tables() + body + g(0, 'EOF');
@@ -120,17 +148,18 @@ export function exportSheetDxfR12(sheet: SheetLayout, partsById: Map<string, Par
 
 /** Xuất nhiều tấm vào 1 file, các tấm đặt cạnh nhau theo trục X. */
 export function exportAllSheetsDxfR12(
-  sheets: SheetLayout[], partsById: Map<string, Part>, gapBetweenSheets = 200
+  sheets: SheetLayout[], partsById: Map<string, Part>, extra: ExportExtras = {}
 ): string {
+  const gapBetweenSheets = extra.sheetGap ?? 200;
   let body = g(0, 'SECTION') + g(2, 'ENTITIES');
   let dx = 0;
   let maxX = 0;
   let maxY = 0;
   sheets.forEach((sheet, i) => {
     body += polyline(rectRing(dx, 0, sheet.width, sheet.height), 'SHEET');
-    for (const e of placedEntities(sheet, partsById, dx, 0)) {
+    for (const e of placedEntities(sheet, partsById, dx, 0, extra)) {
       for (const r of e.rings) body += polyline(r, 'CUT');
-      body += text(e.center, e.labelHeight, e.label, 'LABEL');
+      body += text(e.at, e.labelHeight, e.label, 'LABEL');
     }
     body += text(
       { x: dx + sheet.width / 2, y: sheet.height + 120 }, 150,

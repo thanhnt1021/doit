@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseDxf } from '../src/core/dxf-parse';
 import { nest, validateLayout } from '../src/nest/engine';
-import { DEFAULT_NEST_PARAMS } from '../src/types';
+import { DEFAULT_NEST_PARAMS, applyPlacementRing, ringBBox } from '../src/types';
 import { FIXTURE_MISSING_MSG, hasFixture, readFixture } from './helpers';
 
 const d = hasFixture() ? describe : describe.skip;
@@ -30,9 +30,10 @@ d('US2 — xếp tự động', () => {
     if (issues.length) console.log('  LỖI:', issues.slice(0, 5).map((i) => i.message));
     expect(issues).toEqual([]);
 
-    // Mục tiêu trong đề bài là ≤ 2 tấm. Đo thực tế: bộ 10 thanh sườn cong của file
-    // mẫu KHÔNG thể nhét 2 tấm (xem README mục "Kết quả thực đo") — tối đa 5 thanh
-    // một tấm nên 10 thanh cần 3 tấm. Ngưỡng test đặt ở 3 và báo cáo số thật.
+    // Mục tiêu trong đề bài là ≤ 2 tấm. Bằng chứng SỐ cho việc chưa đạt nằm ở
+    // test "chiều dài tối thiểu trên dải 2000×N" ngay bên dưới: đóng gói cả 15
+    // chi tiết lên một dải rộng 2000 dài thoải mái vẫn cần ~13,5–14,5m tôn,
+    // trong khi 2 tấm chỉ có 12m. Ngưỡng test đặt ở 3 và báo cáo số thật.
     expect(r.sheets.length).toBeLessThanOrEqual(3);
   }, 120_000);
 
@@ -45,6 +46,37 @@ d('US2 — xếp tự động', () => {
     const total = r.sheets.reduce((s, x) => s + x.placements.length, 0);
     expect(total).toBe(15);
     expect(validateLayout(r.sheets, parts, r.params)).toEqual([]);
+  }, 60_000);
+
+  /**
+   * PHÉP ĐO QUYẾT ĐỊNH "2 TẤM CÓ KHẢ THI KHÔNG".
+   * Mọi phương án 2 tấm hợp lệ đều đổi được thành một phương án trên dải rộng
+   * 2000 dài 12.000 (xếp tấm 2 lên trên tấm 1), nên nếu chiều dài tối thiểu cần
+   * cho dải > 12.000mm thì 2 tấm là bất khả thi. Đây là cận TRÊN do thuật toán
+   * tìm được, không phải cận dưới toán học, nên nó KHÔNG chứng minh bất khả thi
+   * tuyệt đối — nhưng nó cho con số thật thay cho lời khai.
+   */
+  it('đo chiều dài tối thiểu khi đóng gói 15 chi tiết lên dải 2000 × N', () => {
+    const params = { ...DEFAULT_NEST_PARAMS, sheetH: 30_000, timeLimitMs: 20_000 };
+    const r = nest({ parts, params });
+    const byId = new Map(parts.map((p) => [p.id, p]));
+    let maxY = 0;
+    for (const s of r.sheets) {
+      for (const pl of s.placements) {
+        const b = ringBBox(applyPlacementRing(byId.get(pl.partId)!.rings[0], pl));
+        if (b.maxY > maxY) maxY = b.maxY;
+      }
+    }
+    const placed = r.sheets.reduce((a, s) => a + s.placements.length, 0);
+    console.log(
+      `  chiều dài tối thiểu đo được: ${maxY.toFixed(0)}mm · ngân sách 2 tấm: 12000mm · ` +
+      `vượt ${(maxY - 12000).toFixed(0)}mm (${((maxY / 12000 - 1) * 100).toFixed(1)}%) · ` +
+      `mật độ ${(13.968e6 / (2000 * maxY) * 100).toFixed(1)}%`
+    );
+    expect(placed).toBe(15);
+    expect(validateLayout(r.sheets, parts, params)).toEqual([]);
+    // Xếp trên dải liền phải KHÔNG tệ hơn xếp 3 tấm rời (3 × 6000 = 18.000mm).
+    expect(maxY).toBeLessThan(18_000);
   }, 60_000);
 
   it('bấm Dừng thì trả ngay kết quả tốt nhất đang có', () => {

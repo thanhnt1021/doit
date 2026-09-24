@@ -1,6 +1,13 @@
 /** Vẽ tấm tôn và chi tiết bằng Canvas 2D. */
 import type { Part, Ring, SheetLayout } from '../types';
-import { applyPlacementRing, ringBBox } from '../types';
+import { applyPlacementRing } from '../types';
+import { labelPoint } from '../core/geometry';
+
+/** Tên hiển thị của chi tiết: tên người dùng tự đặt (có dấu) hoặc mã P0/P1… */
+export function displayName(part: Part, labels?: Record<string, string>): string {
+  const raw = (labels?.[part.id] ?? '').trim();
+  return raw || part.id;
+}
 
 const COLORS = [
   '#d64545', '#2f8f4e', '#2f5fd6', '#c98a12', '#8b3fbf', '#0f8f96',
@@ -35,7 +42,7 @@ export function drawSheet(
   canvas: HTMLCanvasElement,
   sheet: SheetLayout,
   parts: Part[],
-  opts: { cssWidth: number; cssHeight: number }
+  opts: { cssWidth: number; cssHeight: number; labels?: Record<string, string> }
 ): void {
   const ctx = setupCanvas(canvas, opts.cssWidth, opts.cssHeight);
   if (!ctx) return;
@@ -71,13 +78,20 @@ export function drawSheet(
       ctx.fill();
       ctx.stroke();
     }
-    const b = ringBBox(rings[0]);
-    const [cx, cy] = toPx((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2);
-    ctx.fillStyle = '#111';
+    // Nhãn phải nằm TRONG hình: trọng tâm thô của thanh cong chữ S rơi ra ngoài,
+    // nên dùng điểm cực (pole of inaccessibility) của chính chi tiết đã đặt.
+    const at = labelPoint(rings);
+    const [cx, cy] = toPx(at.x, at.y);
+    const name = displayName(part, opts.labels) + (part.qty > 1 ? `#${pl.instance + 1}` : '');
     ctx.font = '600 11px system-ui, -apple-system, Segoe UI, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(part.id, cx, cy);
+    // viền trắng mỏng cho chữ nổi trên nền hình
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#ffffff';
+    ctx.strokeText(name, cx, cy);
+    ctx.fillStyle = '#111';
+    ctx.fillText(name, cx, cy);
   });
 }
 

@@ -28,6 +28,18 @@ export interface BaseBitmap {
   rowLast: Int32Array;
   /** Bit thấp nhất được bật của từng hàng (-1 nếu rỗng) — lọc nhanh khi dò va chạm. */
   rowLowBit: Int32Array;
+  /** Bit cao nhất được bật của từng hàng (-1 nếu rỗng). */
+  rowHighBit: Int32Array;
+  /**
+   * Hàng THẤP NHẤT được bật của từng cột (-1 nếu cột rỗng) — "đáy" của chi tiết.
+   * Dùng cho phép THẢ RƠI theo trục y: vị trí chạm đất tính được bằng công thức,
+   * không cần dò va chạm (xem Nester.dropY).
+   */
+  colLow: Int32Array;
+  /** Hàng CAO NHẤT được bật của từng cột (-1 nếu rỗng) — để cập nhật đường bao tấm. */
+  colHigh: Int32Array;
+  /** Số ô được bật (diện tích raster, để tính độ chặt). */
+  cellCount: number;
   /** Toạ độ (mm) góc dưới-trái của ô (0,0), trong hệ toạ độ của HÌNH ĐÃ XOAY. */
   originX: number;
   originY: number;
@@ -156,13 +168,29 @@ export function rasterizeRing(ring: Ring, cell: number, dil: number): BaseBitmap
   const rowFirst = new Int32Array(h).fill(-1);
   const rowLast = new Int32Array(h).fill(-1);
   const rowLowBit = new Int32Array(h).fill(-1);
+  const rowHighBit = new Int32Array(h).fill(-1);
+  const colLow = new Int32Array(w).fill(-1);
+  const colHigh = new Int32Array(w).fill(-1);
+  let cellCount = 0;
   for (let j = 0; j < h; j++) {
     const off = j * words;
     let f = -1, l = -1;
     for (let i = 0; i < words; i++) {
-      if (bits[off + i] !== 0) {
+      const wv = bits[off + i];
+      if (wv !== 0) {
         if (f < 0) f = i;
         l = i;
+        // duyệt từng bit đang bật để dựng đường bao theo cột
+        let m = wv >>> 0;
+        while (m !== 0) {
+          const lsb = m & -m;
+          const b = 31 - Math.clz32(lsb >>> 0);
+          const col = i * 32 + b;
+          if (colLow[col] < 0) colLow[col] = j;
+          colHigh[col] = j;
+          cellCount++;
+          m = (m ^ lsb) >>> 0;
+        }
       }
     }
     rowFirst[j] = f;
@@ -172,11 +200,14 @@ export function rasterizeRing(ring: Ring, cell: number, dil: number): BaseBitmap
       let b = 0;
       while (((wv >>> b) & 1) === 0) b++;
       rowLowBit[j] = f * 32 + b;
+      const hv = bits[off + l];
+      rowHighBit[j] = l * 32 + (31 - Math.clz32(hv >>> 0));
     }
   }
 
   return {
-    w, h, words, bits, rowFirst, rowLast, rowLowBit,
+    w, h, words, bits, rowFirst, rowLast, rowLowBit, rowHighBit,
+    colLow, colHigh, cellCount,
     originX: minX - dil * cell,
     originY: minY - dil * cell,
     cell,

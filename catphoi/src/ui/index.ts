@@ -1,3 +1,3 @@
-export { mountApp } from './app';
-export type { AppServices } from './app';
-export { drawSheet, drawThumb } from './render';
+export { mountApp, getNestOptions } from './app';
+export type { AppServices, NestOptionsSnapshot } from './app';
+export { drawSheet, drawThumb, displayName } from './render';

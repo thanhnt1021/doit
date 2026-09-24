@@ -4,8 +4,9 @@
  * Thứ tự cắt: lỗ trước, bao ngoài sau; chi tiết nhỏ cắt trước; đi theo đường ngắn nhất.
  */
 import type { GcodeOptions, Part, Point, Ring, SheetLayout } from '../types';
-import { DEFAULT_GCODE_OPTIONS, applyPlacementRing, ringBBox, signedArea } from '../types';
-import { pointInRing } from './geometry';
+import { DEFAULT_GCODE_OPTIONS, applyPlacementRing, signedArea } from '../types';
+import { labelPoint, offsetRingsForKerf, pointInRing } from './geometry';
+import { placementLabel, type ExportExtras } from './dxf-export';
 
 interface CutRing {
   ring: Ring;
@@ -15,6 +16,7 @@ interface CutRing {
 interface CutPart {
   label: string;
   area: number;
+  /** Điểm mốc để sắp thứ tự cắt — dùng điểm cực nên luôn nằm trong chi tiết. */
   center: Point;
   rings: CutRing[];
 }
@@ -57,25 +59,26 @@ function leadInPoint(ring: Ring, isHole: boolean, len: number, W: number, H: num
 }
 
 export function generateGcode(
-  sheet: SheetLayout, partsById: Map<string, Part>, opts: Partial<GcodeOptions> = {}
+  sheet: SheetLayout, partsById: Map<string, Part>, opts: Partial<GcodeOptions> = {},
+  extra: ExportExtras = {}
 ): string {
   const o: GcodeOptions = { ...DEFAULT_GCODE_OPTIONS, ...opts };
   const dec = Math.max(0, Math.min(4, o.decimals));
   const fmt = (v: number) => v.toFixed(dec);
+  const kerf = Math.max(0, extra.kerf ?? 0);
 
   const items: CutPart[] = [];
   for (const pl of sheet.placements) {
     const part = partsById.get(pl.partId);
     if (!part) continue;
-    const rings = part.rings.map((r, i) => ({
-      ring: applyPlacementRing(r, pl),
-      isHole: i > 0,
-    }));
-    const b = ringBBox(rings[0].ring);
+    const nominal = part.rings.map((r) => applyPlacementRing(r, pl));
+    // Đường chạy mỏ = hình danh nghĩa đã bù kerf (bao ngoài nở, lỗ thu vào).
+    const cut = offsetRingsForKerf(nominal, kerf);
+    const rings = cut.map((ring, i) => ({ ring, isHole: i > 0 }));
     items.push({
-      label: part.qty > 1 ? `${part.id}#${pl.instance + 1}` : part.id,
+      label: placementLabel(part, pl.instance, extra.labels),
       area: part.area,
-      center: { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 },
+      center: labelPoint(nominal),
       rings,
     });
   }
@@ -105,7 +108,11 @@ export function generateGcode(
   const lines: string[] = [];
   lines.push(`(XEP PHOI TON - TAM ${String(sheet.index + 1).padStart(2, '0')} - ${Math.round(sheet.width)}x${Math.round(sheet.height)}mm)`);
   lines.push('(G-CODE THAM KHAO - CHAY THU KHONG TAI TRUOC KHI CAT THAT)');
-  lines.push('(KHONG BU KERF - HAY BU TREN MAY HOAC FASTCAM)');
+  lines.push(
+    kerf > 0
+      ? `(DA BU KERF ${kerf}mm TRONG FILE - PHAI TAT BU KERF BEN MAY/FASTCAM KEO BU HAI LAN)`
+      : '(KHONG BU KERF - HAY BU TREN MAY HOAC FASTCAM)'
+  );
   lines.push(`(SO CHI TIET: ${items.length})`);
   lines.push('G21');
   lines.push('G90');

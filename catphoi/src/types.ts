@@ -49,7 +49,11 @@ export interface Part {
   vertexCount: number;
   /** Bề rộng nhỏ nhất khi xoay (rotating calipers trên convex hull), mm. */
   minWidth: number;
-  /** Chiều dài lớn nhất (đường kính convex hull), mm. */
+  /**
+   * Cạnh DÀI của khung bao nhỏ nhất khi xoay (minAreaRect trên bao lồi), mm.
+   * Đi cặp với minWidth ở trên: minWidth × maxLength chính là khung bao nhỏ nhất đó.
+   * KHÔNG phải đường kính bao lồi, cũng không phải cạnh của bbox theo trục toạ độ.
+   */
   maxLength: number;
   /** Số lượng cần cắt. Mặc định 1, người dùng sửa được trên UI. */
   qty: number;

@@ -1,0 +1,13 @@
+# Cấu hình Cloudflare cho tool "Xếp phôi tôn" (catphoi.jst4.fun).
+# Pages project: catphoi · direct-upload từ thư mục dist.
+# File này để Pages Functions trong functions/ có binding D1 tên DB.
+
+name = "catphoi"
+compatibility_date = "2026-09-01"
+pages_build_output_dir = "dist"
+
+# Kho tôn thừa dùng chung nhiều máy — D1 RIÊNG của tool này, KHÔNG dùng chung doit-db.
+[[d1_databases]]
+binding = "DB"
+database_name = "catphoi-db"
+database_id = "b4b54ddd-0eee-4386-b0cf-9e8a7863e57b"

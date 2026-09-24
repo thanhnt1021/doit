@@ -7,7 +7,9 @@ import type {
   GcodeOptions, NestParams, NestProgress, NestResult, Part, ParseOptions, ParseResult, SheetLayout,
 } from '../types';
 import { DEFAULT_GCODE_OPTIONS, DEFAULT_NEST_PARAMS, applyPlacementRing, ringBBox } from '../types';
-import { drawSheet, drawThumb } from './render';
+import { drawSheet, drawThumb, displayName } from './render';
+import { exportAllSheetsDxfR12, exportSheetDxfR12, sheetFileName as coreSheetFileName } from '../core/dxf-export';
+import { generateGcode } from '../core/gcode';
 
 export interface AppServices {
   parseFile(file: File, opts: ParseOptions, onProgress: (f: number, label: string) => void): Promise<ParseResult>;
@@ -22,11 +24,26 @@ export interface AppServices {
 }
 
 const LS_KEY = 'catphoi.settings.v1';
+/** Tên chi tiết do người dùng tự đặt: { "<tên file>": { "P0": "Sườn 15 mạn" } }. */
+const LS_NAMES_KEY = 'catphoi.names.v1';
 
 interface Settings {
   sheetW: number; sheetH: number; gap: number; margin: number;
   rotationStep: number; allowMirror: boolean; timeLimitSec: number; unitScale: number;
+  /** Bù kerf (bề rộng mạch cắt), mm. 0 = KHÔNG bù (mặc định). */
+  kerf: number;
   gcode: GcodeOptions;
+}
+
+/** Thông số hiện tại trên màn hình — panel kho tôn thừa (người khác làm) đọc qua đây. */
+export interface NestOptionsSnapshot extends NestParams {
+  /** Khe người dùng nhập, mm. */
+  gapInput: number;
+  /** Bù kerf, mm. */
+  kerf: number;
+  /** Khe hiệu dụng khi xếp = khe + kerf (để 2 đường cắt đã nở không chạm nhau). */
+  effectiveGap: number;
+  unitScale: number;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -38,6 +55,7 @@ const DEFAULT_SETTINGS: Settings = {
   allowMirror: DEFAULT_NEST_PARAMS.allowMirror,
   timeLimitSec: 60,
   unitScale: 1,
+  kerf: 0,
   gcode: { ...DEFAULT_GCODE_OPTIONS },
 };
 
@@ -60,6 +78,65 @@ function saveSettings(s: Settings): void {
   }
 }
 
+type NameStore = Record<string, Record<string, string>>;
+
+function loadNameStore(): NameStore {
+  try {
+    const raw = localStorage.getItem(LS_NAMES_KEY);
+    if (!raw) return {};
+    const v = JSON.parse(raw);
+    return v && typeof v === 'object' ? (v as NameStore) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveNameStore(store: NameStore): void {
+  try {
+    localStorage.setItem(LS_NAMES_KEY, JSON.stringify(store));
+  } catch {
+    /* bỏ qua — tên tự đặt chỉ là tiện ích, không được làm hỏng app */
+  }
+}
+
+/**
+ * Thông số hiện tại của màn hình. Mặc định khi chưa mount: giá trị gốc.
+ * Panel kho tôn thừa (do người khác viết, cắm vào #remnant-slot) gọi hàm này.
+ */
+let readNestOptions: (() => NestOptionsSnapshot) | null = null;
+
+export function getNestOptions(): NestOptionsSnapshot {
+  if (readNestOptions) return readNestOptions();
+  const d = DEFAULT_SETTINGS;
+  return {
+    sheetW: d.sheetW, sheetH: d.sheetH, gap: d.gap, margin: d.margin,
+    rotationStep: d.rotationStep, allowMirror: d.allowMirror,
+    timeLimitMs: Math.round(d.timeLimitSec * 1000),
+    gridCell: DEFAULT_NEST_PARAMS.gridCell, seed: DEFAULT_NEST_PARAMS.seed,
+    gapInput: d.gap, kerf: d.kerf, effectiveGap: d.gap + d.kerf, unitScale: d.unitScale,
+  };
+}
+
+/**
+ * API mà module kho tôn thừa (src/remnant) treo lên window khi trang tải xong.
+ * Khai ở đây cho gọn thay vì import chéo module — nút XẾP chỉ cần 2 hàm này.
+ */
+interface RemnantBridge {
+  getSelected(): { id: string; name: string }[];
+  nestWithSelected(
+    parts: Part[],
+    onProgress?: (p: NestProgress) => void,
+    shouldStop?: () => boolean
+  ): Promise<NestResult>;
+}
+
+/** Trả API kho tôn thừa nếu module đó đã nạp và đúng hình dạng, không thì null. */
+function remnantBridge(): RemnantBridge | null {
+  const api = (globalThis as Record<string, unknown>).catphoiRemnant as RemnantBridge | undefined;
+  if (!api) return null;
+  return typeof api.getSelected === 'function' && typeof api.nestWithSelected === 'function' ? api : null;
+}
+
 const el = <K extends keyof HTMLElementTagNameMap>(
   tag: K, cls?: string, html?: string
 ): HTMLElementTagNameMap[K] => {
@@ -76,8 +153,14 @@ export function mountApp(root: HTMLElement, services: AppServices): void {
   let settings = loadSettings();
   let parts: Part[] = [];
   let lastFile: File | null = null;
+  /** Tên tự đặt của file đang mở: { "P0": "Sườn 15 mạn" }. */
+  let names: Record<string, string> = {};
+  let nameStore: NameStore = loadNameStore();
+  let fileKey = '';
   let result: NestResult | null = null;
   let running = false;
+  /** Người dùng đã bấm DỪNG cho lượt xếp đang chạy chưa (đường tôn thừa hỏi cờ này). */
+  let stopRequested = false;
 
   root.innerHTML = '';
 
@@ -137,6 +220,13 @@ export function mountApp(root: HTMLElement, services: AppServices): void {
   const inH = numField('Chiều dài tấm (mm)', settings.sheetH, 100, 10, (v) => { settings.sheetH = v; });
   const inGap = numField('Khe giữa chi tiết (mm)', settings.gap, 0, 1, (v) => { settings.gap = v; });
   const inMargin = numField('Lề mép tấm (mm)', settings.margin, 0, 1, (v) => { settings.margin = v; });
+  // Bù kerf: MẶC ĐỊNH 0 = không bù (giữ đúng quy trình cũ: bù bên FastCAM/máy).
+  const inKerf = numField('Bù kerf (mm)', settings.kerf, 0, 0.1, (v) => {
+    settings.kerf = v;
+    updateNote();
+    renderResult(result);
+  });
+  inKerf.title = 'Bề rộng mạch cắt. 0 = không bù (bù bên FastCAM/máy như cũ).';
 
   const rotWrap = el('div');
   const rotLb = el('label', 'f', 'Bước xoay');
@@ -202,12 +292,19 @@ export function mountApp(root: HTMLElement, services: AppServices): void {
     inGap.value = String(settings.gap);
     inMargin.value = String(settings.margin);
     inTime.value = String(settings.timeLimitSec);
+    inKerf.value = String(settings.kerf);
     selRot.value = String(settings.rotationStep);
     selUnit.value = String(settings.unitScale);
     chkMirror.checked = settings.allowMirror;
     syncGcodeInputs();
+    updateNote();
   });
   side.appendChild(btnReset);
+
+  // Chỗ cắm sẵn cho panel "kho tôn thừa" (người khác làm) — để trống, không tự viết.
+  const remnantSlot = el('div');
+  remnantSlot.id = 'remnant-slot';
+  side.appendChild(remnantSlot);
 
   // ── cột trái: danh sách chi tiết ────────────────────────────────────────
   const partsTitle = el('h2', undefined, 'Chi tiết (0)');
@@ -243,10 +340,17 @@ export function mountApp(root: HTMLElement, services: AppServices): void {
   runbar.appendChild(runInfo);
   content.appendChild(runbar);
 
-  const note = el('div', 'note',
-    'G-code chỉ là tham khảo — chạy thử không tải trước khi cắt thật. ' +
-    'Khuyến nghị: nạp DXF vào FastCAM như cũ. Tool <b>không bù kerf</b>, hãy bù trên máy/FastCAM.');
+  const note = el('div', 'note');
   content.appendChild(note);
+  function updateNote(): void {
+    const base = 'G-code chỉ là tham khảo — chạy thử không tải trước khi cắt thật. ' +
+      'Khuyến nghị: nạp DXF vào FastCAM như cũ. ';
+    note.innerHTML = settings.kerf > 0
+      ? base + `Tool <b>ĐÃ BÙ KERF ${settings.kerf}mm trong file</b> (bao ngoài nở ${(settings.kerf / 2).toFixed(2)}mm, ` +
+        `lỗ thu vào ${(settings.kerf / 2).toFixed(2)}mm) — <b>PHẢI TẮT bù kerf bên FastCAM/máy</b>, ` +
+        'kẻo bù hai lần làm chi tiết hụt.'
+      : base + 'Tool <b>không bù kerf</b> (ô "Bù kerf" đang để 0), hãy bù trên máy/FastCAM như cũ.';
+  }
 
   const dlRow = el('div', 'dlrow hidden');
   const btnZipDxf = el('button', undefined, 'Tải tất cả DXF (.zip)');
@@ -348,11 +452,20 @@ export function mountApp(root: HTMLElement, services: AppServices): void {
     errBox.classList.add('hidden');
   }
 
+  /**
+   * Khe hiệu dụng khi xếp = khe người dùng nhập + kerf. Vì đường cắt của 2 chi tiết
+   * cạnh nhau mỗi bên nở ra kerf/2, không cộng thêm thì 2 vệt cắt chạm nhau.
+   * Engine nest không có tham số kerf nên cộng ở đây trước khi gọi.
+   */
+  function effectiveGap(): number {
+    return settings.gap + Math.max(0, settings.kerf);
+  }
+
   function currentParams(): NestParams {
     return {
       sheetW: settings.sheetW,
       sheetH: settings.sheetH,
-      gap: settings.gap,
+      gap: effectiveGap(),
       margin: settings.margin,
       rotationStep: settings.rotationStep,
       allowMirror: settings.allowMirror,
@@ -360,6 +473,22 @@ export function mountApp(root: HTMLElement, services: AppServices): void {
       gridCell: DEFAULT_NEST_PARAMS.gridCell,
       seed: DEFAULT_NEST_PARAMS.seed,
     };
+  }
+
+  function partsById(): Map<string, Part> {
+    return new Map(parts.map((p) => [p.id, p]));
+  }
+
+  function persistNames(): void {
+    if (!fileKey) return;
+    if (Object.keys(names).length) nameStore[fileKey] = { ...names };
+    else delete nameStore[fileKey];
+    saveNameStore(nameStore);
+  }
+
+  /** Tuỳ chọn xuất file: tên tự đặt + bù kerf. */
+  function exportExtras(): { labels: Record<string, string>; kerf: number } {
+    return { labels: { ...names }, kerf: Math.max(0, settings.kerf) };
   }
 
   function renderParts(): void {
@@ -380,11 +509,36 @@ export function mountApp(root: HTMLElement, services: AppServices): void {
       const cv = el('canvas');
       row.appendChild(cv);
 
-      const w = Math.round(p.bbox.maxX - p.bbox.minX);
-      const h = Math.round(p.bbox.maxY - p.bbox.minY);
+      // KÍCH THƯỚC = dài × bề rộng nhỏ nhất khi xoay (khung bao nhỏ nhất xoay được).
+      // KHÔNG dùng bbox theo trục toạ độ gốc: thanh cong nằm chéo nên bbox cho số sai
+      // (P0 ra 3409×3996 trong khi thanh thật 5253×1172).
+      const L = Math.round(p.maxLength);
+      const W = Math.round(p.minWidth);
       const meta = el('div', 'meta');
-      meta.innerHTML = `<b>${p.id}</b> ${w}×${h}<span>${fmtM2(p.area)} m² · ${p.vertexCount} đỉnh` +
-        (p.fitsSheet ? '' : ' · <i class="bad-tag">Không vừa tấm</i>') + '</span>';
+      const nameInp = el('input', 'pname');
+      nameInp.type = 'text';
+      nameInp.id = `name-${p.id}`;
+      nameInp.name = `name-${p.id}`;
+      nameInp.value = names[p.id] ?? '';
+      nameInp.placeholder = p.id;
+      nameInp.title = `Tên chi tiết (mặc định ${p.id}) — hiện trên preview, ghi vào DXF và G-code`;
+      nameInp.setAttribute('aria-label', `Tên chi tiết ${p.id}`);
+      const commitName = () => {
+        const v = nameInp.value.trim();
+        if (v) names[p.id] = v;
+        else delete names[p.id];
+        persistNames();
+        dims.title = `${displayName(p, names)} · dài ${L}mm × bề rộng nhỏ nhất khi xoay ${W}mm`;
+        renderResult(result);
+      };
+      nameInp.addEventListener('change', commitName);
+      nameInp.addEventListener('blur', commitName);
+      meta.appendChild(nameInp);
+      const dims = el('span');
+      dims.innerHTML = `${L}×${W}mm · ${fmtM2(p.area)}m² · ${p.vertexCount} đỉnh` +
+        (p.fitsSheet ? '' : ' · <i class="bad-tag">Không vừa tấm</i>');
+      dims.title = `${displayName(p, names)} · dài ${L}mm × bề rộng nhỏ nhất khi xoay ${W}mm`;
+      meta.appendChild(dims);
       row.appendChild(meta);
 
       const qty = el('input');
@@ -437,27 +591,37 @@ export function mountApp(root: HTMLElement, services: AppServices): void {
     }
     hint.classList.add('hidden');
     dlRow.classList.remove('hidden');
+    const rr = r as NestResult & { remnantsUsed?: { name: string }[]; newSheets?: number };
     summary.innerHTML = `Dùng <b>${r.sheets.length} tấm</b> · tổng sử dụng tôn <b>${fmtPct(r.utilization)}</b>` +
+      (rr.remnantsUsed && rr.remnantsUsed.length
+        ? ` · trong đó <b>${rr.remnantsUsed.length} tấm thừa</b> trong kho, mở thêm ${rr.newSheets ?? 0} tấm mới`
+        : '') +
       (r.unplaced.length ? ` · <span style="color:#c0392b">chưa xếp được: ${r.unplaced.join(', ')}</span>` : '');
 
     const boxW = Math.max(320, content.clientWidth - 40);
     for (const sheet of r.sheets) {
       const card = el('div', 'sheet');
       const head = el('header');
-      head.appendChild(el('h3', undefined, `Tấm ${sheet.index + 1} — ${Math.round(sheet.width)}×${Math.round(sheet.height)}mm`));
+      // Tấm lấy từ kho tôn thừa mang thêm source/remnantName (src/remnant/plan.ts).
+      const src = sheet as SheetLayout & { source?: string; remnantName?: string };
+      const dims = `${Math.round(sheet.width)}×${Math.round(sheet.height)}mm`;
+      head.appendChild(el('h3', undefined,
+        src.source === 'remnant' && src.remnantName
+          ? `Tấm ${sheet.index + 1} — TÔN THỪA "${src.remnantName}" ${dims}`
+          : `Tấm ${sheet.index + 1} — ${dims}`));
       const pct = el('span', 'pct', fmtPct(sheet.utilization));
       head.appendChild(pct);
       head.appendChild(el('span', 'rest',
         `${sheet.placements.length} chi tiết · đã dùng ${Math.round(usedLength(sheet))}mm chiều dài · còn thừa ${Math.max(0, Math.round(sheet.height - usedLength(sheet)))}mm`));
       const bDxf = el('button', 'sm', 'Tải DXF tấm này');
       bDxf.addEventListener('click', () => {
-        services.downloadText(services.sheetFileName(sheet, 'dxf'), services.exportSheetDxf(sheet, parts));
+        services.downloadText(coreSheetFileName(sheet, 'dxf'), exportSheetDxfR12(sheet, partsById(), exportExtras()));
       });
       const bNc = el('button', 'sm', 'Tải G-code tấm này');
       bNc.addEventListener('click', () => {
         services.downloadText(
-          services.sheetFileName(sheet, settings.gcode.extension),
-          services.exportGcode(sheet, parts, settings.gcode)
+          coreSheetFileName(sheet, settings.gcode.extension),
+          generateGcode(sheet, partsById(), settings.gcode, exportExtras())
         );
       });
       head.appendChild(bDxf);
@@ -467,26 +631,30 @@ export function mountApp(root: HTMLElement, services: AppServices): void {
       card.appendChild(cv);
       sheetsBox.appendChild(card);
       const h = Math.max(70, Math.round((boxW - 20) * sheet.width / sheet.height) + 16);
-      drawSheet(cv, sheet, parts, { cssWidth: boxW - 20, cssHeight: h });
+      drawSheet(cv, sheet, parts, { cssWidth: boxW - 20, cssHeight: h, labels: names });
     }
   }
 
   btnZipDxf.addEventListener('click', () => {
     if (!result) return;
+    const extras = exportExtras();
+    const map = partsById();
     void services.downloadZip('xep-phoi-dxf.zip', result.sheets.map((s) => ({
-      name: services.sheetFileName(s, 'dxf'),
-      content: services.exportSheetDxf(s, parts),
+      name: coreSheetFileName(s, 'dxf'),
+      content: exportSheetDxfR12(s, map, extras),
     })));
   });
   btnOneDxf.addEventListener('click', () => {
     if (!result) return;
-    services.downloadText('tat-ca-tam.dxf', services.exportAllDxf(result.sheets, parts));
+    services.downloadText('tat-ca-tam.dxf', exportAllSheetsDxfR12(result.sheets, partsById(), exportExtras()));
   });
   btnZipNc.addEventListener('click', () => {
     if (!result) return;
+    const extras = exportExtras();
+    const map = partsById();
     void services.downloadZip('xep-phoi-gcode.zip', result.sheets.map((s) => ({
-      name: services.sheetFileName(s, settings.gcode.extension),
-      content: services.exportGcode(s, parts, settings.gcode),
+      name: coreSheetFileName(s, settings.gcode.extension),
+      content: generateGcode(s, map, settings.gcode, extras),
     })));
   });
 
@@ -497,6 +665,10 @@ export function mountApp(root: HTMLElement, services: AppServices): void {
       return;
     }
     lastFile = file;
+    // Tên tự đặt nhớ theo TÊN FILE + chỉ số chi tiết (P0, P1…).
+    fileKey = file.name;
+    nameStore = loadNameStore();
+    names = { ...(nameStore[fileKey] || {}) };
     drop.innerHTML = `Đang đọc <b>${file.name}</b>…`;
     btnNest.disabled = true;
     try {
@@ -546,17 +718,28 @@ export function mountApp(root: HTMLElement, services: AppServices): void {
     }
     clearError();
     running = true;
+    stopRequested = false;
     btnNest.disabled = true;
     btnStop.disabled = false;
     barFill.style.width = '0%';
     const t0 = Date.now();
+    const onProgress = (p: NestProgress) => {
+      barFill.style.width = `${Math.round(p.fraction * 100)}%`;
+      runInfo.textContent = `${Math.round(p.elapsedMs / 1000)}s · ${p.iterations} phương án` +
+        (p.best ? ` · tốt nhất ${p.best.sheets.length} tấm (${fmtPct(p.best.utilization)})` : '');
+      if (p.best) renderResult(p.best);
+    };
     try {
-      const r = await services.startNest(parts, currentParams(), (p) => {
-        barFill.style.width = `${Math.round(p.fraction * 100)}%`;
-        runInfo.textContent = `${Math.round(p.elapsedMs / 1000)}s · ${p.iterations} phương án` +
-          (p.best ? ` · tốt nhất ${p.best.sheets.length} tấm (${fmtPct(p.best.utilization)})` : '');
-        if (p.best) renderResult(p.best);
-      });
+      // Có tích tấm thừa trong kho → xếp qua module kho tôn thừa (nhét tôn thừa
+      // trước, hết chỗ mới mở tấm mới). Không tích → chạy y như cũ.
+      const bridge = remnantBridge();
+      const chosenRemnants = bridge ? bridge.getSelected() : [];
+      const r = chosenRemnants.length > 0 && bridge
+        ? await (() => {
+          runInfo.textContent = `Đang nhét vào ${chosenRemnants.length} tấm thừa đã chọn…`;
+          return bridge.nestWithSelected(parts, onProgress, () => stopRequested);
+        })()
+        : await services.startNest(parts, currentParams(), onProgress);
       renderResult(r);
       barFill.style.width = '100%';
       runInfo.textContent = `Xong sau ${Math.round((Date.now() - t0) / 1000)}s · ${r.iterations} phương án`;
@@ -571,6 +754,8 @@ export function mountApp(root: HTMLElement, services: AppServices): void {
 
   btnStop.addEventListener('click', () => {
     btnStop.disabled = true;
+    // Đường tôn thừa đọc cờ này; đường xếp thường tắt worker như cũ.
+    stopRequested = true;
     services.stopNest();
   });
 
@@ -580,6 +765,20 @@ export function mountApp(root: HTMLElement, services: AppServices): void {
     resizeTimer = window.setTimeout(() => renderResult(result), 150);
   });
 
+  readNestOptions = () => ({
+    ...currentParams(),
+    gapInput: settings.gap,
+    kerf: Math.max(0, settings.kerf),
+    effectiveGap: effectiveGap(),
+    unitScale: settings.unitScale,
+  });
+
+  // Panel kho tôn thừa (src/remnant/panel.ts) tìm getNestOptions trên globalThis
+  // TRƯỚC khi thử import động. Treo ở đây thì bản build production cũng đọc đúng
+  // thông số đang gõ trên màn hình, không rơi về mặc định.
+  (globalThis as Record<string, unknown>).getNestOptions = getNestOptions;
+
   syncGcodeInputs();
+  updateNote();
   updateTotals();
 }

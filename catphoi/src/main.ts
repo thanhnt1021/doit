@@ -4,6 +4,9 @@
  */
 import { zipSync, strToU8 } from 'fflate';
 import { mountApp, type AppServices } from './ui/app';
+// Kho tôn thừa: module tự gắn panel vào <div id="remnant-slot"> và treo
+// window.catphoiRemnant để nút XẾP dùng khi có tấm thừa được tích chọn.
+import './remnant';
 import { exportAllSheetsDxfR12, exportSheetDxfR12, sheetFileName } from './core/dxf-export';
 import { generateGcode } from './core/gcode';
 import type {
