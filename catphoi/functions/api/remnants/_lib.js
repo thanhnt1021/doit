@@ -145,28 +145,87 @@ export function checkPolygon(v) {
   return { value: out };
 }
 
-/** Đổi một dòng D1 thành đối tượng gửi cho trình duyệt (camelCase). */
-export function rowToRemnant(row) {
-  let polygon = [];
-  try {
-    const parsed = JSON.parse(row.polygon);
-    if (Array.isArray(parsed)) polygon = parsed;
-  } catch {
-    // Dòng hỏng (sửa tay trên D1?) — trả đa giác rỗng còn hơn làm sập cả danh sách.
-    polygon = [];
+/**
+ * Các LỖ ĐÃ CẮT trên tấm gốc (VIỆC 3). Cùng luật với đa giác.
+ * Không gửi / gửi rỗng đều hợp lệ (tấm nguyên chưa cắt gì).
+ */
+export function checkCuts(v) {
+  if (v === undefined || v === null) return { value: [] };
+  if (!Array.isArray(v)) return { error: 'Danh sách lỗ đã cắt phải là một mảng.' };
+  if (v.length === 0) return { value: [] };
+  if (v.length > MAX_RINGS) return { error: `Tấm thừa có quá ${MAX_RINGS} lỗ đã cắt.` };
+  let total = 0;
+  const out = [];
+  for (const ring of v) {
+    if (!Array.isArray(ring) || ring.length < MIN_RING_POINTS) {
+      return { error: `Mỗi lỗ đã cắt cần ít nhất ${MIN_RING_POINTS} đỉnh.` };
+    }
+    total += ring.length;
+    if (total > MAX_POINTS_TOTAL) {
+      return { error: `Các lỗ đã cắt có quá ${MAX_POINTS_TOTAL} đỉnh, hãy đơn giản hoá bớt.` };
+    }
+    const pts = [];
+    for (const p of ring) {
+      if (!p || typeof p !== 'object' || !isFiniteNumber(p.x) || !isFiniteNumber(p.y)) {
+        return { error: 'Đỉnh của lỗ đã cắt phải có toạ độ x, y là số.' };
+      }
+      if (Math.abs(p.x) > MAX_DIM_MM || Math.abs(p.y) > MAX_DIM_MM) {
+        return { error: `Toạ độ đỉnh vượt quá ${MAX_DIM_MM} mm.` };
+      }
+      pts.push({ x: p.x, y: p.y });
+    }
+    out.push(pts);
   }
-  return {
+  return { value: out };
+}
+
+function parseJsonRings(text) {
+  try {
+    const v = JSON.parse(text);
+    return Array.isArray(v) ? v : [];
+  } catch {
+    // Dòng hỏng (sửa tay trên D1?) — trả rỗng còn hơn làm sập cả danh sách.
+    return [];
+  }
+}
+
+/**
+ * Đổi một dòng D1 thành đối tượng gửi cho trình duyệt (camelCase).
+ *
+ * ── DỮ LIỆU CŨ TRONG KHO PRODUCTION (VIỆC 3) ─────────────────────────────
+ * Cột sheet_w_mm / sheet_h_mm / cuts mới thêm nên các dòng lưu TRƯỚC khi đổi
+ * cấu trúc đang để NULL. Không xoá, không sửa dữ liệu cũ. Khi đọc:
+ *   • sheet_w_mm NULL → lấy tạm width_mm/length_mm làm khổ (không bịa 2000×6000,
+ *     bịa là sai vị trí), cuts lấy từ polygon[1..], và gắn cờ legacy = true;
+ *   • sheet_w_mm có giá trị → tấm kiểu mới, khung bao LUÔN bằng khổ tấm gốc.
+ * Trình duyệt còn chuẩn hoá thêm một lần ở src/remnant/normalize.ts.
+ */
+export function rowToRemnant(row) {
+  const polygon = parseJsonRings(row.polygon);
+  const hasStock = isFiniteNumber(row.sheet_w_mm) && isFiniteNumber(row.sheet_h_mm)
+    && row.sheet_w_mm > 0 && row.sheet_h_mm > 0;
+  const cutsCol = row.cuts ? parseJsonRings(row.cuts) : null;
+  const cuts = cutsCol && cutsCol.length ? cutsCol : polygon.slice(1);
+  const sheetW = hasStock ? row.sheet_w_mm : row.width_mm;
+  const sheetH = hasStock ? row.sheet_h_mm : row.length_mm;
+
+  const out = {
     id: row.id,
     name: row.name,
-    widthMm: row.width_mm,
-    lengthMm: row.length_mm,
+    widthMm: hasStock ? sheetW : row.width_mm,
+    lengthMm: hasStock ? sheetH : row.length_mm,
+    sheetWidthMm: sheetW,
+    sheetLengthMm: sheetH,
+    cuts,
     polygon,
     note: row.note || '',
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+  if (!hasStock) out.legacy = true;
+  return out;
 }
 
 export const SELECT_COLS =
-  'id, name, width_mm, length_mm, polygon, note, status, created_at, updated_at';
+  'id, name, width_mm, length_mm, sheet_w_mm, sheet_h_mm, cuts, polygon, note, status, created_at, updated_at';

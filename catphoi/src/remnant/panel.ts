@@ -12,7 +12,9 @@ import type { NestParams, Ring } from '../types';
 import { DEFAULT_NEST_PARAMS } from '../types';
 import type { Remnant, RemnantInput } from './types';
 import { createRemnantStore, type RemnantStore } from './store';
-import { largestInnerRect, polygonArea, rectPolygon } from './geometry';
+import { polygonArea, rectPolygon } from './geometry';
+import { STOCK_H, STOCK_W, buildRemnantInput, cutRectRing } from './normalize';
+import { drawRemnantPreview, previewHeight } from './preview';
 
 export const SLOT_ID = 'remnant-slot';
 
@@ -51,6 +53,12 @@ const CSS = `
   background:var(--panel,#fff);color:var(--rmn-ink)}
 .rmn-empty{color:var(--rmn-muted);font-style:italic;padding:6px 2px;font-size:12px}
 .rmn-foot{margin-top:7px;font-size:11px;color:var(--rmn-muted)}
+/* VIỆC 2 — ô xem trước tấm thừa, hiện ngay khi tích chọn. */
+.rmn-prev{flex:1 1 100%;margin-top:5px}
+.rmn-prev canvas{display:block;border:1px solid var(--rmn-line);border-radius:4px;background:#fff}
+.rmn-prev .cap{font-size:10.5px;color:var(--rmn-muted);margin-top:2px}
+.rmn-tag{display:inline-block;font-size:10px;padding:0 4px;border-radius:3px;
+  background:var(--warn-bg,#fff8e1);border:1px solid var(--warn-line,#e6c34a);color:#6b5200;margin-left:4px}
 `;
 
 function injectCss(doc: Document): void {
@@ -158,6 +166,17 @@ export interface RemnantPanel {
   markUsed(ids: string[]): Promise<void>;
   /** Lưu một tấm thừa mới từ code khác (ví dụ lấy phần dư của tấm vừa xếp). */
   save(input: RemnantInput): Promise<Remnant>;
+  /**
+   * VIỆC 3 — lưu thẳng một tấm trong phương án vừa xếp: giữ NGUYÊN KHỔ tấm gốc
+   * và ghi lại đúng các lỗ vừa cắt.
+   */
+  saveFromSheet(args: {
+    name: string;
+    sheetWidthMm: number;
+    sheetLengthMm: number;
+    cuts: Ring[];
+    note?: string;
+  }): Promise<Remnant>;
   onSelectionChange(fn: (sel: Remnant[]) => void): void;
   store: RemnantStore;
   /** true = panel đang nằm trong ô tạm do chính nó dựng, chưa có #remnant-slot. */
@@ -202,30 +221,36 @@ export function mountRemnantPanel(
       </label>
     </div>
     <div class="rmn-row">
-      <label>Rộng (mm)<input type="number" id="rmn-w" min="1" step="1" value="1200"></label>
-      <label>Dài (mm)<input type="number" id="rmn-l" min="1" step="1" value="2400"></label>
+      <label>Khổ tấm GỐC — rộng (mm)<input type="number" id="rmn-w" min="1" step="1" value="${STOCK_W}"></label>
+      <label>Khổ tấm GỐC — dài (mm)<input type="number" id="rmn-l" min="1" step="1" value="${STOCK_H}"></label>
     </div>
     <div class="rmn-row">
-      <label>Hình dạng phần còn lại
+      <label>Phần ĐÃ CẮT ĐI khỏi tấm
         <select id="rmn-shape">
-          <option value="rect">Chữ nhật nguyên</option>
-          <option value="corner">Vát một góc</option>
-          <option value="free">Tự nhập đỉnh</option>
+          <option value="none">Chưa cắt gì — tấm nguyên</option>
+          <option value="rect" selected>Một ô chữ nhật đã cắt</option>
+          <option value="corner">Đã cắt vát một góc (trên-phải)</option>
+          <option value="free">Tự nhập đỉnh lỗ đã cắt</option>
         </select>
       </label>
     </div>
-    <div class="rmn-row" id="rmn-corner-row" style="display:none">
-      <label>Góc vát rộng (mm)<input type="number" id="rmn-cw" min="0" step="1" value="400"></label>
-      <label>Góc vát cao (mm)<input type="number" id="rmn-ch" min="0" step="1" value="600"></label>
+    <div class="rmn-row" id="rmn-rect-row">
+      <label>Lỗ — góc dưới-trái x (mm)<input type="number" id="rmn-cx" step="1" value="0"></label>
+      <label>y (mm)<input type="number" id="rmn-cy" step="1" value="0"></label>
+    </div>
+    <div class="rmn-row" id="rmn-size-row">
+      <label>Lỗ — rộng (mm)<input type="number" id="rmn-cw" min="1" step="1" value="800"></label>
+      <label>Lỗ — dài (mm)<input type="number" id="rmn-ch" min="1" step="1" value="3000"></label>
     </div>
     <div class="rmn-row" id="rmn-free-row" style="display:none">
-      <label>Các đỉnh, mỗi dòng "x y" (mm, gốc ở góc dưới-trái)
-        <textarea id="rmn-pts" placeholder="0 0&#10;1200 0&#10;1200 1500&#10;600 2400&#10;0 2400"></textarea>
+      <label>Các đỉnh của LỖ đã cắt, mỗi dòng "x y" (mm, gốc ở góc dưới-trái TẤM GỐC)
+        <textarea id="rmn-pts" placeholder="0 0&#10;800 0&#10;800 3000&#10;0 3000"></textarea>
       </label>
     </div>
     <div class="rmn-row">
       <label>Ghi chú<input type="text" id="rmn-note" placeholder="mác thép, độ dày, để ở giá nào…" maxlength="500"></label>
     </div>
+    <div class="rmn-prev" id="rmn-form-prev"></div>
     <div class="rmn-bar">
       <button class="primary sm" id="rmn-save">Lưu vào kho</button>
       <button class="sm" id="rmn-cancel">Huỷ</button>
@@ -238,12 +263,16 @@ export function mountRemnantPanel(
   const inW = q<HTMLInputElement>('rmn-w');
   const inL = q<HTMLInputElement>('rmn-l');
   const inShape = q<HTMLSelectElement>('rmn-shape');
+  const inCx = q<HTMLInputElement>('rmn-cx');
+  const inCy = q<HTMLInputElement>('rmn-cy');
   const inCw = q<HTMLInputElement>('rmn-cw');
   const inCh = q<HTMLInputElement>('rmn-ch');
   const inPts = q<HTMLTextAreaElement>('rmn-pts');
   const inNote = q<HTMLInputElement>('rmn-note');
-  const rowCorner = q<HTMLElement>('rmn-corner-row');
+  const rowRect = q<HTMLElement>('rmn-rect-row');
+  const rowSize = q<HTMLElement>('rmn-size-row');
   const rowFree = q<HTMLElement>('rmn-free-row');
+  const formPrev = q<HTMLElement>('rmn-form-prev');
   const btnSave = q<HTMLButtonElement>('rmn-save');
   const btnCancel = q<HTMLButtonElement>('rmn-cancel');
 
@@ -289,20 +318,26 @@ export function mountRemnantPanel(
       cb.addEventListener('change', () => {
         if (cb.checked) selected.add(r.id);
         else selected.delete(r.id);
-        renderFoot();
+        // VIỆC 2: vẽ lại cả danh sách để ô xem trước hiện ra / biến mất ngay.
+        render();
         fireSelection();
       });
 
       const body = h('div', 'rmn-it-body');
       const nameEl = h('div', 'rmn-it-name');
       nameEl.textContent = r.name + (r.pending ? ' · chờ gửi lên' : '');
-      const rect = largestInnerRect(r.polygon, 10);
-      // Chỉ nhắc "phần xếp được" khi tấm bị cắt vát, chữ nhật nguyên thì nói thừa.
-      const cut = rect.w < r.widthMm * 0.95 || rect.h < r.lengthMm * 0.95;
+      if (r.legacy) {
+        const tag = h('span', 'rmn-tag', 'tấm kiểu cũ');
+        tag.title = 'Lưu trước khi đổi cấu trúc — không rõ khổ tấm gốc, '
+          + 'khung bao đang là khung bao của chính mảnh thừa.';
+        nameEl.appendChild(tag);
+      }
+      // VIỆC 3: khung bao LUÔN là khổ tấm gốc, kèm số lỗ đã cắt.
       const sub = h('div', 'rmn-it-sub');
       sub.textContent =
-        `${mm(r.widthMm)}×${mm(r.lengthMm)}mm · còn ${m2(polygonArea(r.polygon))} m²`
-        + (cut ? ` · phần xếp được ${mm(rect.w)}×${mm(rect.h)}mm` : '')
+        `khổ gốc ${mm(r.sheetWidthMm)}×${mm(r.sheetLengthMm)}mm`
+        + ` · ${r.cuts.length} lỗ đã cắt`
+        + ` · còn ${m2(polygonArea(r.polygon))} m²`
         + (r.status === 'used' ? ' · ĐÃ DÙNG' : '')
         + (r.note ? ` · ${r.note}` : '');
       body.append(nameEl, sub);
@@ -318,7 +353,28 @@ export function mountRemnantPanel(
       act.append(bRename, bUsed, bDel);
 
       row.append(cb, body, act);
+      // Đưa vào DOM TRƯỚC rồi mới vẽ: canvas cần bề ngang thật để không méo.
       list.appendChild(row);
+
+      // ── VIỆC 2: tích chọn là hiện ngay hình tấm, bỏ tích là mất ──────────
+      if (selected.has(r.id) && r.status === 'available') {
+        const prev = h('div', 'rmn-prev');
+        const cv = document.createElement('canvas');
+        prev.appendChild(cv);
+        const cap = h('div', 'cap');
+        cap.textContent = r.cuts.length
+          ? `Ô xám gạch = phần đã cắt lần trước · khung bao giữ nguyên ${mm(r.sheetWidthMm)}×${mm(r.sheetLengthMm)}mm`
+          : `Tấm nguyên khổ ${mm(r.sheetWidthMm)}×${mm(r.sheetLengthMm)}mm, chưa cắt gì`;
+        prev.appendChild(cap);
+        row.appendChild(prev);
+        // Canvas phải nằm trong DOM mới đo được bề ngang thật.
+        const width = Math.max(140, row.clientWidth - 16 || list.clientWidth - 20 || 260);
+        try {
+          drawRemnantPreview(cv, r, { cssWidth: width, cssHeight: previewHeight(r, width) });
+        } catch {
+          /* canvas hỏng thì thôi, panel vẫn phải chạy */
+        }
+      }
     }
     renderFoot();
   }
@@ -384,26 +440,78 @@ export function mountRemnantPanel(
     }
   }
 
-  /** Gom dữ liệu trong ô nhập thành RemnantInput. */
+  /**
+   * Gom dữ liệu trong ô nhập thành RemnantInput — VIỆC 3.
+   *
+   * Khác trước: người dùng khai KHỔ TẤM GỐC (2000×6000) và PHẦN ĐÃ CẮT ĐI,
+   * chứ không khai mảnh thừa rời. Khung bao vì thế luôn đúng khổ tấm gốc.
+   */
   function collectInput(): { input?: RemnantInput; error?: string } {
     const name = inName.value.trim();
     const w = Number(inW.value);
     const l = Number(inL.value);
     if (!name) return { error: 'Phải đặt tên cho tấm thừa, ví dụ "thừa lô sườn 15".' };
-    if (!Number.isFinite(w) || w <= 0) return { error: 'Chiều rộng phải là số lớn hơn 0.' };
-    if (!Number.isFinite(l) || l <= 0) return { error: 'Chiều dài phải là số lớn hơn 0.' };
+    if (!Number.isFinite(w) || w <= 0) return { error: 'Khổ tấm gốc (rộng) phải là số lớn hơn 0.' };
+    if (!Number.isFinite(l) || l <= 0) return { error: 'Khổ tấm gốc (dài) phải là số lớn hơn 0.' };
 
-    let polygon: Ring[];
-    if (inShape.value === 'corner') {
-      polygon = cornerCutPolygon(w, l, Number(inCw.value) || 0, Number(inCh.value) || 0);
+    const cuts: Ring[] = [];
+    if (inShape.value === 'rect') {
+      const x = Number(inCx.value) || 0;
+      const y = Number(inCy.value) || 0;
+      const cw = Number(inCw.value);
+      const ch = Number(inCh.value);
+      if (!Number.isFinite(cw) || cw <= 0 || !Number.isFinite(ch) || ch <= 0) {
+        return { error: 'Lỗ đã cắt phải có chiều rộng và chiều dài lớn hơn 0.' };
+      }
+      if (x < 0 || y < 0 || x + cw > w + 0.001 || y + ch > l + 0.001) {
+        return { error: 'Lỗ đã cắt phải nằm gọn trong khổ tấm gốc.' };
+      }
+      cuts.push(cutRectRing(x, y, cw, ch));
+    } else if (inShape.value === 'corner') {
+      const cw = Math.min(Math.max(0, Number(inCw.value) || 0), w);
+      const ch = Math.min(Math.max(0, Number(inCh.value) || 0), l);
+      if (cw <= 0 || ch <= 0) return { error: 'Góc vát phải có kích thước lớn hơn 0.' };
+      // Tam giác vát ở góc TRÊN-PHẢI của tấm gốc.
+      cuts.push([{ x: w - cw, y: l }, { x: w, y: l }, { x: w, y: l - ch }]);
     } else if (inShape.value === 'free') {
       const parsed = parsePointsText(inPts.value);
-      if (parsed.error || !parsed.ring) return { error: parsed.error || 'Hình không hợp lệ.' };
-      polygon = [parsed.ring];
-    } else {
-      polygon = rectPolygon(w, l);
+      if (parsed.error || !parsed.ring) return { error: parsed.error || 'Hình lỗ không hợp lệ.' };
+      for (const pt of parsed.ring) {
+        if (pt.x < -0.001 || pt.y < -0.001 || pt.x > w + 0.001 || pt.y > l + 0.001) {
+          return { error: 'Đỉnh của lỗ đã cắt phải nằm trong khổ tấm gốc.' };
+        }
+      }
+      cuts.push(parsed.ring);
     }
-    return { input: { name, widthMm: w, lengthMm: l, polygon, note: inNote.value.trim() } };
+
+    return {
+      input: buildRemnantInput({
+        name, sheetWidthMm: w, sheetLengthMm: l, cuts, note: inNote.value.trim(),
+      }),
+    };
+  }
+
+  /** Vẽ ô xem trước ngay trong khung nhập, để thợ thấy mình đang khai cái gì. */
+  function renderFormPreview(): void {
+    formPrev.textContent = '';
+    const got = collectInput();
+    if (!got.input) return;
+    const fake: Remnant = {
+      id: 'preview', name: got.input.name || 'tấm mới', status: 'available',
+      widthMm: got.input.widthMm, lengthMm: got.input.lengthMm,
+      sheetWidthMm: got.input.sheetWidthMm ?? got.input.widthMm,
+      sheetLengthMm: got.input.sheetLengthMm ?? got.input.lengthMm,
+      cuts: got.input.cuts ?? [], polygon: got.input.polygon,
+      note: '', createdAt: 0, updatedAt: 0,
+    };
+    const cv = document.createElement('canvas');
+    const width = Math.max(140, formPrev.clientWidth || root.clientWidth - 24 || 280);
+    formPrev.appendChild(cv);
+    try {
+      drawRemnantPreview(cv, fake, { cssWidth: width, cssHeight: previewHeight(fake, width) });
+    } catch {
+      /* canvas hỏng thì thôi, không được làm sập panel */
+    }
   }
 
   async function save(input: RemnantInput): Promise<Remnant> {
@@ -416,7 +524,10 @@ export function mountRemnantPanel(
 
   btnAdd.addEventListener('click', () => {
     form.classList.toggle('on');
-    if (form.classList.contains('on')) inName.focus();
+    if (form.classList.contains('on')) {
+      inName.focus();
+      renderFormPreview();
+    }
   });
   btnCancel.addEventListener('click', () => form.classList.remove('on'));
   btnReload.addEventListener('click', () => {
@@ -428,9 +539,16 @@ export function mountRemnantPanel(
     render();
   });
   inShape.addEventListener('change', () => {
-    rowCorner.style.display = inShape.value === 'corner' ? 'flex' : 'none';
-    rowFree.style.display = inShape.value === 'free' ? 'flex' : 'none';
+    const v = inShape.value;
+    rowRect.style.display = v === 'rect' ? 'flex' : 'none';
+    rowSize.style.display = v === 'rect' || v === 'corner' ? 'flex' : 'none';
+    rowFree.style.display = v === 'free' ? 'flex' : 'none';
+    renderFormPreview();
   });
+  // Gõ tới đâu vẽ lại tới đó — founder "căn ke nhìn trước" rồi mới bấm lưu.
+  for (const inp of [inW, inL, inCx, inCy, inCw, inCh, inPts, inName]) {
+    inp.addEventListener('input', renderFormPreview);
+  }
   btnSave.addEventListener('click', () => {
     const got = collectInput();
     if (got.error || !got.input) {
@@ -471,6 +589,9 @@ export function mountRemnantPanel(
       await refresh();
     },
     save,
+    saveFromSheet(args) {
+      return save(buildRemnantInput(args));
+    },
     onSelectionChange(fn) {
       selectionListener = fn;
       fireSelection();

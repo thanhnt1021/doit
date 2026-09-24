@@ -8,11 +8,22 @@ import type {
 } from '../types';
 import { DEFAULT_GCODE_OPTIONS, DEFAULT_NEST_PARAMS, applyPlacementRing, ringBBox } from '../types';
 import { drawSheet, drawThumb, displayName } from './render';
-import { exportAllSheetsDxfR12, exportSheetDxfR12, sheetFileName as coreSheetFileName } from '../core/dxf-export';
-import { generateGcode } from '../core/gcode';
+import { exportLabels } from './labels';
+import { startMultiNest } from './nest-multi';
+import { MAX_PLANS } from './nest-multi-core';
+import {
+  pickPlan, planAllDxf, planAllFileName, planFileName, planSheetDxf, planSheetGcode,
+  planZipFiles, planZipName,
+} from './download';
+import { cutsFromSheet } from '../remnant/sheetspec';
 
 export interface AppServices {
   parseFile(file: File, opts: ParseOptions, onProgress: (f: number, label: string) => void): Promise<ParseResult>;
+  /**
+   * ⚠ Từ VIỆC 1, màn hình KHÔNG gọi hàm này nữa — nó chỉ trả về MỘT phương án,
+   * mà founder cần lật qua tối đa 5. Đường xếp mới nằm ở src/ui/nest-multi.ts.
+   * Giữ lại trong hợp đồng để src/main.ts (file của thợ khác) vẫn biên dịch được.
+   */
   startNest(parts: Part[], params: NestParams, onProgress: (p: NestProgress) => void): Promise<NestResult>;
   stopNest(): void;
   exportSheetDxf(sheet: SheetLayout, parts: Part[]): string;
@@ -128,6 +139,21 @@ interface RemnantBridge {
     onProgress?: (p: NestProgress) => void,
     shouldStop?: () => boolean
   ): Promise<NestResult>;
+  /** VIỆC 1 — bản nhiều phương án. Có từ bản kho tôn thừa mới. */
+  nestMultiWithSelected?(
+    parts: Part[],
+    onProgress?: (p: NestProgress) => void,
+    shouldStop?: () => boolean,
+    count?: number
+  ): Promise<{ plans: NestResult[] }>;
+  /** VIỆC 3 — lưu một tấm vừa xếp vào kho, giữ nguyên khổ + các lỗ vừa cắt. */
+  saveFromSheet?(args: {
+    name: string;
+    sheetWidthMm: number;
+    sheetLengthMm: number;
+    cuts: import('../types').Ring[];
+    note?: string;
+  }): Promise<{ id: string; name: string }>;
 }
 
 /** Trả API kho tôn thừa nếu module đó đã nạp và đúng hình dạng, không thì null. */
@@ -157,7 +183,12 @@ export function mountApp(root: HTMLElement, services: AppServices): void {
   let names: Record<string, string> = {};
   let nameStore: NameStore = loadNameStore();
   let fileKey = '';
-  let result: NestResult | null = null;
+  /**
+   * VIỆC 1 — tối đa 5 phương án xếp; plans[0] là tốt nhất, mở mặc định ở đó.
+   * MỌI nút tải đều đi qua `planIndex` này (xem src/ui/download.ts).
+   */
+  let plans: NestResult[] = [];
+  let planIndex = 0;
   let running = false;
   /** Người dùng đã bấm DỪNG cho lượt xếp đang chạy chưa (đường tôn thừa hỏi cờ này). */
   let stopRequested = false;
@@ -224,7 +255,7 @@ export function mountApp(root: HTMLElement, services: AppServices): void {
   const inKerf = numField('Bù kerf (mm)', settings.kerf, 0, 0.1, (v) => {
     settings.kerf = v;
     updateNote();
-    renderResult(result);
+    renderCurrent();
   });
   inKerf.title = 'Bề rộng mạch cắt. 0 = không bù (bù bên FastCAM/máy như cũ).';
 
@@ -428,6 +459,20 @@ export function mountApp(root: HTMLElement, services: AppServices): void {
     gN.checked = settings.gcode.lineNumbers;
   }
 
+  // ── VIỆC 1: thanh lật qua lại giữa các phương án ────────────────────────
+  const planbar = el('div', 'planbar hidden');
+  const btnPrevPlan = el('button', 'sm', '◀ Lùi');
+  btnPrevPlan.title = 'Xem phương án trước';
+  const planLabel = el('span', 'plan-lb', '');
+  const btnNextPlan = el('button', 'sm', 'Tiến ▶');
+  btnNextPlan.title = 'Xem phương án sau';
+  const planNote = el('span', 'plan-note', '');
+  planbar.appendChild(btnPrevPlan);
+  planbar.appendChild(planLabel);
+  planbar.appendChild(btnNextPlan);
+  planbar.appendChild(planNote);
+  content.appendChild(planbar);
+
   const summary = el('div', 'summary');
   content.appendChild(summary);
   const sheetsBox = el('div');
@@ -486,9 +531,13 @@ export function mountApp(root: HTMLElement, services: AppServices): void {
     saveNameStore(nameStore);
   }
 
-  /** Tuỳ chọn xuất file: tên tự đặt + bù kerf. */
+  /**
+   * Tuỳ chọn xuất file: tên chi tiết + bù kerf.
+   * VIỆC 4 — tên ghi vào DXF / G-code là tên ĐẦY ĐỦ "P3 · mạn 15" (bộ xuất tự
+   * bỏ dấu), chứ không chỉ phần tên gõ thêm. Mã P không bao giờ mất khỏi file.
+   */
   function exportExtras(): { labels: Record<string, string>; kerf: number } {
-    return { labels: { ...names }, kerf: Math.max(0, settings.kerf) };
+    return { labels: exportLabels(parts, names), kerf: Math.max(0, settings.kerf) };
   }
 
   function renderParts(): void {
@@ -529,7 +578,7 @@ export function mountApp(root: HTMLElement, services: AppServices): void {
         else delete names[p.id];
         persistNames();
         dims.title = `${displayName(p, names)} · dài ${L}mm × bề rộng nhỏ nhất khi xoay ${W}mm`;
-        renderResult(result);
+        renderCurrent();
       };
       nameInp.addEventListener('change', commitName);
       nameInp.addEventListener('blur', commitName);
@@ -581,8 +630,85 @@ export function mountApp(root: HTMLElement, services: AppServices): void {
     return max;
   }
 
+  /** Phương án đang xem. */
+  function currentPlan(): NestResult | null {
+    return pickPlan(plans, planIndex);
+  }
+
+  /**
+   * Nạp danh sách phương án mới và vẽ lại màn hình.
+   * Mặc định mở ở phương án 1 (tốt nhất) — đúng yêu cầu của founder.
+   */
+  function setPlans(list: NestResult[], index = 0): void {
+    plans = list.filter((p) => p && p.sheets.length > 0);
+    planIndex = plans.length ? Math.max(0, Math.min(plans.length - 1, index)) : 0;
+    renderPlanBar();
+    renderCurrent();
+  }
+
+  /** Giữ nguyên tên cũ để các chỗ gọi lẻ vẫn chạy: một kết quả = một phương án. */
   function renderResult(r: NestResult | null): void {
-    result = r;
+    setPlans(r ? [r] : [], 0);
+  }
+
+  function renderPlanBar(): void {
+    if (plans.length === 0) {
+      planbar.classList.add('hidden');
+      return;
+    }
+    planbar.classList.remove('hidden');
+    const cur = currentPlan();
+    planLabel.innerHTML = `Phương án <b>${planIndex + 1}/${plans.length}</b>`
+      + (cur ? ` · <b>${cur.sheets.length} tấm</b> · dùng tôn <b>${fmtPct(cur.utilization)}</b>` : '');
+    btnPrevPlan.disabled = plans.length < 2;
+    btnNextPlan.disabled = plans.length < 2;
+    planNote.textContent = plans.length < 2
+      ? 'Chỉ tìm được 1 phương án — thử tăng "Thời gian tối đa" để có thêm.'
+      : 'File tải về luôn đúng phương án đang xem.';
+  }
+
+  function stepPlan(delta: number): void {
+    if (plans.length < 2) return;
+    // Lật vòng: ở cuối bấm Tiến thì quay về đầu, khỏi cụt tay.
+    planIndex = (planIndex + delta + plans.length) % plans.length;
+    renderPlanBar();
+    renderCurrent();
+  }
+
+  btnPrevPlan.addEventListener('click', () => stepPlan(-1));
+  btnNextPlan.addEventListener('click', () => stepPlan(1));
+
+  /**
+   * VIỆC 3 — lưu tấm đang xem vào kho tôn thừa: giữ NGUYÊN KHỔ tấm và ghi lại
+   * đúng các lỗ vừa cắt, để lần sau biết miếng thừa nằm ở góc nào.
+   */
+  async function saveSheetAsRemnant(sheet: SheetLayout): Promise<void> {
+    const bridge = remnantBridge();
+    if (!bridge || typeof bridge.saveFromSheet !== 'function') {
+      showError('Panel kho tôn thừa chưa sẵn sàng — hãy tải lại trang rồi thử lại.');
+      return;
+    }
+    const base = (lastFile?.name || 'lô').replace(/\.dxf$/i, '');
+    const def = `thừa ${base} · tấm ${sheet.index + 1}`;
+    const typed = window.prompt('Tên tấm thừa muốn lưu vào kho:', def);
+    if (typed === null) return;
+    try {
+      const cuts = cutsFromSheet(sheet, partsById());
+      await bridge.saveFromSheet({
+        name: typed.trim() || def,
+        sheetWidthMm: sheet.width,
+        sheetLengthMm: sheet.height,
+        cuts,
+        note: `lưu từ phương án ${planIndex + 1}, ${cuts.length} chi tiết đã cắt`,
+      });
+      clearError();
+    } catch (e) {
+      showError(e instanceof Error ? e.message : 'Không lưu được tấm thừa.');
+    }
+  }
+
+  function renderCurrent(): void {
+    const r = currentPlan();
     sheetsBox.innerHTML = '';
     if (!r || r.sheets.length === 0) {
       summary.textContent = '';
@@ -599,7 +725,7 @@ export function mountApp(root: HTMLElement, services: AppServices): void {
       (r.unplaced.length ? ` · <span style="color:#c0392b">chưa xếp được: ${r.unplaced.join(', ')}</span>` : '');
 
     const boxW = Math.max(320, content.clientWidth - 40);
-    for (const sheet of r.sheets) {
+    r.sheets.forEach((sheet, sheetIdx) => {
       const card = el('div', 'sheet');
       const head = el('header');
       // Tấm lấy từ kho tôn thừa mang thêm source/remnantName (src/remnant/plan.ts).
@@ -615,47 +741,54 @@ export function mountApp(root: HTMLElement, services: AppServices): void {
         `${sheet.placements.length} chi tiết · đã dùng ${Math.round(usedLength(sheet))}mm chiều dài · còn thừa ${Math.max(0, Math.round(sheet.height - usedLength(sheet)))}mm`));
       const bDxf = el('button', 'sm', 'Tải DXF tấm này');
       bDxf.addEventListener('click', () => {
-        services.downloadText(coreSheetFileName(sheet, 'dxf'), exportSheetDxfR12(sheet, partsById(), exportExtras()));
+        // Đi qua download.ts để CHẮC CHẮN lấy đúng phương án đang xem.
+        services.downloadText(
+          planFileName(planIndex, sheet, 'dxf'),
+          planSheetDxf(plans, planIndex, sheetIdx, partsById(), exportExtras())
+        );
       });
       const bNc = el('button', 'sm', 'Tải G-code tấm này');
       bNc.addEventListener('click', () => {
         services.downloadText(
-          coreSheetFileName(sheet, settings.gcode.extension),
-          generateGcode(sheet, partsById(), settings.gcode, exportExtras())
+          planFileName(planIndex, sheet, settings.gcode.extension),
+          planSheetGcode(plans, planIndex, sheetIdx, partsById(), settings.gcode, exportExtras())
         );
       });
+      const bKeep = el('button', 'sm', '+ Lưu tấm thừa');
+      bKeep.title = 'Lưu tấm này vào kho tôn thừa — giữ nguyên khổ, kèm các lỗ vừa cắt';
+      bKeep.addEventListener('click', () => void saveSheetAsRemnant(sheet));
       head.appendChild(bDxf);
       head.appendChild(bNc);
+      head.appendChild(bKeep);
       card.appendChild(head);
       const cv = el('canvas');
       card.appendChild(cv);
       sheetsBox.appendChild(card);
       const h = Math.max(70, Math.round((boxW - 20) * sheet.width / sheet.height) + 16);
       drawSheet(cv, sheet, parts, { cssWidth: boxW - 20, cssHeight: h, labels: names });
-    }
+    });
   }
 
   btnZipDxf.addEventListener('click', () => {
-    if (!result) return;
-    const extras = exportExtras();
-    const map = partsById();
-    void services.downloadZip('xep-phoi-dxf.zip', result.sheets.map((s) => ({
-      name: coreSheetFileName(s, 'dxf'),
-      content: exportSheetDxfR12(s, map, extras),
-    })));
+    if (!currentPlan()) return;
+    void services.downloadZip(
+      planZipName(planIndex, 'dxf'),
+      planZipFiles(plans, planIndex, partsById(), 'dxf', settings.gcode, exportExtras())
+    );
   });
   btnOneDxf.addEventListener('click', () => {
-    if (!result) return;
-    services.downloadText('tat-ca-tam.dxf', exportAllSheetsDxfR12(result.sheets, partsById(), exportExtras()));
+    if (!currentPlan()) return;
+    services.downloadText(
+      planAllFileName(planIndex),
+      planAllDxf(plans, planIndex, partsById(), exportExtras())
+    );
   });
   btnZipNc.addEventListener('click', () => {
-    if (!result) return;
-    const extras = exportExtras();
-    const map = partsById();
-    void services.downloadZip('xep-phoi-gcode.zip', result.sheets.map((s) => ({
-      name: coreSheetFileName(s, settings.gcode.extension),
-      content: generateGcode(s, map, settings.gcode, extras),
-    })));
+    if (!currentPlan()) return;
+    void services.downloadZip(
+      planZipName(planIndex, 'gcode'),
+      planZipFiles(plans, planIndex, partsById(), 'gcode', settings.gcode, exportExtras())
+    );
   });
 
   async function loadFile(file: File): Promise<void> {
@@ -739,15 +872,30 @@ export function mountApp(root: HTMLElement, services: AppServices): void {
       // trước, hết chỗ mới mở tấm mới). Không tích → chạy y như cũ.
       const bridge = remnantBridge();
       const chosenRemnants = bridge ? bridge.getSelected() : [];
-      const r = chosenRemnants.length > 0 && bridge
-        ? await (() => {
-          runInfo.textContent = `Đang nhét vào ${chosenRemnants.length} tấm thừa đã chọn…`;
-          return bridge.nestWithSelected(parts, onProgress, () => stopRequested);
-        })()
-        : await services.startNest(parts, currentParams(), onProgress);
-      renderResult(r);
+      let list: NestResult[];
+      if (chosenRemnants.length > 0 && bridge && typeof bridge.nestMultiWithSelected === 'function') {
+        runInfo.textContent = `Đang nhét vào ${chosenRemnants.length} tấm thừa đã chọn…`;
+        const out = await bridge.nestMultiWithSelected(parts, onProgress, () => stopRequested, MAX_PLANS);
+        list = out.plans;
+      } else if (chosenRemnants.length > 0 && bridge) {
+        // Bản kho tôn thừa cũ chỉ trả một phương án — vẫn chạy được.
+        runInfo.textContent = `Đang nhét vào ${chosenRemnants.length} tấm thừa đã chọn…`;
+        list = [await bridge.nestWithSelected(parts, onProgress, () => stopRequested)];
+      } else {
+        const out = await startMultiNest(parts, currentParams(), {
+          count: MAX_PLANS,
+          onProgress,
+          shouldStop: () => stopRequested,
+        });
+        list = out.plans;
+      }
+      // Mặc định mở ở phương án 1 (tốt nhất).
+      setPlans(list, 0);
       barFill.style.width = '100%';
-      runInfo.textContent = `Xong sau ${Math.round((Date.now() - t0) / 1000)}s · ${r.iterations} phương án`;
+      const cur = currentPlan();
+      runInfo.textContent = `Xong sau ${Math.round((Date.now() - t0) / 1000)}s · `
+        + `${plans.length} phương án để chọn`
+        + (cur ? ` · tốt nhất ${cur.sheets.length} tấm (${fmtPct(cur.utilization)})` : '');
     } catch (e) {
       showError(e instanceof Error ? e.message : 'Lỗi khi xếp.');
     } finally {
@@ -767,7 +915,7 @@ export function mountApp(root: HTMLElement, services: AppServices): void {
   let resizeTimer = 0;
   window.addEventListener('resize', () => {
     window.clearTimeout(resizeTimer);
-    resizeTimer = window.setTimeout(() => renderResult(result), 150);
+    resizeTimer = window.setTimeout(() => renderCurrent(), 150);
   });
 
   readNestOptions = () => ({

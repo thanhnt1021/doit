@@ -8,11 +8,15 @@
  */
 import type { Part, ParseOptions, ParseResult, ParseStats, Point, Ring } from '../types';
 import { signedArea, ringBBox } from '../types';
+import './part'; // mở rộng kiểu Part: thêm dxfLabel
+import { assignLabels, cleanMText, type DxfText } from './dxf-label';
 import {
   convexHull,
   fitsInSheet,
   minAreaRect,
   orient,
+  pointInRing,
+  pointSegDistance,
   ringInsideRing,
   translateRing,
 } from './geometry';
@@ -144,7 +148,8 @@ const IGNORED = new Set([
 function readEntities(
   text: string,
   scale: number,
-  counts: Record<string, number>
+  counts: Record<string, number>,
+  texts: DxfText[]
 ): RawShape[] {
   const sc = new DxfScanner(text);
   const shapes: RawShape[] = [];
@@ -248,6 +253,26 @@ function readEntities(
     }
 
     counts[t] = (counts[t] || 0) + 1;
+    if (t === 'TEXT' || t === 'MTEXT') {
+      // TEXT/MTEXT vẫn KHÔNG tạo ra hình, nhưng giữ lại toạ độ + nội dung để
+      // đọc tên mã phôi (xem dxf-label.ts).
+      const chunks: string[] = [];
+      for (const q of ps) if (q.code === 3) chunks.push(q.value);
+      for (const q of ps) if (q.code === 1) chunks.push(q.value);
+      const body = cleanMText(chunks.join(''));
+      if (body) {
+        // TEXT căn lề (mã 72/73 khác 0) thì điểm đặt thật nằm ở 11/21.
+        const aligned = t === 'TEXT' && (int(ps, 72, 0) !== 0 || int(ps, 73, 0) !== 0);
+        const hasAlt = ps.some((q) => q.code === 11);
+        const useAlt = aligned && hasAlt;
+        texts.push({
+          x: num(ps, useAlt ? 11 : 10) * scale,
+          y: num(ps, useAlt ? 21 : 20) * scale,
+          h: num(ps, 40, 0) * scale,
+          text: body,
+        });
+      }
+    }
     if (IGNORED.has(t)) return;
 
     if (t === 'LWPOLYLINE') {
@@ -433,9 +458,10 @@ export function parseDxf(text: string, opts: ParseOptions = {}): ParseResult {
   const sheetH = opts.sheetHeight ?? 6000;
   const warnings: string[] = [];
   const counts: Record<string, number> = {};
+  const texts: DxfText[] = [];
 
   opts.onProgress?.(0.05, 'Đang đọc file DXF…');
-  const shapes = readEntities(text, scale, counts);
+  const shapes = readEntities(text, scale, counts, texts);
   opts.onProgress?.(0.45, 'Đang lọc các đường khép kín…');
 
   // tách kín / hở
@@ -492,6 +518,9 @@ export function parseDxf(text: string, opts: ParseOptions = {}): ParseResult {
 
   opts.onProgress?.(0.8, 'Đang tính kích thước chi tiết…');
 
+  // Tên mã phôi đọc từ chữ — gán theo TOẠ ĐỘ GỐC (trước khi dịch chi tiết về 0,0).
+  const labels = assignLabels(texts, outerIdx.map((oi) => rings[oi]));
+
   const parts: Part[] = [];
   let tooBig = 0;
   for (let k = 0; k < outerIdx.length; k++) {
@@ -525,6 +554,7 @@ export function parseDxf(text: string, opts: ParseOptions = {}): ParseResult {
       qty: 1,
       enabled: fits,
       fitsSheet: fits,
+      dxfLabel: labels[k] ?? '',
     });
   }
 

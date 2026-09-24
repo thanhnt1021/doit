@@ -10,6 +10,7 @@
  */
 import type { Remnant, RemnantInput, RemnantPatch, RemnantStatus } from './types';
 import { validateRemnantInput } from './validate';
+import { normalizeRemnant, normalizeMany } from './normalize';
 
 export const CACHE_KEY = 'catphoi.remnants.cache.v1';
 export const QUEUE_KEY = 'catphoi.remnants.queue.v1';
@@ -121,7 +122,9 @@ export function createRemnantStore(deps: StoreDeps = {}): RemnantStore {
       }
     });
 
-  const getCache = () => readJson<Remnant[]>(st, CACHE_KEY, []);
+  // Bản chép trong máy có thể còn dữ liệu KIỂU CŨ (mảnh thừa rời, chưa có khổ
+  // tấm gốc) — chuẩn hoá ngay lúc đọc để phần còn lại của app chỉ thấy một kiểu.
+  const getCache = () => normalizeMany(readJson<unknown[]>(st, CACHE_KEY, []));
   const setCache = (v: Remnant[]) => writeJson(st, CACHE_KEY, v);
   const getQueue = () => readJson<QueuedOp[]>(st, QUEUE_KEY, []);
   const setQueue = (v: QueuedOp[]) => writeJson(st, QUEUE_KEY, v);
@@ -169,7 +172,7 @@ export function createRemnantStore(deps: StoreDeps = {}): RemnantStore {
   async function list(status: RemnantStatus | 'all' = 'available'): Promise<ListOutcome> {
     try {
       const data = await call<{ remnants: Remnant[] }>(`?status=${encodeURIComponent(status)}`);
-      const server = data.remnants.map((r) => ({ ...r, pending: false }));
+      const server = normalizeMany(data.remnants).map((r) => ({ ...r, pending: false }));
       // Giữ lại các tấm mới thêm lúc mất mạng, chúng chưa có trên máy chủ.
       const queuedAdds = getQueue().filter((o): o is Extract<QueuedOp, { kind: 'add' }> => o.kind === 'add');
       const localIds = new Set(queuedAdds.map((o) => o.localId));
@@ -197,6 +200,11 @@ export function createRemnantStore(deps: StoreDeps = {}): RemnantStore {
       name: input.name.trim(),
       widthMm: input.widthMm,
       lengthMm: input.lengthMm,
+      // VIỆC 3: gửi kèm khổ tấm gốc + các lỗ đã cắt. Máy chủ bản cũ bỏ qua 3
+      // trường này mà vẫn lưu được nhờ `polygon`, nên không sợ lệch bản.
+      sheetWidthMm: input.sheetWidthMm ?? input.widthMm,
+      sheetLengthMm: input.sheetLengthMm ?? input.lengthMm,
+      cuts: input.cuts ?? input.polygon.slice(1),
       polygon: input.polygon,
       note: (input.note || '').trim(),
     };
@@ -205,22 +213,14 @@ export function createRemnantStore(deps: StoreDeps = {}): RemnantStore {
         method: 'POST',
         body: JSON.stringify(clean),
       });
-      const r = { ...data.remnant, pending: false };
+      const r = { ...normalizeRemnant(data.remnant), pending: false };
       setCache([r, ...getCache().filter((x) => x.id !== r.id)]);
       return { value: r, offline: false, queued: getQueue().length };
     } catch (e) {
       if (!isOffline(e)) throw e;
       const t = now();
       const local: Remnant = {
-        id: `local-${uuid()}`,
-        name: clean.name,
-        widthMm: clean.widthMm,
-        lengthMm: clean.lengthMm,
-        polygon: clean.polygon,
-        note: clean.note || '',
-        status: 'available',
-        createdAt: t,
-        updatedAt: t,
+        ...normalizeRemnant({ ...clean, id: `local-${uuid()}`, createdAt: t, updatedAt: t }),
         pending: true,
       };
       setCache([local, ...getCache()]);
@@ -271,7 +271,7 @@ export function createRemnantStore(deps: StoreDeps = {}): RemnantStore {
         method: 'PATCH',
         body: JSON.stringify(body),
       });
-      const r = { ...data.remnant, pending: false };
+      const r = { ...normalizeRemnant(data.remnant), pending: false };
       const cache = getCache();
       const i = cache.findIndex((x) => x.id === id);
       if (i >= 0) cache[i] = r; else cache.unshift(r);
@@ -329,7 +329,7 @@ export function createRemnantStore(deps: StoreDeps = {}): RemnantStore {
             method: 'POST',
             body: JSON.stringify(op.input),
           });
-          const real = { ...data.remnant, pending: false };
+          const real = { ...normalizeRemnant(data.remnant), pending: false };
           // Đổi mã tạm thành mã thật ở cả bản chép lẫn các việc còn lại trong hàng chờ.
           setCache(getCache().map((r) => (r.id === op.localId ? real : r)));
           for (const o of q) {

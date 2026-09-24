@@ -4,7 +4,7 @@
  */
 import {
   json, fail, preflight, noDb, readJsonBody,
-  checkName, checkNote, checkDim, checkPolygon, checkStatus,
+  checkName, checkNote, checkDim, checkPolygon, checkStatus, checkCuts,
   rowToRemnant, SELECT_COLS,
 } from './_lib.js';
 
@@ -65,6 +65,22 @@ export async function onRequestPost({ request, env }) {
   const note = checkNote(b.note);
   if (note.error) return fail(note.error);
 
+  // ── VIỆC 3: khổ tấm gốc + các lỗ đã cắt ─────────────────────────────────
+  // Client cũ không gửi 3 trường này → hiểu khổ tấm gốc chính là khung bao đã
+  // gửi, lỗ lấy từ polygon[1..]. Không bịa 2000×6000 cho dữ liệu không nói rõ.
+  const sheetW = b.sheetWidthMm === undefined
+    ? { value: width.value }
+    : checkDim(b.sheetWidthMm, 'Khổ tấm gốc (rộng)');
+  if (sheetW.error) return fail(sheetW.error);
+
+  const sheetH = b.sheetLengthMm === undefined
+    ? { value: length.value }
+    : checkDim(b.sheetLengthMm, 'Khổ tấm gốc (dài)');
+  if (sheetH.error) return fail(sheetH.error);
+
+  const cuts = checkCuts(b.cuts === undefined ? poly.value.slice(1) : b.cuts);
+  if (cuts.error) return fail(cuts.error);
+
   // Id do máy chủ sinh — không cho client tự đặt để khỏi giẫm lên nhau.
   const id = crypto.randomUUID();
   const now = Date.now();
@@ -73,10 +89,14 @@ export async function onRequestPost({ request, env }) {
     await env.DB
       .prepare(
         `INSERT INTO remnants
-           (id, name, width_mm, length_mm, polygon, note, status, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'available', ?7, ?7)`
+           (id, name, width_mm, length_mm, sheet_w_mm, sheet_h_mm, cuts, polygon, note, status, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'available', ?10, ?10)`
       )
-      .bind(id, name.value, width.value, length.value, JSON.stringify(poly.value), note.value, now)
+      .bind(
+        id, name.value, width.value, length.value,
+        sheetW.value, sheetH.value, JSON.stringify(cuts.value),
+        JSON.stringify(poly.value), note.value, now
+      )
       .run();
   } catch (e) {
     return fail(`Không lưu được tấm thừa: ${e.message}`, 500);
@@ -89,6 +109,9 @@ export async function onRequestPost({ request, env }) {
       name: name.value,
       widthMm: width.value,
       lengthMm: length.value,
+      sheetWidthMm: sheetW.value,
+      sheetLengthMm: sheetH.value,
+      cuts: cuts.value,
       polygon: poly.value,
       note: note.value,
       status: 'available',

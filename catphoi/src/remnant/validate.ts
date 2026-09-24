@@ -33,6 +33,16 @@ export function validateRemnantInput(input: Partial<RemnantInput>): string | nul
   const eL = dim(input.lengthMm, 'Chiều dài tấm thừa');
   if (eL) return eL;
 
+  // VIỆC 3: khổ tấm gốc (nếu có gửi) cũng phải là số dương hợp lệ.
+  if (input.sheetWidthMm !== undefined) {
+    const e = dim(input.sheetWidthMm, 'Khổ tấm gốc (rộng)');
+    if (e) return e;
+  }
+  if (input.sheetLengthMm !== undefined) {
+    const e = dim(input.sheetLengthMm, 'Khổ tấm gốc (dài)');
+    if (e) return e;
+  }
+
   const poly = input.polygon;
   if (!Array.isArray(poly) || poly.length === 0) return 'Thiếu hình dạng tấm thừa (đa giác).';
   if (poly.length > MAX_RINGS) return `Hình tấm thừa có quá ${MAX_RINGS} vòng.`;
@@ -52,6 +62,28 @@ export function validateRemnantInput(input: Partial<RemnantInput>): string | nul
       }
       if (Math.abs(p.x) > MAX_DIM_MM || Math.abs(p.y) > MAX_DIM_MM) {
         return `Toạ độ đỉnh vượt quá ${MAX_DIM_MM} mm.`;
+      }
+    }
+  }
+
+  // Các lỗ đã cắt: cùng luật với đa giác, vì chúng cũng là vòng kín.
+  if (input.cuts !== undefined && input.cuts !== null) {
+    if (!Array.isArray(input.cuts)) return 'Danh sách lỗ đã cắt phải là một mảng.';
+    if (input.cuts.length > MAX_RINGS) return `Tấm thừa có quá ${MAX_RINGS} lỗ đã cắt.`;
+    let cutPts = 0;
+    for (const ring of input.cuts) {
+      if (!Array.isArray(ring) || ring.length < MIN_RING_POINTS) {
+        return `Mỗi lỗ đã cắt cần ít nhất ${MIN_RING_POINTS} đỉnh.`;
+      }
+      cutPts += ring.length;
+      if (cutPts > MAX_POINTS_TOTAL) {
+        return `Các lỗ đã cắt có quá ${MAX_POINTS_TOTAL} đỉnh, hãy đơn giản hoá bớt.`;
+      }
+      for (const p of ring) {
+        if (!p || typeof p.x !== 'number' || typeof p.y !== 'number'
+          || !Number.isFinite(p.x) || !Number.isFinite(p.y)) {
+          return 'Đỉnh của lỗ đã cắt phải có toạ độ x, y là số.';
+        }
       }
     }
   }

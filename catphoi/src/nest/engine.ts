@@ -36,6 +36,19 @@ import type {
 import { DEFAULT_NEST_PARAMS, applyPlacementRing, ringBBox } from '../types';
 import { pointInRing, segSegDistance, segSegIntersect } from '../core/geometry';
 import { rasterizeRing, transformRing, type BaseBitmap } from './raster';
+// Chỉ import KIỂU nên không sinh vòng import lúc chạy (index.ts import engine.ts).
+import type { NestSheetSpec } from './index';
+
+/**
+ * Tấm trong kết quả engine. Bằng SheetLayout cũ cộng thêm hai thông tin của
+ * việc "xếp lên tôn thừa": tấm này là tấm khai thứ mấy, và nó có vùng cấm nào.
+ */
+export interface EngineSheet extends SheetLayout {
+  /** Chỉ số trong danh sách tấm được khai. −1 = tấm mới nguyên khổ do engine tự mở. */
+  specIndex: number;
+  /** Vùng cấm (đa giác, toạ độ theo tấm) — chỗ đã bị cắt mất ở lần trước. */
+  blocked?: Ring[];
+}
 
 export interface NestCallbacks {
   onProgress?: (p: NestProgress) => void;
@@ -89,6 +102,17 @@ interface Inst {
 interface SheetGrid {
   bits: Uint32Array;
   words: number;
+  /** Nester (kích thước lưới) của chính tấm này — mỗi khổ tấm một Nester riêng. */
+  nester: Nester;
+  /** Khổ tấm, mm. */
+  w: number;
+  h: number;
+  /** Tấm khai thứ mấy (−1 = tấm mới nguyên khổ). */
+  specIndex: number;
+  /** Hàng ô cao nhất bị VÙNG CẤM chiếm + 1 (0 nếu không có vùng cấm). */
+  blockTop: number;
+  /** Vùng cấm của tấm này, giữ lại để trả ra ngoài + để bảng kiểm dùng. */
+  blocked?: Ring[];
   /** Bit cao nhất đang bị chiếm của từng hàng (−1 nếu hàng trống). */
   rowMax: Int32Array;
   /** Hàng cao nhất đang bị chiếm của từng cột (−1 nếu cột trống). */
@@ -121,7 +145,21 @@ export interface Spot {
   key: number;
 }
 
+/** Lưới vùng cấm dựng sẵn cho một khổ tấm — copy ra mỗi khi mở tấm mới. */
+export interface BlockTemplate {
+  bits: Uint32Array;
+  rowMax: Int32Array;
+  colTop: Int32Array;
+  rowLo: number;
+  rowHi: number;
+  /** Hàng cao nhất bị chiếm + 1. */
+  blockTop: number;
+  /** Số ô bị vùng cấm chiếm. */
+  cells: number;
+}
+
 export class Nester {
+  readonly params: NestParams;
   readonly cell: number;
   readonly dil: number;
   readonly rx0: number;
@@ -139,13 +177,20 @@ export class Nester {
   private candPy = new Int32Array(TOP_K);
   private candKey = new Float64Array(TOP_K);
 
-  constructor(readonly params: NestParams) {
+  /** Khổ tấm mà Nester này phục vụ (mm). Mặc định lấy từ params. */
+  readonly sheetW: number;
+  readonly sheetH: number;
+
+  constructor(params: NestParams, sheetW?: number, sheetH?: number) {
+    this.params = params;
+    this.sheetW = sheetW ?? params.sheetW;
+    this.sheetH = sheetH ?? params.sheetH;
     this.cell = params.gridCell ?? 5;
     this.dil = Math.max(0, Math.ceil(params.gap / 2 / this.cell));
     this.rx0 = params.margin - this.dil * this.cell;
     this.ry0 = params.margin - this.dil * this.cell;
-    const rw = params.sheetW - 2 * params.margin + 2 * this.dil * this.cell;
-    const rh = params.sheetH - 2 * params.margin + 2 * this.dil * this.cell;
+    const rw = this.sheetW - 2 * params.margin + 2 * this.dil * this.cell;
+    const rh = this.sheetH - 2 * params.margin + 2 * this.dil * this.cell;
     this.gw = Math.max(1, Math.floor(rw / this.cell));
     this.gh = Math.max(1, Math.floor(rh / this.cell));
     this.sheetWords = ((this.gw + 31) >> 5) + 2;
@@ -154,15 +199,74 @@ export class Nester {
     this.yStride = Math.max(1, Math.round(15 / this.cell));
   }
 
-  newSheet(): SheetGrid {
+  /**
+   * Dựng SẴN lưới của các VÙNG CẤM cho một khổ tấm thừa.
+   *
+   * Vì sao dựng sẵn rồi copy: mỗi lần đánh giá một phương án là một lần tạo
+   * tấm mới, engine chạy hàng trăm phương án — raster hoá lại vùng cấm mỗi lần
+   * thì tốn hàng giây. Dựng một lần rồi `.slice()` mảng (memcpy) là rẻ nhất.
+   *
+   * Vùng cấm được NỞ đúng `dil` ô giống hệt chi tiết, nên hai bitmap đã nở mà
+   * không chồng nhau thì khoảng cách THẬT từ chi tiết tới vùng cấm ≥ khe —
+   * cùng một bảo đảm toán học với ràng buộc khe giữa hai chi tiết.
+   */
+  buildBlockTemplate(blocked: Ring[] | undefined): BlockTemplate | null {
+    if (!blocked || blocked.length === 0) return null;
+    const bits = new Uint32Array(this.sheetWords * this.gh);
+    const rowMax = new Int32Array(this.gh).fill(-1);
+    const colTop = new Int32Array(this.gw).fill(-1);
+    let rowLo = -1;
+    let rowHi = -1;
+    let cells = 0;
+    for (const ring of blocked) {
+      if (!ring || ring.length < 3) continue;
+      const bm = rasterizeRing(ring, this.cell, this.dil);
+      const px0 = Math.round((bm.originX - this.rx0) / this.cell);
+      const py0 = Math.round((bm.originY - this.ry0) / this.cell);
+      for (let r = 0; r < bm.h; r++) {
+        const row = py0 + r;
+        if (row < 0 || row >= this.gh) continue;
+        const lo = bm.rowLowBit[r];
+        if (lo < 0) continue;
+        const hi = bm.rowHighBit[r];
+        const src = r * bm.words;
+        const dst = row * this.sheetWords;
+        for (let b = lo; b <= hi; b++) {
+          if ((bm.bits[src + (b >> 5)] & (1 << (b & 31))) === 0) continue;
+          const col = px0 + b;
+          if (col < 0 || col >= this.gw) continue;
+          const wi = dst + (col >> 5);
+          const mask = 1 << (col & 31);
+          if ((bits[wi] & mask) !== 0) continue;
+          bits[wi] |= mask;
+          cells++;
+          if (col > rowMax[row]) rowMax[row] = col;
+          if (row > colTop[col]) colTop[col] = row;
+          if (rowLo < 0) rowLo = row;
+          if (row > rowHi) rowHi = row;
+        }
+      }
+    }
+    if (cells === 0) return null;
+    return { bits, rowMax, colTop, rowLo, rowHi, blockTop: rowHi + 1, cells };
+  }
+
+  newSheet(opts?: { tpl?: BlockTemplate | null; specIndex?: number; blocked?: Ring[] }): SheetGrid {
+    const tpl = opts?.tpl ?? null;
     return {
-      bits: new Uint32Array(this.sheetWords * this.gh),
+      bits: tpl ? tpl.bits.slice() : new Uint32Array(this.sheetWords * this.gh),
       words: this.sheetWords,
-      rowMax: new Int32Array(this.gh).fill(-1),
-      colTop: new Int32Array(this.gw).fill(-1),
+      nester: this,
+      w: this.sheetW,
+      h: this.sheetH,
+      specIndex: opts?.specIndex ?? -1,
+      blockTop: tpl ? tpl.blockTop : 0,
+      blocked: opts?.blocked,
+      rowMax: tpl ? tpl.rowMax.slice() : new Int32Array(this.gh).fill(-1),
+      colTop: tpl ? tpl.colTop.slice() : new Int32Array(this.gw).fill(-1),
       maxRow: 0,
-      rowLo: -1,
-      rowHi: -1,
+      rowLo: tpl ? tpl.rowLo : -1,
+      rowHi: tpl ? tpl.rowHi : -1,
       placements: [],
       usedArea: 0,
     };
@@ -482,7 +586,9 @@ export class Nester {
     // cao hơn mức đó chi tiết luôn dừng ở px = 0, trùng ứng viên bộ sinh A đã cho.
     // Với tấm rất dài thì lấy mẫu thưa rồi để phép trượt–rơi tinh chỉnh lại.
     if (!empty) {
-      const limitPy = Math.min(maxPy, sh.maxRow);
+      // Trên tấm thừa, phần bị chiếm cao nhất có thể là VÙNG CẤM chứ không phải
+      // chi tiết đã xếp, nên mốc quét phải lấy cả blockTop.
+      const limitPy = Math.min(maxPy, Math.max(sh.maxRow, sh.blockTop));
       const stepY = limitPy > 256 ? Math.ceil(limitPy / 256) : 1;
       for (let py = 0; py <= limitPy; py += stepY) {
         const px = this.dropX(sh, bm, py);
@@ -635,7 +741,7 @@ interface Genome {
 interface Evaluated {
   genome: Genome;
   cost: number;
-  sheets: SheetLayout[];
+  sheets: EngineSheet[];
   unplaced: string[];
   placedArea: number;
   /** Số tấm thật sự dùng. */
@@ -648,14 +754,75 @@ interface Evaluated {
   sheetOf: Int32Array;
 }
 
+/**
+ * Một phương án đã được chấm điểm, ở dạng NHẸ (không giữ lưới bit) để engine
+ * có thể lưu hàng trăm cái mà không phình bộ nhớ. `nestMulti` dùng kho này để
+ * chọn ra 5 phương án khác nhau rõ rệt.
+ */
+export interface CandidateSnapshot {
+  cost: number;
+  nSheets: number;
+  sheets: EngineSheet[];
+  unplaced: string[];
+  placedArea: number;
+  /** Tổng diện tích tôn của các tấm đã dùng, mm². */
+  totalArea: number;
+  /** instance thứ i nằm ở tấm nào (−1 = không xếp được). */
+  assign: Int32Array;
+  /** Chiều dài tôn đã dùng của từng tấm, mm. */
+  topY: number[];
+}
+
+export interface RunOptions {
+  /** Danh sách tấm được khai (kèm vùng cấm). Rỗng = luôn dùng tấm nguyên khổ. */
+  specs?: NestSheetSpec[];
+  /** Gọi mỗi khi engine chấm xong một phương án. */
+  onCandidate?: (snap: CandidateSnapshot) => void;
+}
+
+/** Giữ nguyên chữ ký cũ — mọi code đang gọi `nest()` không phải đổi gì. */
 export function nest(input: NestInput, cb: NestCallbacks = {}): NestResult {
+  return runNest(input, cb, {}).result;
+}
+
+export function runNest(
+  input: NestInput, cb: NestCallbacks = {}, opts: RunOptions = {}
+): { result: NestResult; best: CandidateSnapshot } {
   const params: NestParams = { ...DEFAULT_NEST_PARAMS, ...input.params };
   const now = cb.now ?? Date.now;
   const t0 = now();
   const deadline = t0 + Math.max(200, params.timeLimitMs);
   const rng = mulberry32(params.seed ?? 12345);
 
-  const nester = new Nester(params);
+  // MỖI KHỔ TẤM MỘT NESTER. Lưới ô (gw × gh) phụ thuộc khổ tấm, mà tấm thừa
+  // được khai có thể khác khổ tấm mới, nên không dùng chung một Nester được.
+  // Cache theo khổ để các tấm cùng khổ dùng chung bộ nhớ đệm bitmap.
+  const specs: NestSheetSpec[] = (opts.specs ?? []).filter((sp) => sp && sp.w > 0 && sp.h > 0);
+  const nesterCache = new Map<string, Nester>();
+  const nesterFor = (w: number, h: number): Nester => {
+    const k = `${w}|${h}`;
+    let n = nesterCache.get(k);
+    if (!n) {
+      n = new Nester(params, w, h);
+      nesterCache.set(k, n);
+    }
+    return n;
+  };
+  const defaultNester = nesterFor(params.sheetW, params.sheetH);
+  const specNester = specs.map((sp) => nesterFor(sp.w, sp.h));
+  const specTpl = specs.map((sp, i) => specNester[i].buildBlockTemplate(sp.blocked));
+  // Bộ góc hợp lệ phải tính theo khổ tấm TO NHẤT, nếu không một chi tiết chỉ
+  // vừa tấm nguyên khổ sẽ bị loại oan vì tấm thừa đầu danh sách quá nhỏ.
+  const nester = nesterFor(
+    Math.max(params.sheetW, ...specs.map((sp) => sp.w)),
+    Math.max(params.sheetH, ...specs.map((sp) => sp.h))
+  );
+  /** Mở tấm thứ k: theo đúng thứ tự khai, hết danh sách thì tấm mới nguyên khổ. */
+  const makeSheet = (k: number): SheetGrid =>
+    k < specs.length
+      ? specNester[k].newSheet({ tpl: specTpl[k], specIndex: k, blocked: specs[k].blocked })
+      : defaultNester.newSheet();
+
   const angStep = Math.max(1, params.rotationStep || 5);
   const nSteps = Math.max(1, Math.round(360 / angStep));
 
@@ -695,8 +862,14 @@ export function nest(input: NestInput, cb: NestCallbacks = {}): NestResult {
   const nInst = insts.length;
   if (nInst === 0) {
     return {
-      sheets: [], unplaced: unplacedFixed, utilization: 0,
-      elapsedMs: now() - t0, iterations: 0, params,
+      result: {
+        sheets: [], unplaced: unplacedFixed, utilization: 0,
+        elapsedMs: now() - t0, iterations: 0, params,
+      },
+      best: {
+        cost: 0, nSheets: 0, sheets: [], unplaced: unplacedFixed, placedArea: 0,
+        totalArea: 0, assign: new Int32Array(0), topY: [],
+      },
     };
   }
 
@@ -738,7 +911,7 @@ export function nest(input: NestInput, cb: NestCallbacks = {}): NestResult {
 
   const abort = (): boolean => now() > workDeadline || cb.shouldStop?.() === true;
   const evaluate = (g: Genome, exact = false): Evaluated => {
-    const sheets: SheetGrid[] = [nester.newSheet()];
+    const sheets: SheetGrid[] = [makeSheet(0)];
     const sheetOf = new Int32Array(nInst).fill(-1);
     const unplaced: string[] = [];
     let placedArea = 0;
@@ -751,16 +924,28 @@ export function nest(input: NestInput, cb: NestCallbacks = {}): NestResult {
       const cands = angleCandsOf(prep, g.angleIdx[ii], prevDeg, exact ? ANGLE_TRIES_EXACT : ANGLE_TRIES);
       let ok = -1;
       for (let s = 0; s < sheets.length; s++) {
-        if (nester.place(sheets[s], prep, inst, cands, g.rule, exact, abort)) {
+        if (sheets[s].nester.place(sheets[s], prep, inst, cands, g.rule, exact, abort)) {
           ok = s;
           break;
         }
       }
       if (ok < 0) {
-        const sh = nester.newSheet();
-        if (nester.place(sh, prep, inst, cands, g.rule, exact, abort)) {
+        // Mở tấm tiếp theo theo đúng THỨ TỰ KHAI. Nếu tấm khai kế tiếp cũng
+        // không chứa nổi chi tiết này thì thử tấm khai sau nữa, cuối cùng mới
+        // tới tấm mới nguyên khổ.
+        // Cận trên = max(số tấm khai, số tấm đang mở): vòng CUỐI luôn ứng với
+        // một tấm MỚI NGUYÊN KHỔ (makeSheet(k) với k >= specs.length), nên khi
+        // không khai tấm nào (specs rỗng) engine vẫn mở tấm mới như xưa.
+        const kLast = Math.max(specs.length, sheets.length);
+        for (let k = sheets.length; k <= kLast; k++) {
+          const sh = makeSheet(k);
+          if (!sh.nester.place(sh, prep, inst, cands, g.rule, exact, abort)) continue;
+          // các tấm khai bị nhảy qua vẫn phải mở ra để giữ đúng thứ tự + để
+          // những chi tiết sau còn có cơ hội xếp vào chúng
+          while (sheets.length < k) sheets.push(makeSheet(sheets.length));
           sheets.push(sh);
           ok = sheets.length - 1;
+          break;
         }
       }
       if (ok >= 0) {
@@ -771,13 +956,15 @@ export function nest(input: NestInput, cb: NestCallbacks = {}): NestResult {
       } else unplaced.push(`${prep.part.id}#${inst.instance}`);
     }
     const used = sheets.filter((s) => s.placements.length > 0);
-    const layouts: SheetLayout[] = used.map((s, i) => ({
+    const layouts: EngineSheet[] = used.map((s, i) => ({
       index: i,
-      width: params.sheetW,
-      height: params.sheetH,
+      width: s.w,
+      height: s.h,
       placements: s.placements,
       usedArea: s.usedArea,
-      utilization: s.usedArea / (params.sheetW * params.sheetH),
+      utilization: s.usedArea / (s.w * s.h),
+      specIndex: s.specIndex,
+      blocked: s.blocked,
     }));
     const lastIdx = sheets.length - 1;
     const lastSheetInsts: number[] = [];
@@ -787,8 +974,8 @@ export function nest(input: NestInput, cb: NestCallbacks = {}): NestResult {
     // (vừa là đường dốc để xoá hẳn tấm cuối, vừa để tôn thừa còn nguyên khổ).
     // Cuối cùng: tổng chiều dài đã dùng của mọi tấm càng ngắn càng chặt.
     const lastArea = used.length ? used[used.length - 1].usedArea : 0;
-    const lastTop = used.length ? used[used.length - 1].maxRow * nester.cell : 0;
-    const sumTop = used.reduce((a, s) => a + s.maxRow * nester.cell, 0);
+    const lastTop = used.length ? used[used.length - 1].maxRow * used[used.length - 1].nester.cell : 0;
+    const sumTop = used.reduce((a, s) => a + s.maxRow * s.nester.cell, 0);
     const cost =
       (used.length + unplaced.length * 10) * BIG +
       (lastArea / 1e6) * 1e7 +
@@ -870,11 +1057,27 @@ export function nest(input: NestInput, cb: NestCallbacks = {}): NestResult {
     });
   };
 
+  /**
+   * Chụp lại một phương án ở dạng nhẹ. PHẢI copy mảng `placements` vì mảng gốc
+   * thuộc về lưới của phương án và còn bị bước "dọn tấm cuối" sửa về sau.
+   */
+  const snapOf = (e: Evaluated): CandidateSnapshot => ({
+    cost: e.cost,
+    nSheets: e.nSheets,
+    sheets: e.sheets.map((sh) => ({ ...sh, placements: sh.placements.slice() })),
+    unplaced: e.unplaced.slice(),
+    placedArea: e.placedArea,
+    totalArea: e.sheets.reduce((a, sh) => a + sh.width * sh.height, 0),
+    assign: e.sheetOf.slice(),
+    topY: e.grids.map((g) => g.maxRow * g.nester.cell),
+  });
+
   const pop: Evaluated[] = [];
   /** Số phương án liên tiếp không cải thiện — để biết khi nào GA đã bế tắc. */
   let sinceImprove = 0;
   const consider = (e: Evaluated) => {
     iterations++;
+    opts.onCandidate?.(snapOf(e));
     pop.push(e);
     if (!best || e.cost < best.cost) {
       best = e;
@@ -1038,7 +1241,7 @@ export function nest(input: NestInput, cb: NestCallbacks = {}): NestResult {
       let moved = false;
       // Vòng 1: quét TOÀN BỘ góc bằng phép đặt nhanh (mỗi góc cỡ 1ms).
       for (let sIdx = 0; sIdx < e.grids.length - 1 && !moved; sIdx++) {
-        if (nester.place(e.grids[sIdx], prep, inst, prep.angles, e.genome.rule, false, abort)) moved = true;
+        if (e.grids[sIdx].nester.place(e.grids[sIdx], prep, inst, prep.angles, e.genome.rule, false, abort)) moved = true;
       }
       // Vòng 2: nếu vẫn không lọt thì mới trả giá vét cạn, và chỉ với những góc
       // có bbox nhỏ nhất — vét cạn đắt gấp trăm lần nên không quét hết 72 góc.
@@ -1046,7 +1249,7 @@ export function nest(input: NestInput, cb: NestCallbacks = {}): NestResult {
         const few = prep.angles.slice(0, 12);
         for (let sIdx = 0; sIdx < e.grids.length - 1 && !moved; sIdx++) {
           if (now() > deadline || cb.shouldStop?.()) break;
-          if (nester.place(e.grids[sIdx], prep, inst, few, e.genome.rule, true, abort)) moved = true;
+          if (e.grids[sIdx].nester.place(e.grids[sIdx], prep, inst, few, e.genome.rule, true, abort)) moved = true;
         }
       }
       if (!moved) continue;
@@ -1061,11 +1264,13 @@ export function nest(input: NestInput, cb: NestCallbacks = {}): NestResult {
     e.nSheets = used.length;
     e.sheets = used.map((g, i) => ({
       index: i,
-      width: params.sheetW,
-      height: params.sheetH,
+      width: g.w,
+      height: g.h,
       placements: g.placements,
       usedArea: g.usedArea,
-      utilization: g.usedArea / (params.sheetW * params.sheetH),
+      utilization: g.usedArea / (g.w * g.h),
+      specIndex: g.specIndex,
+      blocked: g.blocked,
     }));
     return true;
   };
@@ -1073,12 +1278,16 @@ export function nest(input: NestInput, cb: NestCallbacks = {}): NestResult {
   if (best && !cb.shouldStop?.()) sweepLastSheet(best);
 
   const res = toResult(best!, params, now() - t0, iterations);
+  const bestSnap = snapOf(best!);
+  // Phương án tốt nhất SAU khi dọn tấm cuối cũng phải vào kho, vì bản trước khi
+  // dọn đã nằm trong kho rồi và nó khác hẳn bản cuối cùng.
+  opts.onCandidate?.(bestSnap);
   report('Xong');
-  return res;
+  return { result: res, best: bestSnap };
 }
 
 function toResult(e: Evaluated, params: NestParams, elapsed: number, iterations: number): NestResult {
-  const total = e.sheets.length * params.sheetW * params.sheetH;
+  const total = e.sheets.reduce((a, s) => a + s.width * s.height, 0);
   return {
     sheets: e.sheets,
     unplaced: e.unplaced,
@@ -1092,7 +1301,7 @@ function toResult(e: Evaluated, params: NestParams, elapsed: number, iterations:
 // ─────────────────────────── Kiểm tra kết quả ───────────────────────────
 
 export interface ValidationIssue {
-  kind: 'overlap' | 'gap' | 'outside' | 'missing';
+  kind: 'overlap' | 'gap' | 'outside' | 'missing' | 'blocked';
   message: string;
   a?: string;
   b?: string;
@@ -1121,15 +1330,24 @@ function ringDistance(a: Ring, b: Ring): number {
   return min === Infinity ? Infinity : min;
 }
 
+/**
+ * Bảng kiểm an toàn. Chữ ký CŨ giữ nguyên (3 tham số) — tham số thứ 4 là tuỳ chọn.
+ *
+ * VÙNG CẤM: nếu tấm được trả ra từ engine (kiểu EngineSheet) thì nó đã mang sẵn
+ * `blocked`, không cần truyền gì thêm. Tham số `blockedBySheet` chỉ dùng khi
+ * người gọi muốn kiểm một mảng SheetLayout trần.
+ */
 export function validateLayout(
-  sheets: SheetLayout[], parts: Part[], params: NestParams
+  sheets: SheetLayout[], parts: Part[], params: NestParams,
+  blockedBySheet?: (Ring[] | undefined)[]
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const byId = new Map(parts.map((p) => [p.id, p]));
   const eps = 1e-6;
 
   let totalPlaced = 0;
-  for (const sh of sheets) {
+  for (let si = 0; si < sheets.length; si++) {
+    const sh = sheets[si];
     totalPlaced += sh.placements.length;
     const rings = sh.placements.map((pl) => {
       const part = byId.get(pl.partId)!;
@@ -1149,6 +1367,36 @@ export function validateLayout(
         });
       }
     }
+    // KHÔNG ĐÈ LÊN VÙNG CẤM, và cách vùng cấm cũng ≥ khe
+    const blocked = (sh as EngineSheet).blocked ?? blockedBySheet?.[si];
+    if (blocked && blocked.length) {
+      for (const { pl, outer } of rings) {
+        const ob = ringBBox(outer);
+        for (let k = 0; k < blocked.length; k++) {
+          const br = blocked[k];
+          if (!br || br.length < 3) continue;
+          const bb = ringBBox(br);
+          if (
+            ob.maxX + params.gap < bb.minX || bb.maxX + params.gap < ob.minX ||
+            ob.maxY + params.gap < bb.minY || bb.maxY + params.gap < ob.minY
+          ) continue;
+          const d = ringDistance(outer, br);
+          const na = `${pl.partId}#${pl.instance}`;
+          if (d <= eps) {
+            issues.push({
+              kind: 'blocked', a: na, b: `vùng cấm #${k + 1}`, value: d,
+              message: `Chi tiết ${na} đè lên vùng cấm #${k + 1} của tấm ${sh.index + 1}.`,
+            });
+          } else if (d < params.gap - 1e-6) {
+            issues.push({
+              kind: 'blocked', a: na, b: `vùng cấm #${k + 1}`, value: d,
+              message: `Chi tiết ${na} chỉ cách vùng cấm #${k + 1} ${d.toFixed(2)}mm < khe ${params.gap}mm.`,
+            });
+          }
+        }
+      }
+    }
+
     // chồng lấn + khe
     for (let i = 0; i < rings.length; i++) {
       for (let j = i + 1; j < rings.length; j++) {

@@ -131,3 +131,13 @@ button.sm { padding: 3px 7px; font-size: 11px; }
 .gpanel { background: #f8f9fb; border: 1px solid var(--line); border-radius: 5px; padding: 8px; margin: 8px 0; }
 .gpanel .grid2 { grid-template-columns: 1fr 1fr 1fr; }
 .hidden { display: none !important; }
+
+/* ── VIỆC 1: thanh lật qua lại giữa tối đa 5 phương án xếp ─────────────── */
+.planbar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  padding: 6px 9px; margin-bottom: 8px;
+}
+.planbar .plan-lb { font-size: 13px; }
+.planbar .plan-lb b { font-size: 14px; }
+.planbar .plan-note { color: var(--muted); font-size: 11px; margin-left: auto; }

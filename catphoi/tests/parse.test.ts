@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseDxf } from '../src/core/dxf-parse';
 import { labelPoint, pointInPart } from '../src/core/geometry';
+import { isNameFragment } from '../src/core/dxf-label';
 import { applyPlacementRing } from '../src/types';
 import { FIXTURE_MISSING_MSG, hasFixture, readFixture } from './helpers';
 
@@ -139,5 +140,52 @@ d('Việc 2 — điểm đặt nhãn luôn nằm trong hình', () => {
       const at = labelPoint(rings);
       expect(pointInPart(at, rings), `${p.id}: nhãn rơi ra ngoài sau khi xoay`).toBe(true);
     });
+  });
+});
+
+/**
+ * Việc 3 — đọc TÊN MÃ PHÔI từ chữ trong file DXF.
+ * Không hứa trước 15/15 chi tiết đều có tên: bản vẽ chỉ ghi chữ cho một phần.
+ * Test in ra bảng thật và chỉ chốt những điều CHẮC CHẮN phải đúng.
+ */
+d('Việc 3 — đọc tên mã phôi từ chữ trong DXF', () => {
+  const text = readFixture();
+
+  it('in bảng 15 dòng: mã chi tiết → tên đọc được', () => {
+    const r = parseDxf(text);
+    expect(r.parts.length).toBe(15);
+    let co = 0;
+    console.log('  mã   | tên đọc được từ DXF');
+    for (const p of r.parts) {
+      const l = p.dxfLabel ?? '';
+      if (l) co++;
+      console.log(`  ${p.id.padEnd(4)} | ${l || '(trống — bản vẽ không ghi chữ nào gần chi tiết này)'}`);
+    }
+    console.log(`  → ${co}/15 chi tiết có tên · ${15 - co}/15 trống`);
+    expect(co).toBeGreaterThan(0);
+  });
+
+  it('chữ kích thước (4520) và chữ rác xa hàng km (S10) KHÔNG lọt vào tên', () => {
+    const r = parseDxf(text);
+    const all = r.parts.map((p) => p.dxfLabel ?? '').join(' | ');
+    expect(all).not.toContain('4520');
+    expect(all).not.toContain('S10');
+  });
+
+  it('mảnh chữ rời được gom lại: có ít nhất một tên kiểu "mạn <số>"', () => {
+    const r = parseDxf(text);
+    const hits = r.parts.map((p) => p.dxfLabel ?? '').filter((l) => /mạn\s+\d+/.test(l));
+    console.log(`  tên gộp được mảnh chữ + số: ${hits.length} — ${hits.join(' / ')}`);
+    expect(hits.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('bộ lọc kích thước: giữ số hiệu sườn, bỏ số đo', () => {
+    expect(isNameFragment('15')).toBe(true);
+    expect(isNameFragment('mạn')).toBe(true);
+    expect(isNameFragment('4520')).toBe(false);
+    expect(isNameFragment('R500')).toBe(false);
+    expect(isNameFragment('(5300)')).toBe(false);
+    expect(isNameFragment('9.9x1500')).toBe(false);
+    expect(isNameFragment('s=9.9')).toBe(false);
   });
 });
