@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.vite/
+*.log
+.DS_Store
+
+# TUYỆT ĐỐI KHÔNG commit bản vẽ thật của khách lên repo
+fixtures/*.dxf
+fixtures/*.DXF
+fixtures/*.dwg
+*.dxf
+*.dwg
