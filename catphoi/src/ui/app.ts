@@ -726,8 +726,13 @@ export function mountApp(root: HTMLElement, services: AppServices): void {
     const onProgress = (p: NestProgress) => {
       barFill.style.width = `${Math.round(p.fraction * 100)}%`;
       runInfo.textContent = `${Math.round(p.elapsedMs / 1000)}s · ${p.iterations} phương án` +
-        (p.best ? ` · tốt nhất ${p.best.sheets.length} tấm (${fmtPct(p.best.utilization)})` : '');
-      if (p.best) renderResult(p.best);
+        (p.best && p.best.sheets.length
+          ? ` · tốt nhất ${p.best.sheets.length} tấm (${fmtPct(p.best.utilization)})`
+          : '') +
+        // Nhãn của đường xếp có tôn thừa ("Đang thử nhét vào tấm thừa …") — không
+        // có nhãn này thì người dùng tưởng máy treo vì bộ đếm đứng yên cả chục giây.
+        (p.label ? ` · ${p.label}` : '');
+      if (p.best && p.best.sheets.length) renderResult(p.best);
     };
     try {
       // Có tích tấm thừa trong kho → xếp qua module kho tôn thừa (nhét tôn thừa

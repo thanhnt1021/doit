@@ -170,6 +170,21 @@ export function nestWithRemnants(
       label: `Đang thử nhét vào tấm thừa "${r.name}"…`,
     });
 
+    // Chuyển tiếp tiến độ của lượt xếp con ra ngoài, KHÔNG kèm phương án con
+    // (phương án con chỉ nói về ô chữ nhật bên trong tấm thừa, vẽ ra là sai chỗ).
+    // `best` ở đây là các tấm thừa ĐÃ CHỐT trước đó, để bấm DỪNG vẫn còn cái mà dùng.
+    const subRelay = deps.onProgress
+      ? (p: NestProgress) => {
+        deps.onProgress?.({
+          fraction: Math.min(0.9, (now() - t0) / totalMs),
+          elapsedMs: now() - t0,
+          iterations: iterations + p.iterations,
+          best: sheets.length ? snapshot() : null,
+          label: `Đang thử nhét vào tấm thừa "${r.name}"…`,
+        });
+      }
+      : undefined;
+
     let sub: NestResult;
     try {
       sub = nestFn(
@@ -177,7 +192,7 @@ export function nestWithRemnants(
           parts: remaining,
           params: { ...params, sheetW: rect.w, sheetH: rect.h, timeLimitMs: perRemnant },
         },
-        { shouldStop: deps.shouldStop, now: deps.now }
+        { shouldStop: deps.shouldStop, now: deps.now, onProgress: subRelay }
       );
     } catch {
       // Một tấm thừa hỏng không được làm sập cả lượt xếp.

@@ -67,7 +67,9 @@ function runInWorker(
       if (!m) return;
       if (m.type === 'progress') {
         const p = m.payload as NestProgress;
-        if (p.best) best = p.best as RemnantNestResult;
+        // Chỉ giữ phương án có tấm thật; phương án rỗng mà đem resolve khi bấm
+        // DỪNG thì người dùng thấy "0 tấm" thay vì câu giải thích tử tế.
+        if (p.best && p.best.sheets.length > 0) best = p.best as RemnantNestResult;
         onProgress?.(p);
       } else if (m.type === 'done') {
         cleanup();
@@ -127,6 +129,13 @@ export function setupRemnants(): RemnantApi {
 
 // Tự khởi động khi chạy trong trình duyệt. Trong test (Node) thì không có
 // document nên khối này im lặng bỏ qua.
+//
+// ⚠ PHẢI HOÃN MỘT NHỊP: src/main.ts `import './remnant'` nằm TRÊN lời gọi
+// mountApp(), mà <script type="module"> chạy sau khi DOM parse xong nên
+// readyState đã là "interactive". Gắn panel ngay lúc này thì mountApp() chạy
+// sau đó sẽ `root.innerHTML = ''` và XOÁ SẠCH panel (đã dựng #remnant-slot
+// nhưng panel biến mất — lỗi thật gặp trên bản deploy đầu). setTimeout(0) đẩy
+// việc gắn panel xuống sau khi main.ts chạy xong, lúc đó #remnant-slot đã có.
 if (typeof document !== 'undefined') {
   const boot = () => {
     try {
@@ -137,8 +146,8 @@ if (typeof document !== 'undefined') {
     }
   };
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', boot, { once: true });
+    document.addEventListener('DOMContentLoaded', () => setTimeout(boot, 0), { once: true });
   } else {
-    boot();
+    setTimeout(boot, 0);
   }
 }
