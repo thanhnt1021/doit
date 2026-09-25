@@ -30,12 +30,26 @@ export type { NestSheetSpec } from './sheetspec';
 export { drawRemnantPreview, previewHeight } from './preview';
 export {
   mountRemnantPanel, ensureSlot, readNestOptions, cornerCutPolygon, parsePointsText, SLOT_ID,
+  visibleRemnants, canSelectRemnant,
 } from './panel';
 export type { RemnantPanel } from './panel';
+// VIỆC 2 — mã tự sinh cho tấm thừa mới (LO-2026-09-25-01).
+export {
+  CODE_PREFIX, CODE_RE, codeDatePart, parseRemnantCode, nextRemnantCode,
+  allocateRemnantCode, composeLeftoverName, originNote, buildLeftoverInput, saveLeftoverToStore,
+} from './naming';
+export type { LeftoverArgs } from './naming';
+// VIỆC 1 — nhắc bấm "Đã dùng" sau khi tải bản vẽ của tấm thừa.
+export {
+  parseDownloadName, remindersForDownload, reminderText, watchDownloads, findSourceRemnant,
+} from './remind';
+export type { DownloadTarget, UsedReminder } from './remind';
 
 import type { NestParams, NestProgress, Part } from '../types';
 import { mountRemnantPanel, readNestOptions, type RemnantPanel } from './panel';
 import { nestMultiWithRemnants, type RemnantMultiOutcome, type RemnantNestResult } from './plan';
+import { findSourceRemnant, remindersForDownload, watchDownloads } from './remind';
+import type { LeftoverArgs } from './naming';
 
 import type { Remnant, RemnantInput } from './types';
 import type { Ring } from '../types';
@@ -126,16 +140,16 @@ export interface RemnantApi {
     shouldStop?: () => boolean,
     count?: number
   ): Promise<RemnantMultiOutcome>;
-  /** VIỆC 3 — lưu một tấm vừa xếp vào kho, giữ nguyên khổ + các lỗ vừa cắt. */
-  saveFromSheet(args: {
-    name: string;
-    sheetWidthMm: number;
-    sheetLengthMm: number;
-    cuts: Ring[];
-    note?: string;
-  }): Promise<Remnant>;
+  /**
+   * VIỆC 3 — lưu một tấm vừa xếp vào kho, giữ nguyên khổ + các lỗ vừa cắt.
+   * VIỆC 2 — tên tự điền mã `LO-<ngày>-<số thứ tự>`, luôn là DÒNG MỚI, và tự
+   * ghi "sinh ra từ tấm thừa nào" nếu lượt cắt này chạy trên một tấm thừa cũ.
+   */
+  saveFromSheet(args: LeftoverArgs): Promise<Remnant>;
   /** Lưu một tấm thừa bất kỳ (đã dựng sẵn RemnantInput). */
   save(input: RemnantInput): Promise<Remnant>;
+  /** Các phương án vừa xếp ra — dùng để biết tải file nào là của tấm thừa nào. */
+  lastPlans(): RemnantNestResult[];
 }
 
 let api: RemnantApi | null = null;
@@ -144,6 +158,13 @@ let api: RemnantApi | null = null;
 export function setupRemnants(): RemnantApi {
   if (api) return api;
   const panel = mountRemnantPanel();
+
+  /**
+   * VIỆC 1 — nhớ lại các phương án vừa xếp. Tải file xong thì đối chiếu tên
+   * file với đống này để biết vừa tải bản vẽ của TẤM THỪA NÀO trong kho.
+   */
+  let plans: RemnantNestResult[] = [];
+
   api = {
     panel,
     getSelected: () => panel.getSelected(),
@@ -153,15 +174,34 @@ export function setupRemnants(): RemnantApi {
     },
     async nestMultiWithSelected(parts, onProgress, shouldStop, count = 5) {
       const params = await readNestOptions();
-      return runInWorker(parts, params, panel.getSelected(), onProgress, shouldStop, count);
+      const out = await runInWorker(parts, params, panel.getSelected(), onProgress, shouldStop, count);
+      plans = out.plans;
+      return out;
     },
     saveFromSheet(args) {
-      return panel.saveFromSheet(args);
+      // Thợ UI chỉ đưa tên + khổ + lỗ; tự lần ra nguồn gốc để ghi vào kho.
+      const src = args.sourceId
+        ? { id: args.sourceId, name: args.sourceName || args.sourceId }
+        : findSourceRemnant(plans, args);
+      return panel.saveFromSheet(
+        src ? { ...args, sourceId: src.id, sourceName: src.name } : args
+      );
     },
     save(input) {
       return panel.save(input);
     },
+    lastPlans: () => plans,
   };
+
+  // Tải DXF / G-code / .zip xong là nhắc ngay "cắt xong nhớ bấm Đã dùng".
+  // KHÔNG tự đánh dấu — founder chốt là người dùng phải tự bấm.
+  if (typeof document !== 'undefined') {
+    watchDownloads((fileName) => {
+      const list = remindersForDownload(plans, fileName);
+      if (list.length > 0) panel.remindDownloaded(list);
+    });
+  }
+
   (globalThis as Record<string, unknown>).catphoiRemnant = api;
   return api;
 }

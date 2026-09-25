@@ -102,6 +102,20 @@ export function checkDim(v, label) {
   return { value: v };
 }
 
+/**
+ * VIỆC 2 — mã/tên tấm thừa CŨ đã sinh ra tấm này. Không gửi = không biết nguồn.
+ * Chỉ là chữ để tra cứu, KHÔNG phải khoá ngoại: tấm mẹ có bị xoá thì dòng con
+ * vẫn phải đọc được, chứ không được mất luôn tấm thừa đang nằm ngoài xưởng.
+ */
+export function checkSourceRef(v, label, maxLen) {
+  if (v === undefined || v === null || v === '') return { value: null };
+  if (typeof v !== 'string') return { error: `${label} phải là chuỗi chữ.` };
+  const s = v.trim();
+  if (!s) return { value: null };
+  if (s.length > maxLen) return { error: `${label} dài quá ${maxLen} ký tự.` };
+  return { value: s };
+}
+
 export function checkStatus(v) {
   if (v !== 'available' && v !== 'used') {
     return { error: 'Trạng thái chỉ được là "available" (còn) hoặc "used" (đã dùng).' };
@@ -224,8 +238,35 @@ export function rowToRemnant(row) {
     updatedAt: row.updated_at,
   };
   if (!hasStock) out.legacy = true;
+  // VIỆC 2 — nguồn gốc. Cột có thể chưa tồn tại (chưa chạy migration) → undefined.
+  if (row.source_id) out.sourceId = row.source_id;
+  if (row.source_name) out.sourceName = row.source_name;
   return out;
 }
 
-export const SELECT_COLS =
+/** Bộ cột CŨ — không có source_id/source_name. Dùng làm đường lui. */
+export const SELECT_COLS_LEGACY =
   'id, name, width_mm, length_mm, sheet_w_mm, sheet_h_mm, cuts, polygon, note, status, created_at, updated_at';
+
+/** Bộ cột ĐẦY ĐỦ, có nguồn gốc (VIỆC 2). */
+export const SELECT_COLS = `${SELECT_COLS_LEGACY}, source_id, source_name`;
+
+/**
+ * Thiếu cột thì SQLite ném "no such column". Gặp lỗi đó thì chạy lại bằng bộ
+ * cột cũ, để code mới deploy trước khi kịp chạy migration vẫn KHÔNG sập kho.
+ * Mọi lỗi khác ném tiếp như bình thường.
+ */
+export function isMissingColumn(e) {
+  const m = String((e && e.message) || e || '').toLowerCase();
+  return m.includes('no such column') || m.includes('has no column named');
+}
+
+/** Chạy `run(cols)`; thiếu cột nguồn gốc thì chạy lại với bộ cột cũ. */
+export async function withSourceColumns(run) {
+  try {
+    return await run(true);
+  } catch (e) {
+    if (!isMissingColumn(e)) throw e;
+    return await run(false);
+  }
+}

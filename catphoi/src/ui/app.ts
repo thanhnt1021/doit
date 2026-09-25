@@ -43,6 +43,8 @@ interface Settings {
   rotationStep: number; allowMirror: boolean; timeLimitSec: number; unitScale: number;
   /** Bù kerf (bề rộng mạch cắt), mm. 0 = KHÔNG bù (mặc định). */
   kerf: number;
+  /** Bản mặc định đã áp — xem DEFAULTS_VERSION. */
+  defaultsVersion?: number;
   gcode: GcodeOptions;
 }
 
@@ -57,16 +59,29 @@ export interface NestOptionsSnapshot extends NestParams {
   unitScale: number;
 }
 
+/**
+ * Phiên bản MẶC ĐỊNH. Tăng số này khi đổi giá trị mặc định mà muốn nó ĐÈ lên
+ * thiết lập cũ đang nằm trong máy người dùng (localStorage giữ lại giá trị cũ
+ * nên đổi mặc định suông thì người đang dùng không bao giờ thấy).
+ * v2 — chủ xưởng chốt: thời gian 180 giây, BẬT lật gương.
+ */
+const DEFAULTS_VERSION = 2;
+
 const DEFAULT_SETTINGS: Settings = {
   sheetW: DEFAULT_NEST_PARAMS.sheetW,
   sheetH: DEFAULT_NEST_PARAMS.sheetH,
   gap: DEFAULT_NEST_PARAMS.gap,
   margin: DEFAULT_NEST_PARAMS.margin,
   rotationStep: DEFAULT_NEST_PARAMS.rotationStep,
-  allowMirror: DEFAULT_NEST_PARAMS.allowMirror,
-  timeLimitSec: 60,
+  // Tôn KHÔNG phân mặt: lật xong vẫn cắt đúng, mà xếp chặt hơn hẳn. Bật sẵn,
+  // vẫn có ô tích để tắt khi vật liệu có vân/phủ một mặt.
+  allowMirror: true,
+  // 180 giây: engine cần thời gian cho pha siết chặt (đặt vào hốc). Sửa được
+  // ngay trên màn hình.
+  timeLimitSec: 180,
   unitScale: 1,
   kerf: 0,
+  defaultsVersion: DEFAULTS_VERSION,
   gcode: { ...DEFAULT_GCODE_OPTIONS },
 };
 
@@ -75,7 +90,15 @@ function loadSettings(): Settings {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return { ...DEFAULT_SETTINGS, gcode: { ...DEFAULT_GCODE_OPTIONS } };
     const v = JSON.parse(raw);
-    return { ...DEFAULT_SETTINGS, ...v, gcode: { ...DEFAULT_GCODE_OPTIONS, ...(v.gcode || {}) } };
+    const s: Settings = { ...DEFAULT_SETTINGS, ...v, gcode: { ...DEFAULT_GCODE_OPTIONS, ...(v.gcode || {}) } };
+    // Thiết lập lưu từ bản cũ: ÉP hai giá trị chủ xưởng đã chốt về mặc định mới,
+    // giữ nguyên mọi thứ còn lại (khổ tấm, khe, lề… người dùng tự chỉnh).
+    if ((v.defaultsVersion ?? 0) < DEFAULTS_VERSION) {
+      s.timeLimitSec = DEFAULT_SETTINGS.timeLimitSec;
+      s.allowMirror = DEFAULT_SETTINGS.allowMirror;
+      s.defaultsVersion = DEFAULTS_VERSION;
+    }
+    return s;
   } catch {
     return { ...DEFAULT_SETTINGS, gcode: { ...DEFAULT_GCODE_OPTIONS } };
   }
@@ -662,9 +685,14 @@ export function mountApp(root: HTMLElement, services: AppServices): void {
       + (cur ? ` · <b>${cur.sheets.length} tấm</b> · dùng tôn <b>${fmtPct(cur.utilization)}</b>` : '');
     btnPrevPlan.disabled = plans.length < 2;
     btnNextPlan.disabled = plans.length < 2;
+    // NÓI THẬT: đây là những phương án TỐT NHẤT TÌM ĐƯỢC trong thời gian cho
+    // phép, không ai chứng minh được chúng là tối ưu tuyệt đối. Cho thêm thời
+    // gian thì có thể ra phương án tốt hơn.
     planNote.textContent = plans.length < 2
-      ? 'Chỉ tìm được 1 phương án — thử tăng "Thời gian tối đa" để có thêm.'
-      : 'File tải về luôn đúng phương án đang xem.';
+      ? 'Kết quả tìm được trong thời gian cho phép, không phải tối ưu tuyệt đối. '
+        + 'Chỉ có 1 phương án — thử tăng "Thời gian tối đa" để có thêm.'
+      : 'Kết quả tìm được trong thời gian cho phép, không phải tối ưu tuyệt đối. '
+        + 'File tải về luôn đúng phương án đang xem.';
   }
 
   function stepPlan(delta: number): void {

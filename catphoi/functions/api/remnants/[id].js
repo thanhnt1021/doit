@@ -3,7 +3,8 @@
  */
 import {
   json, fail, preflight, noDb, readJsonBody,
-  checkName, checkNote, checkStatus, rowToRemnant, SELECT_COLS,
+  checkName, checkNote, checkStatus, rowToRemnant,
+  SELECT_COLS, SELECT_COLS_LEGACY, withSourceColumns,
 } from './_lib.js';
 
 export const onRequestOptions = () => preflight();
@@ -57,10 +58,14 @@ export async function onRequestPatch({ request, env, params }) {
   const idPos = binds.length;
 
   try {
-    const row = await env.DB
-      .prepare(`UPDATE remnants SET ${sets.join(', ')} WHERE id = ?${idPos} RETURNING ${SELECT_COLS}`)
+    // Chưa chạy migration nguồn gốc thì lùi về bộ cột cũ (xem _lib.js).
+    const row = await withSourceColumns((withSource) => env.DB
+      .prepare(
+        `UPDATE remnants SET ${sets.join(', ')} WHERE id = ?${idPos} `
+        + `RETURNING ${withSource ? SELECT_COLS : SELECT_COLS_LEGACY}`
+      )
       .bind(...binds)
-      .first();
+      .first());
     if (!row) return fail('Không tìm thấy tấm thừa này trong kho.', 404);
     return json({ ok: true, remnant: rowToRemnant(row) });
   } catch (e) {

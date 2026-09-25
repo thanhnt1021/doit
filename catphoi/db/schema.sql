@@ -41,6 +41,14 @@ CREATE TABLE IF NOT EXISTS remnants (
   -- Ghi chú tự do (mác thép, độ dày, để ở giá nào...). Có thể rỗng.
   note         TEXT NOT NULL DEFAULT '',
 
+  -- ── VIỆC 2: NGUỒN GỐC — tấm này cắt ra từ tấm thừa cũ nào ─────────────────
+  -- Tấm thừa mới LUÔN là một DÒNG MỚI (mã trong cột `name`, khuôn
+  -- LO-2026-09-25-01), tấm cũ giữ nguyên si. Hai cột này để ngoài xưởng lần
+  -- ngược về tấm mẹ. NULL = cắt trên tấm mới nguyên khổ, hoặc dòng lưu trước
+  -- khi có tính năng (xem db/migrate-2026-09-nguon-goc-tam-thua.sql).
+  source_id    TEXT,
+  source_name  TEXT,
+
   -- 'available' = còn dùng được · 'used' = đã xài hết.
   status       TEXT NOT NULL DEFAULT 'available'
                CHECK (status IN ('available', 'used')),

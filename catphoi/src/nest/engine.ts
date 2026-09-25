@@ -25,10 +25,30 @@
  * ⇒ KHÔNG CẦN gọi dò va chạm, chi phí mỗi ứng viên chỉ O(bề rộng) hoặc
  *   O(chiều cao) phép đọc mảng. Nhanh hơn bản cũ hàng trăm lần.
  *
- * Đổi lại, kiểu đặt này không "chui" xuống dưới phần nhô ra của chi tiết khác.
- * Đó đúng là cách đặt vật lý (thả từ trên xuống / đẩy từ phải sang) và vẫn LỒNG
- * được thanh cong vào nhau, vì đường bao colTop/rowMax thay đổi theo từng cột /
- * từng hàng: thanh sau tự ôm theo chỗ lõm của thanh trước.
+ * ĐƯỜNG BAO NHIỀU TẦNG — LỒNG NGƯỢC (multi-level contour)
+ * ────────────────────────────────────────────────────────
+ * Hai công thức trên chỉ với tới MẶT TRÊN của thứ đã xếp: chi tiết không bao
+ * giờ chui xuống dưới phần nhô ra của chi tiết khác. Với bộ sườn tàu, đó chính
+ * là chỗ phí tôn lớn nhất — cả dải dưới bụng các thanh vòm bỏ trống, trong khi
+ * một thanh úp ngược lại nằm khít trong lòng máng đó.
+ *
+ * Nên mỗi tấm giữ THÊM, cho từng cột, DANH SÁCH DẢI hàng đang bị chiếm
+ * (runLo/runHi/runN) thay vì chỉ một con số colTop. Mỗi chi tiết cũng giữ danh
+ * sách dải theo cột của nó (colRunPtr/colRuns trong raster.ts).
+ *
+ * Đặt chi tiết tại cột px, dải [a,b] của cột c đụng dải [s,e] của cột tấm px+c
+ * khi và chỉ khi  py ∈ [s − b, e − a].  Gom mọi khoảng cấm đó bằng mảng sai
+ * phân rồi quét một lượt ⇒ ra ĐẦY ĐỦ mọi khoảng py đặt được của cột px, kể cả
+ * khoảng bị KẸP GIỮA hai chi tiết (xem Nester.freeSpans). Mỗi khoảng cho hai
+ * ứng viên: tựa xuống ĐÁY khoảng, và ép NGỬA lên NÓC khoảng — chính là kiểu
+ * "hai hình vòm úp vào nhau".
+ *
+ * BẢO ĐẢM AN TOÀN vẫn nguyên: danh sách dải của tấm là TẬP CHA của tập ô bị
+ * chiếm (gộp dải khi tràn sức chứa chỉ làm nó rộng thêm), nên vị trí nằm ngoài
+ * mọi khoảng cấm thì chắc chắn không chồng lấn. Bitmap đã nở nửa khe mỗi phía
+ * ⇒ không chồng lấn tức khoảng cách thật ≥ khe.
+ *
+ * Việc đặt vào hốc chỉ bật ở PHA SIẾT CHẶT (exact), vì nó đắt hơn thả rơi.
  */
 import type {
   NestInput, NestParams, NestProgress, NestResult, Part, Placement, Ring, SheetLayout,
@@ -91,6 +111,8 @@ interface PartPrep {
   byW: number[];
   /** Tra nhanh: bậc góc (deg/step) → chỉ số trong `angles`, −1 nếu góc bị loại. */
   byDeg: Int32Array;
+  /** Như `byDeg` nhưng cho bản ĐÃ LẬT GƯƠNG (rỗng hết nếu không cho lật). */
+  byDegM: Int32Array;
 }
 
 interface Inst {
@@ -117,6 +139,18 @@ interface SheetGrid {
   rowMax: Int32Array;
   /** Hàng cao nhất đang bị chiếm của từng cột (−1 nếu cột trống). */
   colTop: Int32Array;
+  /**
+   * ĐƯỜNG BAO NHIỀU TẦNG. Với mỗi cột, danh sách các DẢI hàng đang bị chiếm,
+   * sắp tăng dần và đã gộp các dải dính nhau. Cột c dùng ô nhớ
+   * [c*RUN_STRIDE, c*RUN_STRIDE + runN[c]).
+   *
+   * `colTop` chỉ cho biết NÓC của cột nên engine cũ chỉ biết đặt chi tiết LÊN
+   * TRÊN thứ đã có. Danh sách dải cho biết cả những khoảng trống nằm LỌT GIỮA —
+   * đó chính là lòng máng dưới bụng thanh sườn cong, chỗ nhét được thanh úp ngược.
+   */
+  runN: Int32Array;
+  runLo: Int32Array;
+  runHi: Int32Array;
   /** Hàng ô cao nhất đã dùng (exclusive). */
   maxRow: number;
   /** Hàng thấp nhất / cao nhất đang bị chiếm (dải hàng có vật), −1/−1 nếu trống. */
@@ -129,16 +163,19 @@ interface SheetGrid {
 const BIG = 1e12;
 /** Số ứng viên vị trí được giữ lại để tinh chỉnh bằng phép trượt–rơi. */
 const TOP_K = 5;
+/**
+ * Sức chứa danh sách dải của MỘT cột tấm. 15 chi tiết, mỗi chi tiết cắt qua một
+ * cột nhiều nhất vài nhánh ⇒ 32 là rộng rãi. Nếu vẫn tràn thì engine gộp hai dải
+ * gần nhau nhất lại: kết quả thành TẬP CHA của chỗ thật sự bị chiếm, tức chỉ
+ * BỚT chỗ đặt chứ không bao giờ sinh chồng lấn.
+ */
+const RUN_CAP = 32;
+/** Bước nhớ mỗi cột — chừa 2 ô đệm để chèn xong rồi mới gộp cho gọn. */
+const RUN_STRIDE = RUN_CAP + 2;
+/** Tối đa bao nhiêu "tầng" (khoảng py đặt được) lấy ra cho một cột. */
+const MAX_SPANS = 24;
 /** Bao nhiêu phương án liên tiếp không tiến bộ thì gieo lại quần thể. */
 const STALL_LIMIT = 200;
-/**
- * Trần số lần dò va chạm cho MỘT lần tìm chỗ ở pha vét cạn. Không có trần thì
- * một lần tìm chỗ trên dải dài có thể chạy hàng phút (đo thật: ngân sách 60
- * giây chạy mất 703 giây). Hạn thời gian được canh thêm ở mức giữa các góc xoay
- * nên phần vượt giờ tối đa bằng ĐÚNG một lần tìm chỗ.
- */
-const EXACT_PROBES = 400_000;
-
 export interface Spot {
   px: number;
   py: number;
@@ -150,6 +187,9 @@ export interface BlockTemplate {
   bits: Uint32Array;
   rowMax: Int32Array;
   colTop: Int32Array;
+  runN: Int32Array;
+  runLo: Int32Array;
+  runHi: Int32Array;
   rowLo: number;
   rowHi: number;
   /** Hàng cao nhất bị chiếm + 1. */
@@ -167,15 +207,33 @@ export class Nester {
   readonly gw: number;
   readonly gh: number;
   readonly sheetWords: number;
-  /** Bước nhảy theo trục y khi sinh ứng viên trượt ngang (ô). */
-  readonly yStride: number;
   private cache = new Map<string, BaseBitmap | null>();
   private cacheBytes = 0;
   /** Bộ nhớ tạm dùng lại cho dropY/dropX — tránh cấp phát trong vòng lặp nóng. */
   private scratch = new Int32Array(2);
-  private candPx = new Int32Array(TOP_K);
-  private candPy = new Int32Array(TOP_K);
-  private candKey = new Float64Array(TOP_K);
+  /**
+   * HAI rổ ứng viên riêng, mỗi rổ TOP_K chỗ:
+   *  · rổ 0 — chỗ tìm bằng thả rơi / trượt ngang (đặt LÊN TRÊN thứ đã có)
+   *  · rổ 1 — chỗ nằm trong HỐC (lọt giữa hoặc dưới bụng chi tiết khác)
+   * Để chung một rổ thì chỗ trong hốc (thường "hụt 0") chiếm sạch hạn ngạch và
+   * đè mất những chỗ tốt của thả rơi, nên phải tách.
+   */
+  private candPx = new Int32Array(TOP_K * 2);
+  private candPy = new Int32Array(TOP_K * 2);
+  private candKey = new Float64Array(TOP_K * 2);
+  /** Ứng viên thứ i có phải chỗ trong hốc không (không được "trượt–rơi" lại). */
+  private candPocket = new Uint8Array(TOP_K * 2);
+  /** Đáy của hốc chứa ứng viên thứ i — để chấm lại điểm sau khi ép sát. */
+  private candFloor = new Int32Array(TOP_K * 2);
+  /** Mảng sai phân dựng danh sách tầng trống — cấp một lần, dùng lại mãi. */
+  private diff: Int32Array;
+  private spanLo = new Int32Array(MAX_SPANS);
+  private spanHi = new Int32Array(MAX_SPANS);
+  /** Đọc kết quả của lần `freeSpans` gần nhất — tầng thứ i chiếm hàng [lo, hi]. */
+  spanLoAt(i: number): number { return this.spanLo[i]; }
+  spanHiAt(i: number): number { return this.spanHi[i]; }
+  /** Bước quét cột ở pha tìm hốc (ô). */
+  readonly pxStride: number;
 
   /** Khổ tấm mà Nester này phục vụ (mm). Mặc định lấy từ params. */
   readonly sheetW: number;
@@ -194,9 +252,10 @@ export class Nester {
     this.gw = Math.max(1, Math.floor(rw / this.cell));
     this.gh = Math.max(1, Math.floor(rh / this.cell));
     this.sheetWords = ((this.gw + 31) >> 5) + 2;
-    // Bước nhảy khi quét vét cạn theo y: 15mm. Bỏ sót một vị trí y hẹp chỉ làm
-    // chi tiết lệch vài ô chứ không sai kết quả, mà rẻ hơn 3 lần so với quét từng ô.
-    this.yStride = Math.max(1, Math.round(15 / this.cell));
+    // Quét cột 10mm một bước ở pha tìm hốc; phần lẻ được bù lại bằng bước ép
+    // sát sang trái (refineLeft) nên không mất chỗ tốt.
+    this.pxStride = Math.max(1, Math.round(10 / this.cell));
+    this.diff = new Int32Array(this.gh + 2);
   }
 
   /**
@@ -248,7 +307,41 @@ export class Nester {
       }
     }
     if (cells === 0) return null;
-    return { bits, rowMax, colTop, rowLo, rowHi, blockTop: rowHi + 1, cells };
+    // Danh sách dải của vùng cấm, dựng thẳng từ bitmap đã raster.
+    const runN = new Int32Array(this.gw);
+    const runLo = new Int32Array(this.gw * RUN_STRIDE);
+    const runHi = new Int32Array(this.gw * RUN_STRIDE);
+    for (let col = 0; col < this.gw; col++) {
+      const top = colTop[col];
+      if (top < 0) continue;
+      const wi = col >> 5;
+      const mask = 1 << (col & 31);
+      const base = col * RUN_STRIDE;
+      let n = 0;
+      let start = -1;
+      for (let row = 0; row <= top; row++) {
+        const on = (bits[row * this.sheetWords + wi] & mask) !== 0;
+        if (on) {
+          if (start < 0) start = row;
+        } else if (start >= 0) {
+          if (n < RUN_CAP) {
+            runLo[base + n] = start;
+            runHi[base + n] = row - 1;
+            n++;
+          } else runHi[base + n - 1] = row - 1; // tràn: gộp vào dải cuối (tập cha)
+          start = -1;
+        }
+      }
+      if (start >= 0) {
+        if (n < RUN_CAP) {
+          runLo[base + n] = start;
+          runHi[base + n] = top;
+          n++;
+        } else runHi[base + n - 1] = top;
+      }
+      runN[col] = n;
+    }
+    return { bits, rowMax, colTop, runN, runLo, runHi, rowLo, rowHi, blockTop: rowHi + 1, cells };
   }
 
   newSheet(opts?: { tpl?: BlockTemplate | null; specIndex?: number; blocked?: Ring[] }): SheetGrid {
@@ -264,6 +357,9 @@ export class Nester {
       blocked: opts?.blocked,
       rowMax: tpl ? tpl.rowMax.slice() : new Int32Array(this.gh).fill(-1),
       colTop: tpl ? tpl.colTop.slice() : new Int32Array(this.gw).fill(-1),
+      runN: tpl ? tpl.runN.slice() : new Int32Array(this.gw),
+      runLo: tpl ? tpl.runLo.slice() : new Int32Array(this.gw * RUN_STRIDE),
+      runHi: tpl ? tpl.runHi.slice() : new Int32Array(this.gw * RUN_STRIDE),
       maxRow: 0,
       rowLo: tpl ? tpl.rowLo : -1,
       rowHi: tpl ? tpl.rowHi : -1,
@@ -283,12 +379,18 @@ export class Nester {
     // Raster hoá lại một thanh sườn tốn ~2ms, mà GA gọi liên tục nên PHẢI cache.
     // Chặn phình bộ nhớ theo DUNG LƯỢNG (không theo số lượng): tối đa ~64MB.
     // Map giữ thứ tự chèn nên xoá từ đầu là bỏ cái cũ nhất.
-    this.cacheBytes += bm.bits.byteLength + bm.colLow.byteLength * 2 + bm.rowLowBit.byteLength * 4;
+    this.cacheBytes +=
+      bm.bits.byteLength + bm.colLow.byteLength * 2 + bm.rowLowBit.byteLength * 4 +
+      bm.colRuns.byteLength + bm.colRunPtr.byteLength;
     while (this.cacheBytes > 64 * 1024 * 1024 && this.cache.size > 8) {
       const it = this.cache.keys().next();
       if (it.done) break;
       const old = this.cache.get(it.value);
-      if (old) this.cacheBytes -= old.bits.byteLength + old.colLow.byteLength * 2 + old.rowLowBit.byteLength * 4;
+      if (old) {
+        this.cacheBytes -=
+          old.bits.byteLength + old.colLow.byteLength * 2 + old.rowLowBit.byteLength * 4 +
+          old.colRuns.byteLength + old.colRunPtr.byteLength;
+      }
       this.cache.delete(it.value);
     }
     this.cache.set(key, val);
@@ -363,13 +465,157 @@ export class Nester {
       if (sh.rowLo < 0 || row < sh.rowLo) sh.rowLo = row;
       if (row > sh.rowHi) sh.rowHi = row;
     }
+    const ptr = bm.colRunPtr;
+    const runs = bm.colRuns;
     for (let c = 0; c < bm.w; c++) {
       const ch = bm.colHigh[c];
       if (ch < 0) continue;
       const t = py + ch;
       if (t > sh.colTop[px + c]) sh.colTop[px + c] = t;
+      const k0 = ptr[c];
+      const k1 = ptr[c + 1];
+      for (let k = k0; k < k1; k++) {
+        this.insertRun(sh, px + c, py + runs[2 * k], py + runs[2 * k + 1]);
+      }
     }
     if (py + bm.h > sh.maxRow) sh.maxRow = py + bm.h;
+  }
+
+  /**
+   * Ghi thêm một dải bị chiếm [lo, hi] vào cột `col`, giữ danh sách SẮP TĂNG và
+   * đã GỘP: hai dải chạm hoặc kề nhau (hi + 1 ≥ lo) được nhập làm một.
+   * Nhờ luôn gộp nên danh sách mô tả ĐÚNG tập ô bị chiếm của cột.
+   */
+  private insertRun(sh: SheetGrid, col: number, lo: number, hi: number): void {
+    const base = col * RUN_STRIDE;
+    const RL = sh.runLo;
+    const RH = sh.runHi;
+    const n = sh.runN[col];
+    let i = 0;
+    while (i < n && RH[base + i] + 1 < lo) i++;
+    let j = i;
+    let nlo = lo;
+    let nhi = hi;
+    while (j < n && RL[base + j] <= nhi + 1) {
+      if (RL[base + j] < nlo) nlo = RL[base + j];
+      if (RH[base + j] > nhi) nhi = RH[base + j];
+      j++;
+    }
+    const removed = j - i;
+    if (removed > 1) {
+      for (let k = 0; k + j < n; k++) {
+        RL[base + i + 1 + k] = RL[base + j + k];
+        RH[base + i + 1 + k] = RH[base + j + k];
+      }
+    } else if (removed === 0) {
+      for (let k = n - 1; k >= i; k--) {
+        RL[base + k + 1] = RL[base + k];
+        RH[base + k + 1] = RH[base + k];
+      }
+    }
+    RL[base + i] = nlo;
+    RH[base + i] = nhi;
+    let cnt = n - removed + 1;
+    // TRÀN SỨC CHỨA: gộp hai dải sát nhau nhất. Kết quả là TẬP CHA của chỗ thật
+    // sự bị chiếm ⇒ chỉ mất chỗ đặt chứ tuyệt đối không sinh chồng lấn.
+    while (cnt > RUN_CAP) {
+      let bestK = 0;
+      let bestGap = Infinity;
+      for (let k = 0; k + 1 < cnt; k++) {
+        const g = RL[base + k + 1] - RH[base + k];
+        if (g < bestGap) {
+          bestGap = g;
+          bestK = k;
+        }
+      }
+      RH[base + bestK] = RH[base + bestK + 1];
+      for (let k = bestK + 1; k + 1 < cnt; k++) {
+        RL[base + k] = RL[base + k + 1];
+        RH[base + k] = RH[base + k + 1];
+      }
+      cnt--;
+    }
+    sh.runN[col] = cnt;
+  }
+
+  /**
+   * LIỆT KÊ MỌI TẦNG ĐẶT ĐƯỢC tại cột px — trái tim của việc lồng ngược.
+   *
+   * Với mỗi cột c của chi tiết và mỗi DẢI [a,b] của nó, đặt tại py sẽ đụng dải
+   * [s,e] của cột tấm khi và chỉ khi py + a ≤ e và py + b ≥ s, tức
+   *      py ∈ [s − b, e − a].
+   * Gom mọi khoảng cấm đó bằng mảng sai phân rồi quét một lượt ⇒ ra ĐẦY ĐỦ các
+   * khoảng py đặt được, kể cả khoảng nằm lọt giữa hai chi tiết. Kết quả ghi vào
+   * `spanLo`/`spanHi`, trả về số khoảng.
+   *
+   * BẢO ĐẢM: khoảng trả về là chính xác theo danh sách dải, mà danh sách dải là
+   * tập cha của chỗ bị chiếm ⇒ đặt ở đó CHẮC CHẮN không chồng lấn.
+   */
+  freeSpans(sh: SheetGrid, bm: BaseBitmap, px: number, hiLimit: number): number {
+    if (hiLimit < 0) return 0;
+    const diff = this.diff;
+    const ptr = bm.colRunPtr;
+    const runs = bm.colRuns;
+    const RL = sh.runLo;
+    const RH = sh.runHi;
+    let tLo = hiLimit + 1;
+    let tHi = -1;
+    for (let c = 0; c < bm.w; c++) {
+      const col = px + c;
+      const n = sh.runN[col];
+      if (n === 0) continue;
+      const k0 = ptr[c];
+      const k1 = ptr[c + 1];
+      if (k0 === k1) continue;
+      const base = col * RUN_STRIDE;
+      for (let k = k0; k < k1; k++) {
+        const a = runs[2 * k];
+        const b = runs[2 * k + 1];
+        for (let m = 0; m < n; m++) {
+          let lo = RL[base + m] - b;
+          let hi = RH[base + m] - a;
+          if (hi < 0 || lo > hiLimit) continue;
+          if (lo < 0) lo = 0;
+          if (hi > hiLimit) hi = hiLimit;
+          diff[lo]++;
+          diff[hi + 1]--;
+          if (lo < tLo) tLo = lo;
+          if (hi + 1 > tHi) tHi = hi + 1;
+        }
+      }
+    }
+    const spanLo = this.spanLo;
+    const spanHi = this.spanHi;
+    if (tHi < 0) {
+      spanLo[0] = 0;
+      spanHi[0] = hiLimit;
+      return 1;
+    }
+    let cnt = 0;
+    let acc = 0;
+    let start = 0; // đoạn [0, tLo) chắc chắn rảnh
+    const yEnd = Math.min(tHi, hiLimit);
+    for (let y = tLo; y <= yEnd; y++) {
+      acc += diff[y];
+      if (acc === 0) {
+        if (start < 0) start = y;
+      } else if (start >= 0) {
+        if (y - 1 >= start && cnt < MAX_SPANS) {
+          spanLo[cnt] = start;
+          spanHi[cnt] = y - 1;
+          cnt++;
+        }
+        start = -1;
+      }
+    }
+    diff.fill(0, tLo, tHi + 1);
+    if (start < 0) start = yEnd + 1;
+    if (start <= hiLimit && cnt < MAX_SPANS) {
+      spanLo[cnt] = start;
+      spanHi[cnt] = hiLimit;
+      cnt++;
+    }
+    return cnt;
   }
 
   /**
@@ -442,27 +688,6 @@ export class Nester {
 
 
 
-  /**
-   * Lọc RẺ: trả true khi CHẮC CHẮN không chồng lấn — mọi cột của chi tiết đều
-   * nằm trọn dưới hoặc trọn trên dải đã bị chiếm của cột tấm tương ứng.
-   * Trả false thì chưa kết luận được, phải gọi collides(). Một lần lọc tốn
-   * O(bề rộng) thay vì O(chiều cao × số word) của phép dò va chạm đầy đủ.
-   */
-  freeQuick(sh: SheetGrid, bm: BaseBitmap, px: number, py: number): boolean {
-    const colTop = sh.colTop;
-    const colLow = bm.colLow;
-    const colHigh = bm.colHigh;
-    const n = bm.w;
-    for (let c = 0; c < n; c++) {
-      const lo = colLow[c];
-      if (lo < 0) continue;
-      const ct = colTop[px + c];
-      if (ct < 0) continue;
-      if (py + lo <= ct) return false; // có thể đụng phần đã chiếm của cột này
-    }
-    return true;
-  }
-
   /** Diện tích hụt (số ô) nếu đặt chi tiết đúng tại (px, py). */
   voidAt(sh: SheetGrid, bm: BaseBitmap, px: number, py: number): number {
     const colTop = sh.colTop;
@@ -481,6 +706,48 @@ export class Nester {
     return v > 9999999 ? 9999999 : v;
   }
 
+
+  /**
+   * Chấm điểm và bỏ vào rổ "hốc" một vị trí do `freeSpans` sinh ra.
+   * `floor` là đáy của hốc: đặt cao hơn đáy bao nhiêu thì phí đúng bấy nhiêu ô
+   * tôn nằm lọt dưới bụng, nên cộng thẳng vào diện tích hụt để hai kiểu đặt
+   * (tựa đáy / ép ngửa lên trần) so được với nhau.
+   */
+  private pushPocket(
+    sh: SheetGrid, bm: BaseBitmap, rule: number,
+    push: (base: number, px: number, py: number, key: number, pocket: number, floor: number) => void,
+    px: number, py: number, floor: number, maxPy: number, worst: number
+  ): void {
+    if (py < 0 || py > maxPy) return;
+    const newTop = py + bm.h > sh.maxRow ? py + bm.h : sh.maxRow;
+    // LỌC RẺ TRƯỚC: khoá ứng với "hụt = 0" là cận DƯỚI của khoá thật. Thua rồi
+    // thì khỏi tính diện tích hụt (tốn O(bề rộng)) — đây là phần đắt nhất của
+    // vòng quét hốc, mỗi cột có tới vài chục tầng.
+    const lowBound = this.keyOf(rule, px, py, newTop, (py - floor) * bm.w);
+    if (lowBound >= worst) return;
+    let v = this.voidAt(sh, bm, px, py) + (py - floor) * bm.w;
+    if (v > 9999999) v = 9999999;
+    push(TOP_K, px, py, this.keyOf(rule, px, py, newTop, v), 1, floor);
+  }
+
+  /**
+   * ÉP SÁT chỗ trong hốc: đẩy sang trái rồi hạ xuống từng ô chừng nào còn không
+   * chồng lấn. Bù lại phần độ phân giải mất đi do quét cột theo bước `pxStride`.
+   * Chỉ chạy cho vài ứng viên lọt vào chung kết nên phép dò va chạm ở đây rẻ.
+   */
+  private refinePocket(sh: SheetGrid, bm: BaseBitmap, px: number, py: number, out: Int32Array): void {
+    const lim = this.pxStride;
+    for (let k = 0; k < lim && px > 0; k++) {
+      if (this.collides(sh, bm, px - 1, py)) break;
+      px--;
+    }
+    for (let k = 0; k < lim && py > 0; k++) {
+      if (this.collides(sh, bm, px, py - 1)) break;
+      py--;
+    }
+    out[0] = px;
+    out[1] = py;
+  }
 
   /**
    * TRƯỢT–RƠI LẶP: từ một vị trí hợp lệ, luân phiên "đẩy sang trái tới khi
@@ -552,22 +819,30 @@ export class Nester {
     const kx = this.candPx;
     const ky = this.candPy;
     const kk = this.candKey;
-    for (let i = 0; i < K; i++) {
+    const kp = this.candPocket;
+    const kf = this.candFloor;
+    for (let i = 0; i < K * 2; i++) {
       kx[i] = -1;
       kk[i] = Infinity;
+      kp[i] = 0;
+      kf[i] = 0;
     }
-    const push = (base: number, px: number, py: number, key: number): void => {
+    const push = (base: number, px: number, py: number, key: number, pocket: number, floor: number): void => {
       if (key >= kk[base + K - 1]) return;
       let i = base + K - 1;
       while (i > base && kk[i - 1] > key) {
         kk[i] = kk[i - 1];
         kx[i] = kx[i - 1];
         ky[i] = ky[i - 1];
+        kp[i] = kp[i - 1];
+        kf[i] = kf[i - 1];
         i--;
       }
       kk[i] = key;
       kx[i] = px;
       ky[i] = py;
+      kp[i] = pocket;
+      kf[i] = floor;
     };
 
     const out = this.scratch;
@@ -579,7 +854,7 @@ export class Nester {
       const py = out[0];
       if (py > maxPy) continue;
       const newTop = py + bm.h > sh.maxRow ? py + bm.h : sh.maxRow;
-      push(0, px, py, this.keyOf(rule, px, py, newTop, out[1]));
+      push(0, px, py, this.keyOf(rule, px, py, newTop, out[1]), 0, 0);
     }
 
     // B) trượt từ phải sang trái. Chỉ quét tới mép trên đang dùng của tấm:
@@ -596,70 +871,72 @@ export class Nester {
         const newTop = py + bm.h > sh.maxRow ? py + bm.h : sh.maxRow;
         // cận dưới của khoá (ứng với diện tích hụt = 0): thua rồi thì khỏi tính hụt
         if (this.keyOf(rule, px, py, newTop, 0) >= kk[K - 1]) continue;
-        push(0, px, py, this.keyOf(rule, px, py, newTop, this.voidAt(sh, bm, px, py)));
+        push(0, px, py, this.keyOf(rule, px, py, newTop, this.voidAt(sh, bm, px, py)), 0, 0);
       }
     }
 
-    // E) QUÉT VÉT CẠN theo cột — chỉ bật ở pha tinh chỉnh.
-    // Thả rơi chỉ với tới MẶT TRÊN của thứ đã xếp; chỗ trống nằm lọt dưới bụng
-    // thanh cong thì phải dò va chạm thật mới thấy, mà đó đúng là phần tôn phí
-    // lớn nhất (đo trên file mẫu: bản chỉ-thả-rơi dừng ở dải 13,2m, có vét cạn
-    // xuống 12,2m).
+    // F) ĐẶT VÀO HỐC — chỉ bật ở pha tinh chỉnh.
     //
-    // BẮT BUỘC CÓ TRẦN CÔNG VIỆC. Một lần dò va chạm của thanh sườn dài tốn cỡ
-    // 10^4 phép tính; quét hết mọi cột × mọi hàng là 10^10 — đo thật: ngân sách
-    // 60 giây chạy mất 703 giây. Nên ở đây: quét cột từ trái sang, mỗi cột chỉ
-    // lấy vài mẫu theo y, dừng khi đã đủ EXACT_SPOTS chỗ hoặc hết trần dò.
+    // Đây là chỗ dạy engine LỒNG NGƯỢC. Với mỗi cột px, `freeSpans` trả về MỌI
+    // khoảng py đặt được, kể cả khoảng nằm lọt dưới bụng hoặc giữa hai thanh cong
+    // đã xếp. Hai vị trí đáng thử trong mỗi khoảng:
+    //   · ĐÁY khoảng — thanh rơi xuống tựa lên nóc thứ bên dưới;
+    //   · NÓC khoảng — thanh được ép NGỬA lên ôm sát bụng thanh phía trên.
+    // Vị trí thứ hai chính là kiểu "hai hình vòm úp vào nhau" mà đường bao một
+    // tầng (colTop) không bao giờ nghĩ ra được.
+    //
+    // Chi phí: mỗi cột tốn cỡ (số dải chi tiết × số dải tấm) + độ dài dải quét,
+    // tức vài nghìn phép tính — rẻ hơn hẳn phép dò va chạm của bản cũ, mà lại
+    // LIỆT KÊ ĐỦ chứ không phải mò theo hạn ngạch.
     if (exact) {
-      const stride = this.yStride;
-      let budget = EXACT_PROBES;
-      for (let px = 0; px <= maxPx && budget > 0; px++) {
-        // Tự canh giờ ngay trong vòng quét: cứ 128 lần dò lại hỏi đã hết hạn chưa.
-        // Nhờ vậy KHÔNG cần chặn chất lượng bằng một trần cứng — hết giờ thì bỏ
-        // dở phần quét, phần đã quét vẫn dùng được, và mức vượt giờ tối đa chỉ
-        // bằng 128 lần dò (cỡ vài mili-giây).
-        if ((px & 15) === 0 && abort?.()) break;
-        const land = this.dropYOnly(sh, bm, px);
-        if (land > maxPy || land <= 0) continue;
-        let found = -1;
-        for (let py = 0; py < land && budget > 0; py += stride) {
-          if (this.freeQuick(sh, bm, px, py)) {
-            found = py;
-            break;
-          }
-          budget--;
-          if (!this.collides(sh, bm, px, py)) {
-            found = py;
-            break;
-          }
+      const hiLimit = Math.min(maxPy, Math.max(sh.maxRow, sh.blockTop));
+      const step = this.pxStride;
+      for (let px = 0; px <= maxPx; px += step) {
+        if ((px & 31) === 0 && abort?.()) break;
+        const nsp = this.freeSpans(sh, bm, px, hiLimit);
+        for (let i = 0; i < nsp; i++) {
+          const lo = this.spanLo[i];
+          const hi = this.spanHi[i];
+          const worst = kk[K * 2 - 1];
+          // đáy hốc
+          this.pushPocket(sh, bm, rule, push, px, lo, lo, maxPy, worst);
+          // nóc hốc — chỉ đáng thử khi hốc CÓ TRẦN (không phải khoảng trên cùng)
+          if (hi > lo && hi < hiLimit) this.pushPocket(sh, bm, rule, push, px, hi, lo, maxPy, worst);
         }
-        if (found < 0) continue;
-        // ép xuống từng ô cho khít, trong phạm vi một bước quét
-        for (let k = 0; k < stride && found > 0 && budget > 0; k++) {
-          budget--;
-          if (this.collides(sh, bm, px, found - 1)) break;
-          found--;
-        }
-        const newTop = found + bm.h > sh.maxRow ? found + bm.h : sh.maxRow;
-        push(0, px, found, this.keyOf(rule, px, found, newTop, this.voidAt(sh, bm, px, found)));
       }
     }
+
+    // E) QUÉT VÉT CẠN theo cột — ĐÃ BỎ HẲN, bộ sinh F ở trên thay thế.
+    // Bản cũ mò từng (cột, hàng) rồi gọi dò va chạm, phải chặn bằng trần số lần
+    // dò nên vừa chậm vừa bỏ sót. Bộ sinh F liệt kê ĐỦ mọi tầng đặt được bằng
+    // phép tính khoảng trên danh sách dải, không cần dò va chạm lần nào.
 
     let bestKey = Infinity;
     let bestPx = -1;
     let bestPy = 0;
-    for (let i = 0; i < K; i++) {
+    for (let i = 0; i < K * 2; i++) {
       if (kx[i] < 0) continue;
       if (kk[i] < bestKey) {
         bestKey = kk[i];
         bestPx = kx[i];
         bestPy = ky[i];
       }
-      this.settle(sh, bm, kx[i], ky[i], maxPx, out);
+      // Chỗ trong HỐC thì KHÔNG được "trượt–rơi": hai phép đó đi theo đường bao
+      // một tầng nên sẽ lôi chi tiết ra khỏi hốc. Thay vào đó ép sát tại chỗ.
+      if (kp[i]) this.refinePocket(sh, bm, kx[i], ky[i], out);
+      else this.settle(sh, bm, kx[i], ky[i], maxPx, out);
       const px = out[0];
       const py = out[1];
       if (py > maxPy || px > maxPx || px < 0 || py < 0) continue;
-      const v = this.voidAt(sh, bm, px, py);
+      let v = this.voidAt(sh, bm, px, py);
+      if (kp[i]) {
+        // Phí thật của chỗ trong hốc = phần tôn bỏ trống nằm DƯỚI chi tiết,
+        // tính từ đáy hốc lên. Không cộng khoản này thì kiểu "ép ngửa lên trần"
+        // lúc nào cũng được chấm 0 và thắng oan kiểu "tựa xuống đáy".
+        const extra = (py - kf[i]) * bm.w;
+        v = v + (extra > 0 ? extra : 0);
+        if (v > 9999999) v = 9999999;
+      }
       const newTop = py + bm.h > sh.maxRow ? py + bm.h : sh.maxRow;
       const key = this.keyOf(rule, px, py, newTop, v);
       if (key < bestKey) {
@@ -711,13 +988,53 @@ export class Nester {
   }
 }
 
-/** Dựng danh sách góc hợp lệ cho 1 chi tiết. */
-function buildAngles(simple: Ring, nester: Nester, params: NestParams): AngleOpt[] {
-  const step = Math.max(1, params.rotationStep || 5);
-  const mirrors = params.allowMirror ? [false, true] : [false];
+/**
+ * Dấu vân tay hình dạng: raster thô 20mm rồi băm. Hai biến thể (góc × lật) cho
+ * CÙNG một vân tay thì đặt lên tấm giống hệt nhau — giữ cả hai chỉ làm loãng
+ * việc tìm kiếm chứ không thêm được lựa chọn nào.
+ */
+const SIG_CELL = 20;
+function shapeSig(ring: Ring): number {
+  const bm = rasterizeRing(ring, SIG_CELL, 0);
+  let h = 0x811c9dc5;
+  h = Math.imul(h ^ bm.w, 0x01000193);
+  h = Math.imul(h ^ bm.h, 0x01000193);
+  for (let i = 0; i < bm.bits.length; i++) h = Math.imul(h ^ bm.bits[i], 0x01000193);
+  return h >>> 0;
+}
+
+interface AngleSet {
+  angles: AngleOpt[];
+  /** bậc góc → chỉ số trong `angles` của bản KHÔNG lật (hoặc bản trùng hình). */
+  byDeg: Int32Array;
+  /** bậc góc → chỉ số của bản ĐÃ LẬT (hoặc bản trùng hình). */
+  byDegM: Int32Array;
+}
+
+/**
+ * Dựng danh sách góc hợp lệ cho 1 chi tiết, ĐÃ BỎ TRÙNG.
+ *
+ * Vì sao phải bỏ trùng: thanh sườn tàu gần như đối xứng gương, nên bản lật ở
+ * góc θ đặt lên tấm y hệt bản không lật ở một góc nào đó. Bật "lật gương" mà
+ * không bỏ trùng thì số góc tăng gấp đôi (72 → 144) trong khi số lựa chọn THẬT
+ * gần như không tăng — đo thật: bật lật gương làm chiều dài dải TỆ ĐI vì việc
+ * tìm kiếm bị loãng. Bỏ trùng xong thì bật lật gương chỉ có lợi, không có hại.
+ *
+ * Bảng tra `byDeg`/`byDegM` vẫn trả về ĐẦY ĐỦ mọi bậc góc: biến thể bị bỏ được
+ * trỏ sang bản trùng hình còn giữ lại, nên phép "xoay đúng bằng thanh trước"
+ * và "úp ngược 180°" không mất ứng viên nào.
+ */
+function buildAngles(simple: Ring, nester: Nester, params: NestParams, nSteps: number, step: number): AngleSet {
   const out: AngleOpt[] = [];
+  const byDeg = new Int32Array(nSteps).fill(-1);
+  const byDegM = new Int32Array(nSteps).fill(-1);
+  const seen = new Map<number, number>();
+  const mirrors = params.allowMirror ? [false, true] : [false];
   for (const mirrored of mirrors) {
-    for (let deg = 0; deg < 360; deg += step) {
+    const table = mirrored ? byDegM : byDeg;
+    for (let k = 0; k < nSteps; k++) {
+      const deg = k * step;
+      if (deg >= 360) break;
       const ring = transformRing(simple, deg, mirrored);
       const b = ringBBox(ring);
       const bw = b.maxX - b.minX;
@@ -725,11 +1042,27 @@ function buildAngles(simple: Ring, nester: Nester, params: NestParams): AngleOpt
       const w = bw + 2 * nester.dil * nester.cell;
       const h = bh + 2 * nester.dil * nester.cell;
       if (w > nester.gw * nester.cell || h > nester.gh * nester.cell) continue;
+      const sig = shapeSig(ring);
+      const hit = seen.get(sig);
+      if (hit !== undefined) {
+        table[k] = hit; // trùng hình — trỏ sang bản đã giữ, KHÔNG thêm góc mới
+        continue;
+      }
+      seen.set(sig, out.length);
+      table[k] = out.length;
       out.push({ deg, mirrored, bboxArea: bw * bh, bboxH: bh, bboxW: bw });
     }
   }
-  out.sort((a, b) => a.bboxArea - b.bboxArea);
-  return out;
+  // Sắp theo bbox nhỏ dần — phải vá lại bảng tra vì chỉ số thay đổi.
+  const order = out.map((_, i) => i).sort((a, b) => out[a].bboxArea - out[b].bboxArea);
+  const remap = new Int32Array(out.length);
+  order.forEach((oldIdx, newIdx) => { remap[oldIdx] = newIdx; });
+  const sorted = order.map((i) => out[i]);
+  for (let k = 0; k < nSteps; k++) {
+    if (byDeg[k] >= 0) byDeg[k] = remap[byDeg[k]];
+    if (byDegM[k] >= 0) byDegM[k] = remap[byDegM[k]];
+  }
+  return { angles: sorted, byDeg, byDegM };
 }
 
 interface Genome {
@@ -792,7 +1125,7 @@ export function runNest(
   const now = cb.now ?? Date.now;
   const t0 = now();
   const deadline = t0 + Math.max(200, params.timeLimitMs);
-  const rng = mulberry32(params.seed ?? 12345);
+  let rng = mulberry32(params.seed ?? 12345);
 
   // MỖI KHỔ TẤM MỘT NESTER. Lưới ô (gw × gh) phụ thuộc khổ tấm, mà tấm thừa
   // được khai có thể khác khổ tấm mới, nên không dùng chung một Nester được.
@@ -838,7 +1171,7 @@ export function runNest(
     // Dùng HÌNH GỐC (không đơn giản hoá) để raster: hình đơn giản hoá có thể
     // hụt vào trong tới 1mm, khiến chi tiết lọt ra ngoài lề tấm.
     const simple = p.rings[0];
-    const angles = buildAngles(simple, nester, params);
+    const { angles, byDeg, byDegM } = buildAngles(simple, nester, params, nSteps, angStep);
     if (angles.length === 0) {
       for (let i = 0; i < Math.max(1, p.qty); i++) unplacedFixed.push(`${p.id}#${i}`);
       continue;
@@ -846,11 +1179,7 @@ export function runNest(
     const idx = angles.map((_, i) => i);
     const byH = idx.slice().sort((a, b) => angles[a].bboxH - angles[b].bboxH);
     const byW = idx.slice().sort((a, b) => angles[a].bboxW - angles[b].bboxW);
-    const byDeg = new Int32Array(nSteps).fill(-1);
-    angles.forEach((a, i) => {
-      if (!a.mirrored) byDeg[Math.round(a.deg / angStep) % nSteps] = i;
-    });
-    preps.push({ part: p, simple, angles, byH, byW, byDeg });
+    preps.push({ part: p, simple, angles, byH, byW, byDeg, byDegM });
   }
 
   const insts: Inst[] = [];
@@ -878,24 +1207,33 @@ export function runNest(
    * nhất theo trục dài tấm và góc hẹp nhất theo bề ngang tấm, cộng một cửa sổ
    * quanh giá trị gen để GA dò dần.
    */
-  const ANGLE_TRIES = 9;
-  const ANGLE_TRIES_EXACT = 9;
+  const ANGLE_TRIES = 10;
+  const ANGLE_TRIES_EXACT = 10;
   const wantBuf: number[] = [];
   const seenBuf = new Set<number>();
   /**
-   * `prevDeg` là góc của chi tiết vừa đặt xong. Bộ sườn tàu là một họ đường
-   * cong gần giống nhau, muốn LỒNG ĐỒNG TÂM thì thanh sau phải xoay gần đúng
-   * bằng thanh trước (hoặc úp ngược 180°) — nên hai góc đó luôn được thử.
+   * `prevDeg`/`prevMir` là góc và trạng thái lật của chi tiết vừa đặt xong. Bộ
+   * sườn tàu là một họ đường cong gần giống nhau, muốn LỒNG vào nhau thì thanh
+   * sau phải hoặc xoay gần đúng bằng thanh trước (lồng đồng tâm), hoặc ÚP NGƯỢC
+   * 180° (hai hình vòm ôm vào nhau).
+   *
+   * LẬT GƯƠNG: bản lật của cùng một góc là "cùng một đường cong nhìn từ mặt kia",
+   * thường lồng khít hơn bản không lật, nên cả bốn tổ hợp (góc × lật) đều được
+   * thử trước mọi ứng viên khác. Trước đây bảng tra chỉ có bản KHÔNG lật, nên dù
+   * bật ô "lật gương" engine vẫn gần như không bao giờ chọn bản lật.
    */
-  const angleCandsOf = (prep: PartPrep, gene: number, prevDeg: number, tries: number): AngleOpt[] => {
+  const angleCandsOf = (
+    prep: PartPrep, gene: number, prevDeg: number, prevMir: boolean, tries: number
+  ): AngleOpt[] => {
     const n = prep.angles.length;
     wantBuf.length = 0;
     if (prevDeg >= 0) {
       const k = Math.round(prevDeg / angStep) % nSteps;
-      wantBuf.push(prep.byDeg[k]);
-      wantBuf.push(prep.byDeg[(k + Math.round(nSteps / 2)) % nSteps]);
-      wantBuf.push(prep.byDeg[(k + 1) % nSteps]);
-      wantBuf.push(prep.byDeg[(k + nSteps - 1) % nSteps]);
+      const kf = (k + Math.round(nSteps / 2)) % nSteps;
+      const same = prevMir ? prep.byDegM : prep.byDeg;
+      const other = prevMir ? prep.byDeg : prep.byDegM;
+      wantBuf.push(same[k], same[kf], other[k], other[kf]);
+      wantBuf.push(same[(k + 1) % nSteps], same[(k + nSteps - 1) % nSteps]);
     }
     wantBuf.push(gene % n, 0, prep.byH[0], prep.byW[0], (gene + 1) % n, (gene + n - 1) % n, 1);
     seenBuf.clear();
@@ -910,18 +1248,32 @@ export function runNest(
   };
 
   const abort = (): boolean => now() > workDeadline || cb.shouldStop?.() === true;
+
+  /**
+   * Giá của một phương án. Ưu tiên tuyệt đối: ít tấm nhất. Sau đó: dồn cho tấm
+   * CUỐI càng ít càng tốt (vừa là đường dốc để xoá hẳn tấm cuối, vừa để tôn
+   * thừa còn nguyên khổ). Cuối cùng: tổng chiều dài đã dùng càng ngắn càng chặt.
+   * Tách riêng vì bước dọn tấm cuối phải CHẤM LẠI giá sau khi dời chi tiết.
+   */
+  const costOf = (used: SheetGrid[], nUnplaced: number): number => {
+    const lastArea = used.length ? used[used.length - 1].usedArea : 0;
+    const lastTop = used.length ? used[used.length - 1].maxRow * used[used.length - 1].nester.cell : 0;
+    const sumTop = used.reduce((a, s) => a + s.maxRow * s.nester.cell, 0);
+    return (used.length + nUnplaced * 10) * BIG + (lastArea / 1e6) * 1e7 + lastTop * 1e3 + sumTop;
+  };
   const evaluate = (g: Genome, exact = false): Evaluated => {
     const sheets: SheetGrid[] = [makeSheet(0)];
     const sheetOf = new Int32Array(nInst).fill(-1);
     const unplaced: string[] = [];
     let placedArea = 0;
     let prevDeg = -1;
+    let prevMir = false;
     for (const ii of g.order) {
       const inst = insts[ii];
       const prep = preps[inst.prepIndex];
       // Ở pha vét cạn mỗi góc đắt gấp cả trăm lần, nên thử ít góc hơn để một
       // lần đánh giá CHẠY XONG trong hạn — đánh giá dở dang thì vứt đi, phí sạch.
-      const cands = angleCandsOf(prep, g.angleIdx[ii], prevDeg, exact ? ANGLE_TRIES_EXACT : ANGLE_TRIES);
+      const cands = angleCandsOf(prep, g.angleIdx[ii], prevDeg, prevMir, exact ? ANGLE_TRIES_EXACT : ANGLE_TRIES);
       let ok = -1;
       for (let s = 0; s < sheets.length; s++) {
         if (sheets[s].nester.place(sheets[s], prep, inst, cands, g.rule, exact, abort)) {
@@ -953,6 +1305,7 @@ export function runNest(
         sheetOf[ii] = ok;
         const pls = sheets[ok].placements;
         prevDeg = pls[pls.length - 1].rotationDeg;
+        prevMir = pls[pls.length - 1].mirrored;
       } else unplaced.push(`${prep.part.id}#${inst.instance}`);
     }
     const used = sheets.filter((s) => s.placements.length > 0);
@@ -973,14 +1326,7 @@ export function runNest(
     // Ưu tiên tuyệt đối: ít tấm nhất. Sau đó: dồn cho tấm CUỐI càng ít càng tốt
     // (vừa là đường dốc để xoá hẳn tấm cuối, vừa để tôn thừa còn nguyên khổ).
     // Cuối cùng: tổng chiều dài đã dùng của mọi tấm càng ngắn càng chặt.
-    const lastArea = used.length ? used[used.length - 1].usedArea : 0;
-    const lastTop = used.length ? used[used.length - 1].maxRow * used[used.length - 1].nester.cell : 0;
-    const sumTop = used.reduce((a, s) => a + s.maxRow * s.nester.cell, 0);
-    const cost =
-      (used.length + unplaced.length * 10) * BIG +
-      (lastArea / 1e6) * 1e7 +
-      lastTop * 1e3 +
-      sumTop;
+    const cost = costOf(used, unplaced.length);
     return {
       genome: g, cost, sheets: layouts, unplaced: unplaced.concat(unplacedFixed),
       placedArea, nSheets: used.length, lastSheetInsts, grids: used, sheetOf,
@@ -1036,13 +1382,23 @@ export function runNest(
    * dải 13,2m, chỉ-vét-cạn cho 12,4m nhưng chạy được quá ít phương án; ghép hai
    * pha lấy được cả cấu trúc tốt lẫn độ khít.
    */
-  const switchAt = t0 + Math.max(200, params.timeLimitMs) * 0.65;
+  /**
+   * Mốc chuyển pha TRONG MỘT CHẶNG. Đo thật trên file mẫu (dải 2000 × N, ngân
+   * sách 60 giây, trung bình 2 hạt giống — dải càng ngắn càng tốt):
+   *   chuyển ở 20%: 12.361mm · 35%: 12.252mm · 50%: 12.264mm · 65%: 12.453mm
+   * Pha siết chặt mới (đặt vào hốc) là pha ĐẺ RA kết quả, nên phải cho nó quá
+   * nửa ngân sách. Chọn 40%.
+   */
+  const EXACT_AT = 0.40;
+  let switchAt = t0 + Math.max(200, params.timeLimitMs) * EXACT_AT;
   let exact = false;
   /**
-   * Hạn cho vòng tìm kiếm — để DÀNH LẠI một quỹ nhỏ cho bước dọn tấm cuối ở
-   * cuối hàm. Không dành thì vòng GA ăn hết giờ và bước dọn không chạy được ô nào.
+   * Hạn cho vòng tìm kiếm — DÀNH LẠI một quỹ cho pha hậu xử lý (gộp tấm + dọn
+   * tấm cuối) ở cuối hàm. Không dành thì vòng GA ăn hết giờ và pha đó không chạy
+   * được ô nào. Phép gộp hai tấm là nước ăn tiền nhất nên quỹ này phải rộng tay:
+   * 20% ngân sách, tối đa 30 giây.
    */
-  const sweepBudget = Math.min(4000, Math.max(200, params.timeLimitMs) * 0.12);
+  const sweepBudget = Math.min(30_000, Math.max(200, params.timeLimitMs) * 0.2);
   let workDeadline = deadline - sweepBudget;
 
   const report = (label: string) => {
@@ -1073,12 +1429,29 @@ export function runNest(
   });
 
   const pop: Evaluated[] = [];
+  /**
+   * HỘI ĐỒNG — những phương án ĐÁNG DỌN TẤM CUỐI, giữ xuyên suốt mọi chặng.
+   * Quần thể `pop` bị xoá sạch mỗi khi sang chặng mới (xem vòng chặng bên dưới),
+   * mà phương án "chỉ thừa đúng 1 chi tiết ở tấm cuối" — loại dọn được là bớt
+   * hẳn một tấm — có thể đã xuất hiện ở chặng trước. Nên phải giữ riêng.
+   */
+  const hall: Evaluated[] = [];
+  const remember = (e: Evaluated) => {
+    if (e.grids.length < 2) return;
+    if (e.grids[e.grids.length - 1].placements.length > 3) return;
+    hall.push(e);
+    if (hall.length > 12) {
+      hall.sort((a, b) => a.cost - b.cost);
+      hall.length = 8;
+    }
+  };
   /** Số phương án liên tiếp không cải thiện — để biết khi nào GA đã bế tắc. */
   let sinceImprove = 0;
   const consider = (e: Evaluated) => {
     iterations++;
     opts.onCandidate?.(snapOf(e));
     pop.push(e);
+    remember(e);
     if (!best || e.cost < best.cost) {
       best = e;
       sinceImprove = 0;
@@ -1089,15 +1462,52 @@ export function runNest(
     }
   };
 
-  for (const g of seeds) {
-    if (now() > workDeadline || cb.shouldStop?.()) break;
-    consider(evaluate(g));
-  }
-  if (!best) {
-    best = evaluate(seeds[0]);
-    iterations++;
-    pop.push(best);
-  }
+  /**
+   * CHIA NGÂN SÁCH THÀNH NHIỀU CHẶNG ĐỘC LẬP.
+   *
+   * Vì sao: đo thật 6 hạt giống ở ngân sách 180 giây trên file mẫu — 5 lượt cho
+   * 3 tấm, 1 lượt (hạt 777) cho 2 TẤM. Tức lời giải 2 tấm CÓ TỒN TẠI và engine
+   * tìm được, nhưng nó phụ thuộc vào việc quần thể ban đầu rơi vào lưu vực nào.
+   * Chạy một mạch 180 giây thì chỉ bốc đúng MỘT lưu vực; chia thành 4 chặng 45
+   * giây, mỗi chặng gieo lại quần thể bằng một dòng ngẫu nhiên khác, là bốc BỐN
+   * lần. Phương án tốt nhất (`best`) và hội đồng được giữ xuyên chặng nên không
+   * mất gì, chỉ được thêm cơ hội.
+   *
+   * Ngân sách nhỏ (≤ 67 giây) vẫn chạy một chặng như cũ — chia nhỏ nữa thì mỗi
+   * chặng không đủ cho pha siết chặt.
+   */
+  const workBudget = workDeadline - t0;
+  const nSeg = Math.max(1, Math.min(4, Math.round(Math.max(200, params.timeLimitMs) / 45_000)));
+  const baseSeed = params.seed ?? 12345;
+
+  for (let seg = 0; seg < nSeg; seg++) {
+    if (now() >= workDeadline || cb.shouldStop?.()) break;
+    const segEnd = Math.min(workDeadline, t0 + Math.round((workBudget * (seg + 1)) / nSeg));
+    const segStart = t0 + Math.round((workBudget * seg) / nSeg);
+    switchAt = segStart + Math.round((workBudget / nSeg) * EXACT_AT);
+    exact = false;
+    sinceImprove = 0;
+    pop.length = 0;
+    // Chặng sau dùng một DÒNG NGẪU NHIÊN KHÁC — đó mới là thứ đổi lưu vực.
+    if (seg > 0) rng = mulberry32(baseSeed + seg * 7919);
+    const segSeeds: Genome[] = seg === 0
+      ? seeds
+      : baseOrders.map((o) => ({
+          order: o.slice(),
+          angleIdx: idxAll.map((i) => Math.floor(rng() * preps[insts[i].prepIndex].angles.length)),
+          rule: Math.floor(rng() * 4),
+        }));
+    for (const g of segSeeds) {
+      if (now() > segEnd || cb.shouldStop?.()) break;
+      consider(evaluate(g));
+    }
+    if (pop.length === 0) {
+      if (!best) {
+        best = evaluate(seeds[0]);
+        iterations++;
+        pop.push(best);
+      } else break;
+    }
 
   // ── vòng tiến hoá ────────────────────────────────────────────────────────
   const orderCrossover = (a: number[], b: number[]): number[] => {
@@ -1127,7 +1537,7 @@ export function runNest(
     return e.lastSheetInsts.concat(e.genome.order.filter((v) => !set.has(v)));
   };
 
-  while (now() < workDeadline && !cb.shouldStop?.()) {
+    while (now() < segEnd && !cb.shouldStop?.()) {
     if (!exact && now() >= switchAt) {
       exact = true;
       sinceImprove = 0;
@@ -1135,7 +1545,7 @@ export function runNest(
       const elite = pop.slice(0, 4).map((e) => e.genome);
       pop.length = 0;
       for (const g of elite) {
-        if (now() >= workDeadline || cb.shouldStop?.()) break;
+        if (now() >= segEnd || cb.shouldStop?.()) break;
         consider(evaluate(g, true));
       }
       if (pop.length === 0) break;
@@ -1154,7 +1564,7 @@ export function runNest(
       // thứ tự NGẪU NHIÊN HOÀN TOÀN đo ra kết quả xấu hơn (14.462 so với 13.511mm
       // trên dải dài): thứ tự "to trước / xen kẽ" là cấu trúc phải giữ.
       for (let k = 0; k < POP >> 2; k++) {
-        if (now() >= workDeadline || cb.shouldStop?.()) break;
+        if (now() >= segEnd || cb.shouldStop?.()) break;
         const order = keep.genome.order.slice();
         const angleIdx = keep.genome.angleIdx.slice();
         const moves = 3 + Math.floor(rng() * 5);
@@ -1171,7 +1581,7 @@ export function runNest(
         consider(evaluate({ order, angleIdx, rule: Math.floor(rng() * 4) }, exact));
       }
       for (const o of baseOrders) {
-        if (now() >= workDeadline || cb.shouldStop?.()) break;
+        if (now() >= segEnd || cb.shouldStop?.()) break;
         consider(evaluate({
           order: o.slice(),
           angleIdx: idxAll.map((i) => Math.floor(rng() * preps[insts[i].prepIndex].angles.length)),
@@ -1215,7 +1625,141 @@ export function runNest(
     }
     const rule = rng() < 0.25 ? Math.floor(rng() * 4) : pa.genome.rule;
     consider(evaluate({ order, angleIdx, rule }, exact));
+    } // hết vòng tiến hoá của chặng này
+  } // hết một CHẶNG — chặng sau gieo lại quần thể bằng dòng ngẫu nhiên khác
+
+  if (!best) {
+    best = evaluate(seeds[0]);
+    iterations++;
+    remember(best);
   }
+
+  /** Tra instance theo "partId#instance" — dùng ở pha hậu xử lý. */
+  const instKey = new Map<string, number>();
+  insts.forEach((it, i) => instKey.set(`${preps[it.prepIndex].part.id}#${it.instance}`, i));
+
+  /** Dựng một tấm trống ĐÚNG loại (khổ + vùng cấm) của một lưới đang có. */
+  const blankLike = (g: SheetGrid): SheetGrid =>
+    g.specIndex >= 0
+      ? specNester[g.specIndex].newSheet({
+          tpl: specTpl[g.specIndex], specIndex: g.specIndex, blocked: specs[g.specIndex].blocked,
+        })
+      : defaultNester.newSheet();
+
+  /**
+   * XẾP LẠI TỪ ĐẦU một nhóm chi tiết lên MỘT tấm. Trả về lưới nếu nhét được HẾT,
+   * null nếu không. Thử lần lượt nhiều thứ tự; mỗi thứ tự đặt bằng pha siết chặt
+   * (có đặt vào hốc) nên đây là phép thử "nhóm này có vừa một tấm không" mạnh
+   * nhất mà engine có.
+   */
+  const repackOnOneSheet = (like: SheetGrid, group: number[], until: number): SheetGrid | null => {
+    const orders: number[][] = [
+      group.slice().sort((a, b) => insts[b].area - insts[a].area),
+      group.slice().sort((a, b) => preps[insts[b].prepIndex].part.maxLength - preps[insts[a].prepIndex].part.maxLength),
+      group.slice().sort((a, b) => insts[a].area - insts[b].area),
+    ];
+    const big = orders[0];
+    orders.push(big.filter((_, i) => i % 2 === 0).concat(big.filter((_, i) => i % 2 === 1)));
+    for (let t = 0; t < 40; t++) {
+      const o = big.slice();
+      for (let i = o.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        [o[i], o[j]] = [o[j], o[i]];
+      }
+      orders.push(o);
+    }
+    for (const order of orders) {
+      for (let rule = 0; rule < 4; rule++) {
+        if (now() > until || cb.shouldStop?.()) return null;
+        const sh = blankLike(like);
+        let prevDeg = -1;
+        let prevMir = false;
+        let ok = true;
+        for (const ii of order) {
+          const inst = insts[ii];
+          const prep = preps[inst.prepIndex];
+          const cands = angleCandsOf(prep, 0, prevDeg, prevMir, ANGLE_TRIES_EXACT);
+          if (!sh.nester.place(sh, prep, inst, cands, rule, true, () => now() > until)) {
+            ok = false;
+            break;
+          }
+          const pl = sh.placements[sh.placements.length - 1];
+          prevDeg = pl.rotationDeg;
+          prevMir = pl.mirrored;
+        }
+        if (ok) return sh;
+      }
+    }
+    return null;
+  };
+
+  /**
+   * GỘP HAI TẤM LÀM MỘT — nước cờ quyết định "3 tấm hay 2 tấm".
+   *
+   * Vì sao cần, dù đã có bước dọn tấm cuối: dọn tấm cuối chỉ THÊM chi tiết vào
+   * chỗ trống còn lại của tấm trước, giữ nguyên cách sắp sẵn có. Tấm trước đã
+   * xếp chặt cho 7 chi tiết thì gần như không còn khe nào nhét thêm chi tiết
+   * thứ 8 — dù nếu XẾP LẠI CẢ TÁM từ đầu thì chúng vừa.
+   *
+   * Nên ở đây làm đúng thế: gom chi tiết của tấm cuối với chi tiết của một tấm
+   * khác rồi xếp lại toàn bộ nhóm đó lên một tấm trống. Vừa thì bớt hẳn một tấm.
+   * Đây chính là bước đưa file mẫu từ 3 tấm xuống 2 tấm.
+   */
+  const tryMergeSheets = (e: Evaluated, until: number): boolean => {
+    if (e.grids.length < 2) return false;
+    const lastIdx = e.grids.length - 1;
+    const last = e.grids[lastIdx];
+    if (last.placements.length === 0 || last.placements.length > 4) return false;
+    const idsOf = (g: SheetGrid): number[] => {
+      const out: number[] = [];
+      for (const pl of g.placements) {
+        const k = instKey.get(`${pl.partId}#${pl.instance}`);
+        if (k === undefined) return [];
+        out.push(k);
+      }
+      return out;
+    };
+    const lastIds = idsOf(last);
+    if (lastIds.length === 0) return false;
+    // Ưu tiên tấm RỖNG NHẤT — còn nhiều chỗ nhất nên dễ nuốt thêm nhất.
+    const order = e.grids
+      .map((g, i) => i)
+      .filter((i) => i !== lastIdx)
+      .sort((a, b) => e.grids[a].usedArea - e.grids[b].usedArea);
+    for (const oi of order) {
+      if (now() > until || cb.shouldStop?.()) break;
+      const other = e.grids[oi];
+      const otherIds = idsOf(other);
+      if (otherIds.length === 0) continue;
+      const merged = repackOnOneSheet(other, otherIds.concat(lastIds), until);
+      if (!merged) continue;
+      const grids = e.grids.filter((_, i) => i !== lastIdx && i !== oi);
+      grids.splice(Math.min(oi, grids.length), 0, merged);
+      e.grids = grids;
+      e.nSheets = grids.length;
+      e.sheets = grids.map((g, i) => ({
+        index: i,
+        width: g.w,
+        height: g.h,
+        placements: g.placements,
+        usedArea: g.usedArea,
+        utilization: g.usedArea / (g.w * g.h),
+        specIndex: g.specIndex,
+        blocked: g.blocked,
+      }));
+      // sheetOf phải dựng lại: chi tiết đã đổi tấm.
+      e.sheetOf = new Int32Array(nInst).fill(-1);
+      grids.forEach((g, gi) => {
+        for (const pl of g.placements) {
+          const k = instKey.get(`${pl.partId}#${pl.instance}`);
+          if (k !== undefined) e.sheetOf[k] = gi;
+        }
+      });
+      e.cost = costOf(grids, e.unplaced.length - unplacedFixed.length);
+      return true;
+    }
+    return false;
+  };
 
   /**
    * HẬU XỬ LÝ — DỌN TẤM CUỐI.
@@ -1243,13 +1787,17 @@ export function runNest(
       for (let sIdx = 0; sIdx < e.grids.length - 1 && !moved; sIdx++) {
         if (e.grids[sIdx].nester.place(e.grids[sIdx], prep, inst, prep.angles, e.genome.rule, false, abort)) moved = true;
       }
-      // Vòng 2: nếu vẫn không lọt thì mới trả giá vét cạn, và chỉ với những góc
-      // có bbox nhỏ nhất — vét cạn đắt gấp trăm lần nên không quét hết 72 góc.
+      // Vòng 2: chưa lọt thì trả giá pha SIẾT CHẶT (đặt vào hốc) — đắt hơn nhưng
+      // đây là nước cờ cuối để xoá hẳn một tấm nên đáng quét TOÀN BỘ góc, kể cả
+      // bản lật gương. Bốn kiểu xếp (rule) cũng được thử vì mỗi kiểu ưu tiên một
+      // hướng ép sát khác nhau.
       if (!moved) {
-        const few = prep.angles.slice(0, 12);
-        for (let sIdx = 0; sIdx < e.grids.length - 1 && !moved; sIdx++) {
-          if (now() > deadline || cb.shouldStop?.()) break;
-          if (e.grids[sIdx].nester.place(e.grids[sIdx], prep, inst, few, e.genome.rule, true, abort)) moved = true;
+        for (let r = 0; r < 4 && !moved; r++) {
+          const rule = (e.genome.rule + r) % 4;
+          for (let sIdx = 0; sIdx < e.grids.length - 1 && !moved; sIdx++) {
+            if (now() > deadline || cb.shouldStop?.()) break;
+            if (e.grids[sIdx].nester.place(e.grids[sIdx], prep, inst, prep.angles, rule, true, abort)) moved = true;
+          }
         }
       }
       if (!moved) continue;
@@ -1272,10 +1820,35 @@ export function runNest(
       specIndex: g.specIndex,
       blocked: g.blocked,
     }));
+    e.cost = costOf(used, e.unplaced.length - unplacedFixed.length);
     return true;
   };
+  /**
+   * DỌN TẤM CUỐI CHO NHIỀU PHƯƠNG ÁN, không riêng phương án tốt nhất.
+   * Phương án đang dẫn đầu có thể là loại "hai tấm rất đầy + tấm cuối 3 chi tiết"
+   * — dọn không nổi. Trong khi một phương án xếp hạng dưới lại chỉ thừa ĐÚNG một
+   * chi tiết ở tấm cuối, dọn được là bớt hẳn một tấm. Vì vậy quét vài phương án
+   * đầu bảng rồi mới chốt.
+   */
   workDeadline = deadline;
-  if (best && !cb.shouldStop?.()) sweepLastSheet(best);
+  if (best && !cb.shouldStop?.()) {
+    hall.sort((x, y) => x.cost - y.cost);
+    const thử = hall.slice(0, 2);
+    if (best && !thử.includes(best)) thử.unshift(best);
+    for (const e of thử) {
+      if (now() > deadline || cb.shouldStop?.()) break;
+      // Gộp hai tấm trước (phần thưởng lớn nhất), không được thì mới dọn lẻ.
+      // Chia đều quỹ còn lại cho các phương án trong danh sách thử.
+      const share = Math.max(500, Math.floor((deadline - now()) / Math.max(1, thử.length - thử.indexOf(e))));
+      const until = Math.min(deadline, now() + share);
+      let đổi = tryMergeSheets(e, until);
+      if (!đổi) đổi = sweepLastSheet(e);
+      // Đổi được thì nộp lại vào kho: bản SAU khi dọn khác hẳn bản trước, và
+      // chính nó mới là thứ đáng cho chủ xưởng xem.
+      if (đổi) opts.onCandidate?.(snapOf(e));
+      if (e.cost < best!.cost) best = e;
+    }
+  }
 
   const res = toResult(best!, params, now() - t0, iterations);
   const bestSnap = snapOf(best!);

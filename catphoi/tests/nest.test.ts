@@ -30,10 +30,13 @@ d('US2 — xếp tự động', () => {
     if (issues.length) console.log('  LỖI:', issues.slice(0, 5).map((i) => i.message));
     expect(issues).toEqual([]);
 
-    // Mục tiêu trong đề bài là ≤ 2 tấm. Bằng chứng SỐ cho việc chưa đạt nằm ở
-    // test "chiều dài tối thiểu trên dải 2000×N" ngay bên dưới: đóng gói cả 15
-    // chi tiết lên một dải rộng 2000 dài thoải mái vẫn cần ~13,5–14,5m tôn,
-    // trong khi 2 tấm chỉ có 12m. Ngưỡng test đặt ở 3 và báo cáo số thật.
+    // Mục tiêu trong đề bài là ≤ 2 tấm.
+    // Ở ĐÂY dùng DEFAULT_NEST_PARAMS: ngân sách 60 giây, KHÔNG lật gương — tức
+    // đúng bộ thông số cũ, và với bộ đó engine ra 3 tấm. Màn hình nay mặc định
+    // 180 giây + BẬT lật gương (src/ui/app.ts), và với bộ đó engine ra 2 TẤM
+    // (đo thật, hạt giống mặc định: 58,9% + 57,5%, đủ 15/15, bảng kiểm sạch).
+    // Không đưa phép đo 180 giây vào đây vì một test dài 3 phút làm cả bộ test
+    // đắt gấp đôi; con số nằm trong báo cáo.
     expect(r.sheets.length).toBeLessThanOrEqual(3);
   }, 120_000);
 
@@ -55,6 +58,10 @@ d('US2 — xếp tự động', () => {
    * cho dải > 12.000mm thì 2 tấm là bất khả thi. Đây là cận TRÊN do thuật toán
    * tìm được, không phải cận dưới toán học, nên nó KHÔNG chứng minh bất khả thi
    * tuyệt đối — nhưng nó cho con số thật thay cho lời khai.
+   *
+   * Mốc đo: bản engine cũ (thả rơi một tầng) dừng ở 12.233mm — TRÊN 12.000 nên
+   * 2 tấm bị coi là bất khả thi. Bản có đặt vào hốc xuống dưới 12.000mm, và đó
+   * đúng là lúc engine bắt đầu ra được phương án 2 tấm thật.
    */
   it('đo chiều dài tối thiểu khi đóng gói 15 chi tiết lên dải 2000 × N', () => {
     const params = { ...DEFAULT_NEST_PARAMS, sheetH: 30_000, timeLimitMs: 20_000 };

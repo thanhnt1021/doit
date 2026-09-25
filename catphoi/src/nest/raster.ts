@@ -38,6 +38,17 @@ export interface BaseBitmap {
   colLow: Int32Array;
   /** Hàng CAO NHẤT được bật của từng cột (-1 nếu rỗng) — để cập nhật đường bao tấm. */
   colHigh: Int32Array;
+  /**
+   * CHIA CỘT THÀNH NHIỀU DẢI (run). Cột c dùng các dải có chỉ số
+   * [colRunPtr[c], colRunPtr[c+1]); dải thứ k chiếm hàng colRuns[2k]..colRuns[2k+1].
+   *
+   * Vì sao cần: `colLow`/`colHigh` chỉ nói "đáy" và "nóc" của cột, coi cả cột là
+   * MỘT khối đặc. Thanh sườn hình vòm thì một cột có thể cắt qua hai nhánh cong,
+   * giữa hai nhánh là chỗ TRỐNG nhét được chi tiết khác. Danh sách dải giữ đúng
+   * chỗ trống đó, nhờ vậy engine mới lồng ngược được hai thanh vào nhau.
+   */
+  colRunPtr: Int32Array;
+  colRuns: Int32Array;
   /** Số ô được bật (diện tích raster, để tính độ chặt). */
   cellCount: number;
   /** Toạ độ (mm) góc dưới-trái của ô (0,0), trong hệ toạ độ của HÌNH ĐÃ XOAY. */
@@ -205,9 +216,35 @@ export function rasterizeRing(ring: Ring, cell: number, dil: number): BaseBitmap
     }
   }
 
+  // Danh sách DẢI theo cột. Chỉ quét trong khoảng colLow..colHigh của mỗi cột
+  // (ngoài khoảng đó chắc chắn rỗng) nên rẻ, mà chỉ làm MỘT lần cho mỗi
+  // (chi tiết × góc) rồi được cache lại.
+  const colRunPtr = new Int32Array(w + 1);
+  const runBuf: number[] = [];
+  for (let c = 0; c < w; c++) {
+    colRunPtr[c] = runBuf.length >> 1;
+    const lo = colLow[c];
+    if (lo < 0) continue;
+    const hiRow = colHigh[c];
+    const wi = c >> 5;
+    const mask = 1 << (c & 31);
+    let runStart = -1;
+    for (let j = lo; j <= hiRow; j++) {
+      const on = (bits[j * words + wi] & mask) !== 0;
+      if (on) {
+        if (runStart < 0) runStart = j;
+      } else if (runStart >= 0) {
+        runBuf.push(runStart, j - 1);
+        runStart = -1;
+      }
+    }
+    if (runStart >= 0) runBuf.push(runStart, hiRow);
+  }
+  colRunPtr[w] = runBuf.length >> 1;
+
   return {
     w, h, words, bits, rowFirst, rowLast, rowLowBit, rowHighBit,
-    colLow, colHigh, cellCount,
+    colLow, colHigh, colRunPtr, colRuns: Int32Array.from(runBuf), cellCount,
     originX: minX - dil * cell,
     originY: minY - dil * cell,
     cell,

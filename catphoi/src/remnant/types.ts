@@ -43,6 +43,13 @@ export interface Remnant {
   polygon: Ring[];
   note: string;
   status: RemnantStatus;
+  /**
+   * VIỆC 2 — NGUỒN GỐC: tấm này sinh ra sau khi cắt trên tấm thừa nào.
+   * Rỗng/không có = cắt trên tấm mới nguyên khổ. Lưu cả mã lẫn tên vì ngoài
+   * xưởng thợ tra theo TÊN, còn mã để lần chính xác về đúng dòng trong kho.
+   */
+  sourceId?: string;
+  sourceName?: string;
   /** Epoch milisecond. */
   createdAt: number;
   updatedAt: number;
@@ -73,6 +80,9 @@ export interface RemnantInput {
   cuts?: Ring[];
   polygon: Ring[];
   note?: string;
+  /** VIỆC 2 — tấm thừa cũ mà phần tôn này được cắt ra từ đó. */
+  sourceId?: string;
+  sourceName?: string;
 }
 
 /** Sửa được 3 thứ; kích thước và hình dạng là sự thật vật lý, muốn khác thì thêm tấm mới. */

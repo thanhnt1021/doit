@@ -126,6 +126,9 @@ export function normalizeRemnant(raw: unknown): Remnant {
     polygon: polygon.length ? polygon : [stockRing(sheetW, sheetH)],
     note: typeof r.note === 'string' ? r.note : '',
     status: r.status === 'used' ? 'used' : 'available',
+    // VIỆC 2 — nguồn gốc. Dòng cũ không có thì bỏ hẳn khoá cho gọn dữ liệu.
+    ...(typeof r.sourceId === 'string' && r.sourceId ? { sourceId: r.sourceId } : {}),
+    ...(typeof r.sourceName === 'string' && r.sourceName ? { sourceName: r.sourceName } : {}),
     createdAt: Number.isFinite(r.createdAt) ? (r.createdAt as number) : 0,
     updatedAt: Number.isFinite(r.updatedAt) ? (r.updatedAt as number) : 0,
     ...(legacy ? { legacy: true } : {}),
@@ -147,6 +150,9 @@ export function buildRemnantInput(args: {
   sheetLengthMm?: number;
   cuts?: Ring[];
   note?: string;
+  /** VIỆC 2 — tấm thừa cũ sinh ra tấm này (nếu cắt chồng lên tấm thừa). */
+  sourceId?: string;
+  sourceName?: string;
 }): RemnantInput {
   const w = num(args.sheetWidthMm, STOCK_W);
   const h = num(args.sheetLengthMm, STOCK_H);
@@ -160,5 +166,7 @@ export function buildRemnantInput(args: {
     cuts,
     polygon: [stockRing(w, h), ...cuts],
     note: (args.note || '').trim(),
+    ...(args.sourceId ? { sourceId: args.sourceId } : {}),
+    ...(args.sourceName ? { sourceName: args.sourceName.trim() } : {}),
   };
 }

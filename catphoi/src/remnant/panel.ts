@@ -15,6 +15,8 @@ import { createRemnantStore, type RemnantStore } from './store';
 import { polygonArea, rectPolygon } from './geometry';
 import { STOCK_H, STOCK_W, buildRemnantInput, cutRectRing } from './normalize';
 import { drawRemnantPreview, previewHeight } from './preview';
+import { allocateRemnantCode, saveLeftoverToStore, type LeftoverArgs } from './naming';
+import { reminderText, type UsedReminder } from './remind';
 
 export const SLOT_ID = 'remnant-slot';
 
@@ -59,6 +61,16 @@ const CSS = `
 .rmn-prev .cap{font-size:10.5px;color:var(--rmn-muted);margin-top:2px}
 .rmn-tag{display:inline-block;font-size:10px;padding:0 4px;border-radius:3px;
   background:var(--warn-bg,#fff8e1);border:1px solid var(--warn-line,#e6c34a);color:#6b5200;margin-left:4px}
+/* VIỆC 1 — lời nhắc bấm "Đã dùng" ngay sau khi tải bản vẽ của tấm thừa. */
+.rmn-remind{display:none;margin-bottom:7px;padding:7px 8px;border-radius:5px;font-size:11.5px;
+  background:var(--warn-bg,#fff8e1);border:1px solid var(--warn-line,#e6c34a);color:#6b5200}
+.rmn-remind.on{display:block}
+.rmn-remind-act{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+/* VIỆC 3 — tấm đã dùng: chữ mờ, gạch ngang, có nhãn ĐÃ DÙNG, không tích chọn được. */
+.rmn-used-tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.4px;
+  padding:0 4px;border-radius:3px;background:#e6e8ec;border:1px solid #c3c7cf;color:#5a6472;margin-left:4px}
+.rmn-item.used .rmn-it-name{text-decoration:line-through}
+.rmn-count{font-weight:600;color:var(--rmn-ink)}
 `;
 
 function injectCss(doc: Document): void {
@@ -157,6 +169,26 @@ export function parsePointsText(text: string): { ring?: Ring; error?: string } {
   return { ring };
 }
 
+/**
+ * VIỆC 3 — LỌC DANH SÁCH KHO.
+ *
+ * Mặc định kho CHỈ hiện tấm còn dùng được: tấm đã cắt rồi mà còn nằm đó thì
+ * lần sau thợ lại tích nhầm, đem đi cắt trùng lên chỗ đã cắt — đúng cái suýt
+ * xảy ra với founder. Bấm "Hiện cả đã dùng" thì hiện hết để tra cứu, nhưng tấm
+ * đã dùng chỉ để XEM (xem canSelectRemnant).
+ *
+ * Tách hẳn ra hàm riêng để kiểm thử được mà không cần trình duyệt; panel gọi
+ * đúng hàm này chứ không lọc lại lần nữa.
+ */
+export function visibleRemnants(items: readonly Remnant[], showUsed: boolean): Remnant[] {
+  return showUsed ? [...items] : items.filter((r) => r.status === 'available');
+}
+
+/** Tấm đã dùng thì KHÔNG tích chọn được, kể cả khi đang hiện ra. */
+export function canSelectRemnant(r: Remnant): boolean {
+  return r.status === 'available';
+}
+
 export interface RemnantPanel {
   /** Các tấm thừa người dùng đang tích chọn để đưa vào lượt xếp. */
   getSelected(): Remnant[];
@@ -164,19 +196,18 @@ export interface RemnantPanel {
   refresh(): Promise<void>;
   /** Đánh dấu đã dùng hàng loạt (gọi sau khi xếp xong và thợ đã cắt). */
   markUsed(ids: string[]): Promise<void>;
+  /**
+   * VIỆC 1 — hiện lời nhắc "cắt xong nhớ bấm Đã dùng" kèm nút bấm tại chỗ.
+   * KHÔNG tự đổi trạng thái tấm nào; founder chốt là người dùng tự bấm.
+   */
+  remindDownloaded(list: readonly UsedReminder[]): void;
   /** Lưu một tấm thừa mới từ code khác (ví dụ lấy phần dư của tấm vừa xếp). */
   save(input: RemnantInput): Promise<Remnant>;
   /**
    * VIỆC 3 — lưu thẳng một tấm trong phương án vừa xếp: giữ NGUYÊN KHỔ tấm gốc
    * và ghi lại đúng các lỗ vừa cắt.
    */
-  saveFromSheet(args: {
-    name: string;
-    sheetWidthMm: number;
-    sheetLengthMm: number;
-    cuts: Ring[];
-    note?: string;
-  }): Promise<Remnant>;
+  saveFromSheet(args: LeftoverArgs): Promise<Remnant>;
   onSelectionChange(fn: (sel: Remnant[]) => void): void;
   store: RemnantStore;
   /** true = panel đang nằm trong ô tạm do chính nó dựng, chưa có #remnant-slot. */
@@ -195,6 +226,10 @@ export function mountRemnantPanel(
   let items: Remnant[] = [];
   const selected = new Set<string>();
   let showUsed = false;
+  /** VIỆC 1 — các tấm thừa vừa được tải bản vẽ, đang chờ thợ bấm "Đã dùng". */
+  let reminders: UsedReminder[] = [];
+  /** Mã tự sinh đã điền hộ vào ô tên — để biết thợ có sửa tay hay không. */
+  let autoName = '';
   let selectionListener: ((sel: Remnant[]) => void) | null = null;
 
   const root = h('section', 'rmn');
@@ -208,9 +243,11 @@ export function mountRemnantPanel(
   const btnToggleUsed = h('button', 'sm', 'Hiện cả đã dùng');
   bar.append(btnAdd, btnReload, btnToggleUsed);
 
+  const remind = h('div', 'rmn-remind');
+  remind.setAttribute('role', 'status');
   const list = h('div', 'rmn-list');
   const foot = h('div', 'rmn-foot');
-  root.append(msg, bar, list, foot);
+  root.append(msg, bar, remind, list, foot);
 
   // ── ô nhập tấm thừa mới ────────────────────────────────────────────────
   const form = h('div', 'rmn-form');
@@ -288,23 +325,89 @@ export function mountRemnantPanel(
   const fireSelection = () => selectionListener?.(getSelected());
 
   function getSelected(): Remnant[] {
-    return items.filter((r) => selected.has(r.id) && r.status === 'available');
+    return items.filter((r) => selected.has(r.id) && canSelectRemnant(r));
   }
 
+  /**
+   * VIỆC 3 — con số phải KHỚP với những gì đang hiện trên danh sách.
+   * Mặc định chỉ hiện tấm còn dùng được, nên đếm đúng số đó; bật "Hiện cả đã
+   * dùng" mới đếm cả hai loại, và nói rõ mỗi loại bao nhiêu.
+   */
   function renderFoot(): void {
+    foot.textContent = '';
+    const avail = items.filter((r) => r.status === 'available').length;
+    const used = items.length - avail;
+    const shownCount = showUsed ? items.length : avail;
+
+    const line1 = h('div');
+    const strong = h('span', 'rmn-count');
+    strong.textContent = `${shownCount} tấm`;
+    line1.appendChild(document.createTextNode('Danh sách đang hiện '));
+    line1.appendChild(strong);
+    line1.appendChild(document.createTextNode(
+      showUsed
+        ? ` — ${avail} còn dùng được, ${used} đã dùng.`
+        : ` còn dùng được${used ? ` · ${used} tấm đã dùng đang được ẩn đi.` : '.'}`
+    ));
+    foot.appendChild(line1);
+
     const sel = getSelected();
     const area = sel.reduce((a, r) => a + polygonArea(r.polygon), 0);
-    foot.textContent = sel.length
+    const line2 = h('div');
+    line2.textContent = sel.length
       ? `Đã chọn ${sel.length} tấm thừa · tổng ${m2(area)} m² sẽ được nhét trước khi mở tấm mới.`
       : 'Chưa chọn tấm thừa nào — lượt xếp sẽ mở thẳng tấm mới nguyên khổ.';
+    foot.appendChild(line2);
+  }
+
+  /**
+   * VIỆC 1 — lời nhắc "cắt xong nhớ bấm Đã dùng", kèm nút bấm NGAY TẠI CHỖ.
+   * Tấm nào đã được đánh dấu rồi thì tự rụng khỏi lời nhắc.
+   */
+  function renderRemind(): void {
+    remind.textContent = '';
+    const live = reminders.filter(
+      (x) => items.some((r) => r.id === x.id && r.status === 'available')
+    );
+    reminders = live;
+    if (live.length === 0) {
+      remind.className = 'rmn-remind';
+      return;
+    }
+    remind.className = 'rmn-remind on';
+    const p = h('div');
+    p.textContent = reminderText(live);
+    remind.appendChild(p);
+
+    const act = h('div', 'rmn-remind-act');
+    for (const x of live) {
+      const b = h('button', 'primary sm');
+      b.textContent = live.length === 1 ? 'Đã dùng — đánh dấu ngay' : `Đã dùng: ${x.name}`;
+      b.addEventListener('click', () => {
+        const target = items.find((r) => r.id === x.id);
+        if (target) void doToggleUsed(target);
+      });
+      act.appendChild(b);
+    }
+    const later = h('button', 'sm', 'Chưa cắt — để sau');
+    later.addEventListener('click', () => {
+      reminders = [];
+      renderRemind();
+    });
+    act.appendChild(later);
+    remind.appendChild(act);
   }
 
   function render(): void {
     list.textContent = '';
-    const shown = showUsed ? items : items.filter((r) => r.status === 'available');
+    const shown = visibleRemnants(items, showUsed);
     if (shown.length === 0) {
-      list.appendChild(h('div', 'rmn-empty', 'Kho trống. Cắt xong tấm nào còn thừa thì bấm "+ Lưu tấm thừa".'));
+      list.appendChild(h('div', 'rmn-empty',
+        items.length > 0
+          ? 'Không còn tấm nào dùng được. Bấm "Hiện cả đã dùng" để xem lại các tấm đã cắt.'
+          : 'Kho trống. Cắt xong tấm nào còn thừa thì bấm "+ Lưu tấm thừa".'));
       renderFoot();
+      renderRemind();
       return;
     }
     for (const r of shown) {
@@ -313,8 +416,11 @@ export function mountRemnantPanel(
       const cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.checked = selected.has(r.id);
-      cb.disabled = r.status === 'used';
-      cb.title = 'Tích để nhét chi tiết vào tấm thừa này trước';
+      // VIỆC 3: tấm đã dùng KHÔNG tích chọn được, kể cả khi đang hiện ra.
+      cb.disabled = !canSelectRemnant(r);
+      cb.title = r.status === 'used'
+        ? 'Tấm này đã dùng rồi — không chọn để xếp được nữa.'
+        : 'Tích để nhét chi tiết vào tấm thừa này trước';
       cb.addEventListener('change', () => {
         if (cb.checked) selected.add(r.id);
         else selected.delete(r.id);
@@ -326,6 +432,12 @@ export function mountRemnantPanel(
       const body = h('div', 'rmn-it-body');
       const nameEl = h('div', 'rmn-it-name');
       nameEl.textContent = r.name + (r.pending ? ' · chờ gửi lên' : '');
+      // VIỆC 3: tấm đã dùng phải nhìn là biết ngay, không phải đọc dòng phụ.
+      if (r.status === 'used') {
+        const used = h('span', 'rmn-used-tag', 'ĐÃ DÙNG');
+        used.title = 'Tấm này đã cắt rồi — không tích chọn được nữa.';
+        nameEl.appendChild(used);
+      }
       if (r.legacy) {
         const tag = h('span', 'rmn-tag', 'tấm kiểu cũ');
         tag.title = 'Lưu trước khi đổi cấu trúc — không rõ khổ tấm gốc, '
@@ -333,13 +445,19 @@ export function mountRemnantPanel(
         nameEl.appendChild(tag);
       }
       // VIỆC 3: khung bao LUÔN là khổ tấm gốc, kèm số lỗ đã cắt.
+      // Ghi chú đã có sẵn câu "sinh ra từ tấm thừa X" (lưu kèm để còn đọc được
+      // cả khi máy chủ chưa có cột nguồn gốc) — biết nguồn rồi thì bỏ câu đó đi
+      // cho khỏi lặp hai lần trên cùng một dòng.
+      const noteShown = r.sourceName
+        ? r.note.replace(/^sinh ra từ tấm thừa "[^"]*"\s*(·\s*)?/, '')
+        : r.note;
       const sub = h('div', 'rmn-it-sub');
       sub.textContent =
         `khổ gốc ${mm(r.sheetWidthMm)}×${mm(r.sheetLengthMm)}mm`
         + ` · ${r.cuts.length} lỗ đã cắt`
         + ` · còn ${m2(polygonArea(r.polygon))} m²`
-        + (r.status === 'used' ? ' · ĐÃ DÙNG' : '')
-        + (r.note ? ` · ${r.note}` : '');
+        + (r.sourceName ? ` · sinh từ "${r.sourceName}"` : '')
+        + (noteShown ? ` · ${noteShown}` : '');
       body.append(nameEl, sub);
 
       const act = h('div', 'rmn-it-act');
@@ -377,6 +495,7 @@ export function mountRemnantPanel(
       }
     }
     renderFoot();
+    renderRemind();
   }
 
   async function refresh(): Promise<void> {
@@ -522,10 +641,31 @@ export function mountRemnantPanel(
     return out.value;
   }
 
+  /**
+   * VIỆC 2 — điền sẵn MÃ TỰ SINH vào ô tên (LO-2026-09-25-01).
+   * Thợ vẫn gõ đè được; gõ rồi thì lần sau không điền chồng lên chữ của thợ.
+   */
+  function fillAutoName(): void {
+    const cur = inName.value.trim();
+    if (cur && cur !== autoName) return;
+    void allocateRemnantCode(store)
+      .then((code) => {
+        const now2 = inName.value.trim();
+        if (now2 && now2 !== autoName) return;
+        autoName = code;
+        inName.value = code;
+        renderFormPreview();
+      })
+      .catch(() => {
+        /* không lấy được mã thì để thợ tự gõ, không làm sập panel */
+      });
+  }
+
   btnAdd.addEventListener('click', () => {
     form.classList.toggle('on');
     if (form.classList.contains('on')) {
       inName.focus();
+      fillAutoName();
       renderFormPreview();
     }
   });
@@ -560,6 +700,7 @@ export function mountRemnantPanel(
       .then(() => {
         form.classList.remove('on');
         inName.value = '';
+        autoName = '';
         inNote.value = '';
         inPts.value = '';
       })
@@ -589,8 +730,34 @@ export function mountRemnantPanel(
       await refresh();
     },
     save,
-    saveFromSheet(args) {
-      return save(buildRemnantInput(args));
+    /**
+     * VIỆC 2 — lưu phần tôn CÒN LẠI thành DÒNG MỚI trong kho với mã tự sinh.
+     * Tấm cũ giữ nguyên si, không ghi đè; muốn nó biến khỏi danh sách thì bấm
+     * "Đã dùng" (VIỆC 1). Có nguồn gốc thì ghi luôn "sinh ra từ tấm nào".
+     */
+    async saveFromSheet(args: LeftoverArgs) {
+      const out = await saveLeftoverToStore(store, args);
+      await refresh();
+      if (out.offline) {
+        say(out.message || 'Mất mạng — đã lưu tạm trong máy này, có mạng lại sẽ tự gửi lên.', 'warn');
+      } else {
+        say(
+          `Đã lưu tấm thừa MỚI "${out.value.name}" vào kho`
+          + (args.sourceName ? ` (sinh từ "${args.sourceName}")` : '')
+          + ' — tấm cũ vẫn giữ nguyên.',
+          'ok'
+        );
+      }
+      return out.value;
+    },
+    remindDownloaded(list) {
+      const known = new Set(reminders.map((x) => x.id));
+      for (const x of list) {
+        if (!x || !x.id || known.has(x.id)) continue;
+        known.add(x.id);
+        reminders.push({ id: x.id, name: x.name });
+      }
+      renderRemind();
     },
     onSelectionChange(fn) {
       selectionListener = fn;

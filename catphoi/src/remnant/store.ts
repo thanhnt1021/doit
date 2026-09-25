@@ -207,6 +207,9 @@ export function createRemnantStore(deps: StoreDeps = {}): RemnantStore {
       cuts: input.cuts ?? input.polygon.slice(1),
       polygon: input.polygon,
       note: (input.note || '').trim(),
+      // VIỆC 2 — nguồn gốc tấm thừa (cắt chồng lên tấm thừa cũ nào).
+      ...(input.sourceId ? { sourceId: input.sourceId } : {}),
+      ...(input.sourceName ? { sourceName: input.sourceName.trim() } : {}),
     };
     try {
       const data = await call<{ remnant: Remnant }>('', {
