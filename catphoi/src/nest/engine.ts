@@ -1395,8 +1395,14 @@ export function runNest(
   /**
    * Hạn cho vòng tìm kiếm — DÀNH LẠI một quỹ cho pha hậu xử lý (gộp tấm + dọn
    * tấm cuối) ở cuối hàm. Không dành thì vòng GA ăn hết giờ và pha đó không chạy
-   * được ô nào. Phép gộp hai tấm là nước ăn tiền nhất nên quỹ này phải rộng tay:
-   * 20% ngân sách, tối đa 30 giây.
+   * được ô nào. Đo thật ở ngân sách 180 giây: pha này chạy ~0,37 giây một lượt
+   * dọn và ~3 giây một lượt gộp, và CHÍNH nó là nước biến 7/7/1 thành 8/7 (bớt
+   * hẳn một tấm) ở những hạt giống mà vòng tiến hoá tự mình không tìm ra. Nên
+   * quỹ rộng tay: 20% ngân sách, tối đa 30 giây.
+   *
+   * ĐÃ THỬ NỚI LÊN 25% / 45 giây: ĐO RA XẤU HƠN — 5 hạt giống ở 180 giây cho
+   * 2/5 lượt ra 2 tấm, so với 4/5 khi giữ 20% / 30 giây. Vòng tiến hoá cần giờ
+   * hơn pha cuối cần, nên giữ nguyên mốc cũ.
    */
   const sweepBudget = Math.min(30_000, Math.max(200, params.timeLimitMs) * 0.2);
   let workDeadline = deadline - sweepBudget;
@@ -1428,25 +1434,146 @@ export function runNest(
     topY: e.grids.map((g) => g.maxRow * g.nester.cell),
   });
 
+  /** Tra instance theo "partId#instance" — dùng ở pha hậu xử lý. */
+  const instKey = new Map<string, number>();
+  insts.forEach((it, i) => instKey.set(`${preps[it.prepIndex].part.id}#${it.instance}`, i));
+
+  /**
+   * HẬU XỬ LÝ — DỌN TẤM CUỐI.
+   * Mục tiêu của đề bài là ÍT TẤM NHẤT, nên việc đáng giá nhất sau khi tìm kiếm
+   * là thử nhấc từng chi tiết đang nằm ở tấm cuối sang các tấm trước, quét TOÀN
+   * BỘ góc xoay chứ không chỉ vài góc như trong vòng lặp GA. Nếu dọn sạch được
+   * thì bớt hẳn một tấm; nếu không thì tấm cuối cũng nhẹ đi, phần tôn thừa còn
+   * nguyên khổ hơn. Chỉ THÊM chi tiết vào tấm trước nên không phá ràng buộc nào.
+   */
+  const sweepLastSheet = (e: Evaluated, until: number): boolean => {
+    if (e.grids.length < 2) return false;
+    const last = e.grids[e.grids.length - 1];
+    if (last.placements.length === 0 || last.placements.length > 4) return false;
+    const byPartId = new Map<string, number>();
+    preps.forEach((pp, i) => byPartId.set(pp.part.id, i));
+    let movedAny = false;
+    for (const pl of last.placements.slice()) {
+      if (now() > until || cb.shouldStop?.()) break;
+      const pi = byPartId.get(pl.partId);
+      if (pi === undefined) continue;
+      const prep = preps[pi];
+      const inst: Inst = { prepIndex: pi, instance: pl.instance, area: prep.part.area };
+      let moved = false;
+      // Vòng 1: quét TOÀN BỘ góc bằng phép đặt nhanh (mỗi góc cỡ 1ms).
+      for (let sIdx = 0; sIdx < e.grids.length - 1 && !moved; sIdx++) {
+        if (e.grids[sIdx].nester.place(e.grids[sIdx], prep, inst, prep.angles, e.genome.rule, false, abort)) moved = true;
+      }
+      // Vòng 2: chưa lọt thì trả giá pha SIẾT CHẶT (đặt vào hốc) — đắt hơn nhưng
+      // đây là nước cờ cuối để xoá hẳn một tấm nên đáng quét TOÀN BỘ góc, kể cả
+      // bản lật gương. Bốn kiểu xếp (rule) cũng được thử vì mỗi kiểu ưu tiên một
+      // hướng ép sát khác nhau.
+      if (!moved) {
+        for (let r = 0; r < 4 && !moved; r++) {
+          const rule = (e.genome.rule + r) % 4;
+          for (let sIdx = 0; sIdx < e.grids.length - 1 && !moved; sIdx++) {
+            if (now() > until || cb.shouldStop?.()) break;
+            if (e.grids[sIdx].nester.place(e.grids[sIdx], prep, inst, prep.angles, rule, true, abort)) moved = true;
+          }
+        }
+      }
+      if (!moved) continue;
+      const k = last.placements.indexOf(pl);
+      if (k >= 0) last.placements.splice(k, 1);
+      last.usedArea -= prep.part.area;
+      movedAny = true;
+    }
+    if (!movedAny) return false;
+    const used = e.grids.filter((g) => g.placements.length > 0);
+    e.grids = used;
+    e.nSheets = used.length;
+    e.sheets = used.map((g, i) => ({
+      index: i,
+      width: g.w,
+      height: g.h,
+      placements: g.placements,
+      usedArea: g.usedArea,
+      utilization: g.usedArea / (g.w * g.h),
+      specIndex: g.specIndex,
+      blocked: g.blocked,
+    }));
+    // sheetOf / lastSheetInsts phải dựng lại: chi tiết vừa đổi tấm. Không dựng
+    // thì vân tay cách chia, ảnh chụp cho giao diện và phép đột biến "đánh vào
+    // tấm cuối" đều đọc nhầm bản cũ.
+    e.sheetOf = new Int32Array(nInst).fill(-1);
+    used.forEach((g, gi) => {
+      for (const pl of g.placements) {
+        const k = instKey.get(`${pl.partId}#${pl.instance}`);
+        if (k !== undefined) e.sheetOf[k] = gi;
+      }
+    });
+    e.lastSheetInsts = [];
+    for (let i = 0; i < nInst; i++) if (e.sheetOf[i] === used.length - 1) e.lastSheetInsts.push(i);
+    e.cost = costOf(used, e.unplaced.length - unplacedFixed.length);
+    return true;
+  };
+  /**
+   * CẬN DƯỚI SỐ TẤM theo diện tích: không tấm nào chứa nổi nhiều tôn hơn diện
+   * tích của chính nó. Chạm cận này là hết đường bớt tấm — dùng để biết khi nào
+   * nên thôi, cả trong vòng tiến hoá lẫn ở pha cuối.
+   */
+  const cậnDưới = Math.max(
+    1,
+    Math.ceil(insts.reduce((a, it) => a + it.area, 0) / Math.max(1, params.sheetW * params.sheetH))
+  );
+
   const pop: Evaluated[] = [];
   /**
    * HỘI ĐỒNG — những phương án ĐÁNG DỌN TẤM CUỐI, giữ xuyên suốt mọi chặng.
    * Quần thể `pop` bị xoá sạch mỗi khi sang chặng mới (xem vòng chặng bên dưới),
    * mà phương án "chỉ thừa đúng 1 chi tiết ở tấm cuối" — loại dọn được là bớt
    * hẳn một tấm — có thể đã xuất hiện ở chặng trước. Nên phải giữ riêng.
+   *
+   * VÀ PHẢI ĐA DẠNG — mỗi CÁCH CHIA chỉ giữ MỘT bản.
+   *
+   * Vì sao: đo thật ở ngân sách 180 giây, hội đồng cũ (danh sách phẳng, chọn
+   * theo giá) chứa 8-12 bản của CÙNG một cách chia (ví dụ 7/7/1 lặp lại), nên
+   * pha gộp tấm ở cuối thử đi thử lại đúng một bài toán đã thua. Khoá theo
+   * "chi tiết nào nằm chung tấm nào" rồi mỗi khoá giữ bản rẻ nhất, pha gộp
+   * mới thật sự được thử NHIỀU cách chia khác nhau.
    */
-  const hall: Evaluated[] = [];
+  const hall = new Map<string, Evaluated>();
+  /** Vân tay CÁCH CHIA: nhóm chi tiết theo tấm, không phụ thuộc thứ tự tấm. */
+  const partSig = (e: Evaluated): string => {
+    const groups: number[][] = e.grids.map(() => []);
+    for (let i = 0; i < nInst; i++) {
+      const g = e.sheetOf[i];
+      if (g >= 0 && g < groups.length) groups[g].push(i);
+    }
+    return groups
+      .map((g) => g.join(','))
+      .sort()
+      .join('|');
+  };
   const remember = (e: Evaluated) => {
     if (e.grids.length < 2) return;
-    if (e.grids[e.grids.length - 1].placements.length > 3) return;
-    hall.push(e);
-    if (hall.length > 12) {
-      hall.sort((a, b) => a.cost - b.cost);
-      hall.length = 8;
+    // Ngưỡng bằng đúng ngưỡng của tryMergeSheets: tấm cuối ≤ 4 chi tiết thì
+    // mới đáng mang đi gộp. Trước đây là 3 — hẹp hơn cả bước dùng nó.
+    if (e.grids[e.grids.length - 1].placements.length > 4) return;
+    const k = partSig(e);
+    const cũ = hall.get(k);
+    if (cũ && cũ.cost <= e.cost) return;
+    hall.set(k, e);
+    if (hall.size > 96) {
+      const giữ = [...hall.entries()].sort((a, b) => a[1].cost - b[1].cost).slice(0, 64);
+      hall.clear();
+      for (const [kk, vv] of giữ) hall.set(kk, vv);
     }
   };
   /** Số phương án liên tiếp không cải thiện — để biết khi nào GA đã bế tắc. */
   let sinceImprove = 0;
+  /**
+   * ĐÃ THỬ, ĐO RA KHÔNG ĂN THUA: gọi "dọn tấm cuối" NGAY trong vòng tiến hoá
+   * mỗi khi có phương án dẫn đầu mới (chặn 8% quỹ, mỗi cách chia một lần).
+   * 10 hạt giống ở ngân sách 180 giây: 6/10 lượt ra 2 tấm — ĐÚNG BẰNG bản không
+   * dọn sớm. Nước dọn ăn mất giờ của vòng tiến hoá đúng bằng phần nó kiếm thêm,
+   * nên bỏ cho gọn. Ghi lại đây để người sau khỏi thử lại.
+   */
   const consider = (e: Evaluated) => {
     iterations++;
     opts.onCandidate?.(snapOf(e));
@@ -1634,10 +1761,6 @@ export function runNest(
     remember(best);
   }
 
-  /** Tra instance theo "partId#instance" — dùng ở pha hậu xử lý. */
-  const instKey = new Map<string, number>();
-  insts.forEach((it, i) => instKey.set(`${preps[it.prepIndex].part.id}#${it.instance}`, i));
-
   /** Dựng một tấm trống ĐÚNG loại (khổ + vùng cấm) của một lưới đang có. */
   const blankLike = (g: SheetGrid): SheetGrid =>
     g.specIndex >= 0
@@ -1660,15 +1783,25 @@ export function runNest(
     ];
     const big = orders[0];
     orders.push(big.filter((_, i) => i % 2 === 0).concat(big.filter((_, i) => i % 2 === 1)));
-    for (let t = 0; t < 40; t++) {
+    /**
+     * THỨ TỰ THỬ LÀ VÔ HẠN, DỪNG THEO ĐỒNG HỒ.
+     * Bản cũ chốt cứng 44 thứ tự; đo thật thì 44 thứ tự × 4 kiểu xếp chạy hết
+     * trong ~3 giây rồi hàm trả "không vừa", trong khi quỹ cấp cho nó là 15
+     * giây — tức 80% thời gian của nước cờ ăn tiền nhất bị vứt đi. Nay cứ còn
+     * giờ là còn sinh thứ tự ngẫu nhiên mới để thử.
+     */
+    let qi = 0;
+    const nextOrder = (): number[] => {
+      if (qi < orders.length) return orders[qi++];
       const o = big.slice();
       for (let i = o.length - 1; i > 0; i--) {
         const j = Math.floor(rng() * (i + 1));
         [o[i], o[j]] = [o[j], o[i]];
       }
-      orders.push(o);
-    }
-    for (const order of orders) {
+      return o;
+    };
+    while (now() <= until && !cb.shouldStop?.()) {
+      const order = nextOrder();
       for (let rule = 0; rule < 4; rule++) {
         if (now() > until || cb.shouldStop?.()) return null;
         const sh = blankLike(like);
@@ -1726,12 +1859,17 @@ export function runNest(
       .map((g, i) => i)
       .filter((i) => i !== lastIdx)
       .sort((a, b) => e.grids[a].usedArea - e.grids[b].usedArea);
+    // Quỹ phải CHIA cho từng tấm bạn: repackOnOneSheet nay chạy tới hết giờ
+    // được cấp, không chia thì tấm bạn đầu tiên ăn sạch quỹ.
+    let còn = order.length;
     for (const oi of order) {
       if (now() > until || cb.shouldStop?.()) break;
       const other = e.grids[oi];
       const otherIds = idsOf(other);
-      if (otherIds.length === 0) continue;
-      const merged = repackOnOneSheet(other, otherIds.concat(lastIds), until);
+      if (otherIds.length === 0) { còn--; continue; }
+      const hạn = Math.min(until, now() + Math.max(500, Math.floor((until - now()) / Math.max(1, còn))));
+      còn--;
+      const merged = repackOnOneSheet(other, otherIds.concat(lastIds), hạn);
       if (!merged) continue;
       const grids = e.grids.filter((_, i) => i !== lastIdx && i !== oi);
       grids.splice(Math.min(oi, grids.length), 0, merged);
@@ -1755,74 +1893,14 @@ export function runNest(
           if (k !== undefined) e.sheetOf[k] = gi;
         }
       });
+      e.lastSheetInsts = [];
+      for (let i = 0; i < nInst; i++) if (e.sheetOf[i] === grids.length - 1) e.lastSheetInsts.push(i);
       e.cost = costOf(grids, e.unplaced.length - unplacedFixed.length);
       return true;
     }
     return false;
   };
 
-  /**
-   * HẬU XỬ LÝ — DỌN TẤM CUỐI.
-   * Mục tiêu của đề bài là ÍT TẤM NHẤT, nên việc đáng giá nhất sau khi tìm kiếm
-   * là thử nhấc từng chi tiết đang nằm ở tấm cuối sang các tấm trước, quét TOÀN
-   * BỘ góc xoay chứ không chỉ vài góc như trong vòng lặp GA. Nếu dọn sạch được
-   * thì bớt hẳn một tấm; nếu không thì tấm cuối cũng nhẹ đi, phần tôn thừa còn
-   * nguyên khổ hơn. Chỉ THÊM chi tiết vào tấm trước nên không phá ràng buộc nào.
-   */
-  const sweepLastSheet = (e: Evaluated): boolean => {
-    if (e.grids.length < 2) return false;
-    const last = e.grids[e.grids.length - 1];
-    if (last.placements.length === 0 || last.placements.length > 4) return false;
-    const byPartId = new Map<string, number>();
-    preps.forEach((pp, i) => byPartId.set(pp.part.id, i));
-    let movedAny = false;
-    for (const pl of last.placements.slice()) {
-      if (now() > deadline || cb.shouldStop?.()) break;
-      const pi = byPartId.get(pl.partId);
-      if (pi === undefined) continue;
-      const prep = preps[pi];
-      const inst: Inst = { prepIndex: pi, instance: pl.instance, area: prep.part.area };
-      let moved = false;
-      // Vòng 1: quét TOÀN BỘ góc bằng phép đặt nhanh (mỗi góc cỡ 1ms).
-      for (let sIdx = 0; sIdx < e.grids.length - 1 && !moved; sIdx++) {
-        if (e.grids[sIdx].nester.place(e.grids[sIdx], prep, inst, prep.angles, e.genome.rule, false, abort)) moved = true;
-      }
-      // Vòng 2: chưa lọt thì trả giá pha SIẾT CHẶT (đặt vào hốc) — đắt hơn nhưng
-      // đây là nước cờ cuối để xoá hẳn một tấm nên đáng quét TOÀN BỘ góc, kể cả
-      // bản lật gương. Bốn kiểu xếp (rule) cũng được thử vì mỗi kiểu ưu tiên một
-      // hướng ép sát khác nhau.
-      if (!moved) {
-        for (let r = 0; r < 4 && !moved; r++) {
-          const rule = (e.genome.rule + r) % 4;
-          for (let sIdx = 0; sIdx < e.grids.length - 1 && !moved; sIdx++) {
-            if (now() > deadline || cb.shouldStop?.()) break;
-            if (e.grids[sIdx].nester.place(e.grids[sIdx], prep, inst, prep.angles, rule, true, abort)) moved = true;
-          }
-        }
-      }
-      if (!moved) continue;
-      const k = last.placements.indexOf(pl);
-      if (k >= 0) last.placements.splice(k, 1);
-      last.usedArea -= prep.part.area;
-      movedAny = true;
-    }
-    if (!movedAny) return false;
-    const used = e.grids.filter((g) => g.placements.length > 0);
-    e.grids = used;
-    e.nSheets = used.length;
-    e.sheets = used.map((g, i) => ({
-      index: i,
-      width: g.w,
-      height: g.h,
-      placements: g.placements,
-      usedArea: g.usedArea,
-      utilization: g.usedArea / (g.w * g.h),
-      specIndex: g.specIndex,
-      blocked: g.blocked,
-    }));
-    e.cost = costOf(used, e.unplaced.length - unplacedFixed.length);
-    return true;
-  };
   /**
    * DỌN TẤM CUỐI CHO NHIỀU PHƯƠNG ÁN, không riêng phương án tốt nhất.
    * Phương án đang dẫn đầu có thể là loại "hai tấm rất đầy + tấm cuối 3 chi tiết"
@@ -1832,21 +1910,64 @@ export function runNest(
    */
   workDeadline = deadline;
   if (best && !cb.shouldStop?.()) {
-    hall.sort((x, y) => x.cost - y.cost);
-    const thử = hall.slice(0, 2);
-    if (best && !thử.includes(best)) thử.unshift(best);
+    // Danh sách thử: phương án tốt nhất trước, rồi các CÁCH CHIA khác nhau
+    // trong hội đồng, rẻ trước. Khử trùng theo vân tay cách chia.
+    const đãThử = new Set<string>();
+    const thử: Evaluated[] = [best];
+    đãThử.add(partSig(best));
+    for (const e of [...hall.values()].sort((x, y) => x.cost - y.cost)) {
+      const k = partSig(e);
+      if (đãThử.has(k)) continue;
+      đãThử.add(k);
+      thử.push(e);
+    }
+    /**
+     * QUỸ CHO MỘT LẦN THỬ GỘP. Đo thật: một lần gộp có ích chạy 5-8 giây là
+     * đủ dùng hết các thứ tự đáng thử; cấp rộng hơn thì chỉ thử được 2-3 cách
+     * chia trong 30 giây, mà bài học từ bản cũ đúng là "thử ít cách chia quá".
+     */
+    const LÁT = 6_000;
+
+    const nộp = (e: Evaluated) => {
+      opts.onCandidate?.(snapOf(e));
+      if (e.cost < best!.cost) best = e;
+    };
+
+    /**
+     * LƯỢT 1 — DỌN TẤM CUỐI, RẺ TRƯỚC.
+     * Nước này chỉ nhấc vài chi tiết của tấm cuối sang tấm trước, giữ nguyên
+     * cách sắp đã tốt, nên chạy dưới một giây và đúng là nước biến 7/7/1 thành
+     * 8/7. Đo thật ở bản trước: pha gộp (đắt, 3 giây/lượt) ăn sạch quỹ cuối và
+     * KHÔNG lần nào thành công, còn nước dọn rẻ này thì không bao giờ tới lượt.
+     * Nay dọn hết lượt các cách chia trước, gộp mới tới sau.
+     */
+    // Chia đôi quỹ cuối: nửa cho lượt dọn (rẻ, quét được nhiều cách chia),
+    // nửa cho lượt gộp (đắt). Không chia thì lượt rẻ ăn hết giờ khi hội đồng
+    // đông, đúng lỗi ngược lại của bản trước.
+    const hạnDọn = now() + Math.floor((deadline - now()) / 2);
+    for (const e of thử) {
+      if (now() > hạnDọn || cb.shouldStop?.()) break;
+      if (best!.nSheets <= cậnDưới) break;
+      const until = Math.min(hạnDọn, now() + 2_000);
+      const đổi = sweepLastSheet(e, until);
+      if (đổi) nộp(e);
+    }
+
+    /**
+     * LƯỢT 2 — GỘP HAI TẤM, ĐẮT SAU. Xếp lại từ đầu cả hai tấm lên một tấm là
+     * nước mạnh nhất nhưng tốn vài giây một lần, nên chỉ tiêu phần giờ còn lại.
+     */
     for (const e of thử) {
       if (now() > deadline || cb.shouldStop?.()) break;
-      // Gộp hai tấm trước (phần thưởng lớn nhất), không được thì mới dọn lẻ.
-      // Chia đều quỹ còn lại cho các phương án trong danh sách thử.
-      const share = Math.max(500, Math.floor((deadline - now()) / Math.max(1, thử.length - thử.indexOf(e))));
-      const until = Math.min(deadline, now() + share);
-      let đổi = tryMergeSheets(e, until);
-      if (!đổi) đổi = sweepLastSheet(e);
-      // Đổi được thì nộp lại vào kho: bản SAU khi dọn khác hẳn bản trước, và
-      // chính nó mới là thứ đáng cho chủ xưởng xem.
-      if (đổi) opts.onCandidate?.(snapOf(e));
-      if (e.cost < best!.cost) best = e;
+      if (best!.nSheets <= cậnDưới) break;
+      let đổi = false;
+      // Gộp LIÊN TIẾP: 4 tấm có thể xuống 3 rồi xuống 2 trong cùng một lượt.
+      while (now() < deadline && !cb.shouldStop?.()) {
+        const until = Math.min(deadline, now() + LÁT);
+        if (!tryMergeSheets(e, until)) break;
+        đổi = true;
+      }
+      if (đổi) nộp(e);
     }
   }
 

@@ -195,11 +195,36 @@ export function pointSegDistance(p: Point, a: Point, b: Point): number {
   return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
 }
 
+/**
+ * Hai đoạn thẳng có CẮT nhau không.
+ *
+ * NGƯỠNG SONG SONG PHẢI THEO TỈ LỆ, KHÔNG ĐƯỢC CHỐT CỨNG. Bản cũ dùng
+ * `Math.abs(d) < 1e-12`. Với toạ độ cỡ nghìn mm (tấm tôn 2000 × 6000) và cạnh
+ * dài vài trăm mm, hai cạnh SONG SONG cho `d` bằng nhiễu làm tròn cỡ 3e-11 —
+ * LỚN HƠN ngưỡng cứng đó. Hàm chạy tiếp, chia cho `d` gần 0 rồi ra `t = 0.5`,
+ * `u = 1` và báo "cắt nhau" cho hai cạnh cách nhau tới 424mm.
+ *
+ * Hậu quả thật đã bắt được: `validateLayout` thỉnh thoảng báo CHỒNG LẤN GIẢ cho
+ * hai chi tiết xếp song song hợp lệ (đo tay: cách nhau 24,26mm) — test
+ * `blocked.test.ts` vì thế đỏ lúc được lúc không.
+ *
+ * Nay so `|d|` với tích độ dài hai đoạn: `d = |a| · |b| · sin(góc)`, nên
+ * `|d| / (|a|·|b|)` chính là sin của góc giữa hai đoạn, một đại lượng KHÔNG
+ * phụ thuộc đơn vị hay vị trí tuyệt đối. Ngưỡng 1e-9 tương đương góc nhỏ hơn
+ * một phần tỉ radian — thực tế là song song. Trường hợp song song/trùng nhau
+ * vẫn được `segSegDistance` (khoảng cách điểm–đoạn) và `pointInRing` (lồng
+ * nhau) bắt, nên trả `false` ở đây không bỏ sót chồng lấn thật.
+ */
 export function segSegIntersect(p1: Point, p2: Point, p3: Point, p4: Point): boolean {
-  const d = (p2.x - p1.x) * (p4.y - p3.y) - (p2.y - p1.y) * (p4.x - p3.x);
-  if (Math.abs(d) < 1e-12) return false;
-  const t = ((p3.x - p1.x) * (p4.y - p3.y) - (p3.y - p1.y) * (p4.x - p3.x)) / d;
-  const u = ((p3.x - p1.x) * (p2.y - p1.y) - (p3.y - p1.y) * (p2.x - p1.x)) / d;
+  const ax = p2.x - p1.x;
+  const ay = p2.y - p1.y;
+  const bx = p4.x - p3.x;
+  const by = p4.y - p3.y;
+  const d = ax * by - ay * bx;
+  const scale = Math.hypot(ax, ay) * Math.hypot(bx, by);
+  if (!(Math.abs(d) > 1e-9 * scale) || Math.abs(d) < 1e-12) return false;
+  const t = ((p3.x - p1.x) * by - (p3.y - p1.y) * bx) / d;
+  const u = ((p3.x - p1.x) * ay - (p3.y - p1.y) * ax) / d;
   return t >= 0 && t <= 1 && u >= 0 && u <= 1;
 }
 
