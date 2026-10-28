@@ -53,6 +53,7 @@ docs/universal_rules/
 | UI / web / mobile | `docs/universal_rules/rules/UI_MOBILE_RULES.md` |
 | Mobile web app (native feel) | `docs/universal_rules/rules/MOBILE_APP_STRICT_RULES.md` |
 | **Cloudflare (Pages/Functions/D1/wrangler/auth/deploy)** | `docs/universal_rules/rules/CLOUDFLARE_RULES.md` |
+| **SEO / GEO (AI citation) — canonical/www/sitemap/robots/schema/h1/OG-share/GSC/GBP** | `docs/universal_rules/rules/SEO_GEO_RULES.md` |
 | **Hệ thiết kế UI-UX của project (design system / `DESIGN.md`)** | `docs/universal_rules/rules/DESIGN_SYSTEM.md` |
 | Bot (Telegram/Discord) | `docs/universal_rules/rules/BOT_COMMAND_RULES.md` |
 | Google OAuth / NextAuth | `docs/universal_rules/rules/GOOGLE_OAUTH_SETUP.md` |
