@@ -10,6 +10,7 @@ Match verb tạo/sản xuất (vi+en) → chèn GATE 4 bước. Không match →
 Xem memory [[pre-build-gate]].
 """
 import json
+import os
 import re
 import sys
 
@@ -58,7 +59,15 @@ def main() -> int:
         return 0
     prompt = str(data.get("prompt", ""))
     if RE_BUILD.search(prompt):
-        emit(GATE_REMINDER)
+        # W140: in đủ lần đầu mỗi phiên (và khi đổi / sau nén / mỗi 40 lượt), còn lại 1 dòng.
+        try:
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            import nhac_gon as NG
+            emit(NG.gon(data, "prebuild-gate", GATE_REMINDER,
+                        "⚠️ Lệnh tạo/sửa: chạy GATE 4 bước (nạp luật → chẩn đoán bước → verify → echo xác nhận) "
+                        "trước khi sản xuất — đủ chữ đã in đầu phiên.\n"))
+        except Exception:
+            emit(GATE_REMINDER)
     return 0
 
 

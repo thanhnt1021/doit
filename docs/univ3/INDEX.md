@@ -42,6 +42,6 @@ Chi tiết + cách copy sang project mới: `HUONG_DAN.md`.
 | `tdk: [câu hỏi]` · `check growth` · `check quality` · `setup server` | Route tới skill tdk-master / product-growth / qa-multipass / infra |
 
 ## Skills (13 — tự kích hoạt theo description; bảng đầy đủ trong AGENTS.md)
-`sepay-payment` · `google-oauth` · `mobile-webapp` · `app-security` · `bot-commands` · `ci-cd` · `seo-geo` · `project-docs` · `new-project-setup` · `product-growth` · `qa-multipass` · `infra` · `tdk-master`
+`sepay-payment` · `google-oauth` · `mobile-webapp` · `ui-ux` · `app-security` · `bot-commands` · `ci-cd` · `seo-geo` · `project-docs` · `new-project-setup` · `product-growth` · `qa-multipass` · `infra` · `tdk-master`
 
 Cài chung mọi project qua `install.py` (Claude: `~/.claude/skills/`, Codex: `~/.agents/skills/`).

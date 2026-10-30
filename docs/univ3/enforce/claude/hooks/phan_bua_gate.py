@@ -75,11 +75,13 @@ NĂM LỐI RA khi bị chặn (lời chặn chỉ in bản rút gọn):
      env: `ssh -p 9494 root@170.205.38.233 'grep X /root/chichub/.env'` · deploy: so BUILD_ID.
   2. HẠ GIỌNG cho đúng mức đã biết: thêm "chưa kiểm" / "em đoán" vào chính câu đó.
   3. BỎ câu đó nếu không cần thiết.
-  4. Đã kiểm ở lượt trước thật -> viết `da-kiem-tu-luot-truoc: <lý do>` (ghi nhật ký).
-  5. Đã đo bằng ĐƯỜNG THỨ HAI thật -> viết `duong-thu-hai: <đo bằng gì>` (ghi nhật ký).
+  4. Đã kiểm ở lượt trước thật -> mở cờ `phan-bua` bằng lệnh (ghi nhật ký).
+  5. Đã đo bằng ĐƯỜNG THỨ HAI thật -> mở cờ `duong-thu-hai` bằng lệnh (ghi nhật ký).
 
-VƯỢT CỔNG (ghi nhật ký): viết trong reply câu `da-kiem-tu-luot-truoc: <lý do >= 15 ký tự>`,
-hoặc `duong-thu-hai: <đo lại bằng gì>` khi đã thật sự đo bằng đường thứ hai.
+VƯỢT CỔNG (DÙNG MỘT LẦN, ghi nhật ký) — khai bằng TỆP CỜ, KHÔNG viết ký hiệu vào câu trả lời
+gửi founder (bệnh 04/09/2026: founder phải đọc hai dòng ký hiệu vô nghĩa trước nội dung thật):
+    python3 ~/.claude/universal-hooks/cua_thoat.py mo phan-bua      "<lý do >= 15 ký tự>"
+    python3 ~/.claude/universal-hooks/cua_thoat.py mo duong-thu-hai "<đo lại bằng gì>"
 
 TỰ KIỂM trên transcript thật:
     python3 phan_bua_gate.py --tu-kiem <duong-dan.jsonl>
@@ -87,6 +89,7 @@ TỰ KIỂM trên transcript thật:
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 
@@ -282,10 +285,34 @@ def _text_cua(content):
     return ""
 
 
+
+# Nhận diện LỜI CHẶN của Stop-hook quay lại transcript. Đặt canonical ở `nghi_truoc_gate`
+# (xem WHY đầy đủ ở đó). Import lỗi -> trả False = giữ nguyên hành vi cũ, thà chặn oan còn
+# hơn giấu vi phạm thật.
+try:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from nghi_truoc_gate import la_phan_hoi_hook as _la_phan_hoi_hook
+except Exception:
+    def _la_phan_hoi_hook(o):
+        return False
+
 def tach_luot(lines):
-    """Trả về danh sách lượt: {prompt, text (main viết), bang_chung (sự thật hệ thống)}."""
+    """Trả về danh sách lượt: {prompt, text (main viết), bang_chung (sự thật hệ thống)}.
+
+    `text` chỉ gồm chữ viết SAU mốc chặn gần nhất (xem WHY ở `nghi_truoc_gate`); `bang_chung`
+    giữ nguyên cả lượt — đã đo từ đầu lượt thì vẫn là đã đo.
+
+    P104 (15/09/2026) THÊM 2 trường KHÔNG đụng `bang_chung`/`text` cũ (tránh phá KIỂM 1-3):
+      · `bang_chung_item` — mỗi phần tử của `bang_chung` GẮN NGUỒN ("tool_input"/"tool_result"
+        /"worker_meta") để C1 loại lời khai worker khỏi phép đếm nhóm (vế 4 §5-C1) và phân
+        loại 5 nhóm nguồn (①local②DB③SSH④log⑤sổ) theo NỘI DUNG lệnh (đường dẫn/host xuất hiện
+        trong input/output, không cần biết tên tool — bang_chung vốn đã không giữ tên tool).
+      · `agent_calls` — input ĐẦY ĐỦ của mọi lệnh `Agent` trong lượt (KHÔNG rơi vào
+        `CONG_CU_KHONG_TINH_INPUT` filter vì C2/C7a cần đọc mã `W##`/`model` main tự gõ,
+        khác mục đích "sự thật hệ thống" của `bang_chung`).
+    """
     luot = []
-    cur = {"prompt": "", "text": [], "bang_chung": []}
+    cur = {"prompt": "", "text": [], "bang_chung": [], "bang_chung_item": [], "agent_calls": []}
     for raw in lines:
         try:
             e = json.loads(raw)
@@ -295,7 +322,11 @@ def tach_luot(lines):
         if la_prompt_that(e):
             if cur["text"]:
                 luot.append(cur)
-            cur = {"prompt": _text_cua(msg.get("content", "")), "text": [], "bang_chung": []}
+            cur = {"prompt": _text_cua(msg.get("content", "")), "text": [], "bang_chung": [],
+                   "bang_chung_item": [], "agent_calls": []}
+            continue
+        if _la_phan_hoi_hook(e):
+            cur["text"] = []          # chữ trước mốc chặn đã bị chấm rồi
             continue
         if msg.get("role") == "assistant":
             c = msg.get("content", [])
@@ -307,9 +338,13 @@ def tach_luot(lines):
                         cur["text"].append(b.get("text", ""))
                     elif b.get("type") == "tool_use":
                         ten = b.get("name", "")
+                        if ten == "Agent":
+                            cur["agent_calls"].append(b.get("input", {}) or {})
                         if ten in CONG_CU_KHONG_TINH_INPUT:
                             continue
-                        cur["bang_chung"].append(json.dumps(b.get("input", {}), ensure_ascii=False))
+                        dump = json.dumps(b.get("input", {}), ensure_ascii=False)
+                        cur["bang_chung"].append(dump)
+                        cur["bang_chung_item"].append({"loai": "tool_input", "text": dump})
             elif isinstance(c, str):
                 cur["text"].append(c)
         elif msg.get("role") == "user":
@@ -321,9 +356,12 @@ def tach_luot(lines):
                         if isinstance(ct, list):
                             ct = " ".join(x.get("text", "") for x in ct if isinstance(x, dict))
                         cur["bang_chung"].append(str(ct))
+                        cur["bang_chung_item"].append({"loai": "tool_result", "text": str(ct)})
             elif isinstance(c, str) and e.get("isMeta"):
                 # thông báo worker xong / nhắc của harness: worker đã tự verify -> tính
+                # cho KIỂM 1-3 cũ (giữ nguyên hành vi); C1 P104 loại riêng loại này (vế 4).
                 cur["bang_chung"].append(c)
+                cur["bang_chung_item"].append({"loai": "worker_meta", "text": c})
     if cur["text"]:
         luot.append(cur)
     return luot
@@ -333,7 +371,14 @@ def tach_luot(lines):
 # 6. SOI 1 LƯỢT
 # --------------------------------------------------------------------------
 RE_KHOI_CODE = re.compile(r"```.*?```", re.DOTALL)
-RE_VUOT_CONG = re.compile(r"da-kiem-tu-luot-truoc:\s*\S.{14,}", re.IGNORECASE)
+# CỬA THOÁT: khai bằng TỆP CỜ (`cua_thoat.py`), KHÔNG còn dò chuỗi trong câu gửi founder.
+TEN_CONG = "phan-bua"
+TEN_CONG_2 = "duong-thu-hai"
+try:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import cua_thoat as CT
+except Exception:
+    CT = None
 RE_FILE_KET_QUA = re.compile(r"<output-file>([^<]+)</output-file>")
 
 
@@ -405,8 +450,6 @@ def doi_tuong_gan_dau_hieu(cau: str):
 def soi_luot(luot: dict):
     """Trả về danh sách (câu, [đối tượng chưa kiểm]) — rỗng = sạch."""
     text = "\n".join(luot["text"])
-    if RE_VUOT_CONG.search(text):
-        return []
     # CỐ Ý KHÔNG tính lời founder làm bằng chứng: founder NHẮC TÊN `ListingCSV` không hề chứng
     # minh nó nằm ở đâu — tính vào là ca cảnh cáo lọt cổng (đo thật 27/08). Chuyện "main nhắc lại
     # lời founder" đã có miễn trừ `loi-hoi-thoai` ở tầng CÂU lo.
@@ -459,7 +502,12 @@ def soi_luot(luot: dict):
 DANH_TU_DU_LIEU = (
     r"(?:shop|đơn|order|orders|user|users|seller|designer|bản ghi|record|records|row|rows"
     r"|mail|email|listing|listings|sku|khách|buyer|partner|sup|payout|tài khoản|account"
-    r"|shipment|tracking|invoice|transaction)"
+    r"|shipment|tracking|invoice|transaction"
+    # P104 O1.6 — thêm sau ca thật 14/09: main đếm cột trống ra 0 rồi kết luận "hệ không có
+    # thẻ đa shop" (SL14-L26 nói ngược lại) — 2 lý do lọt cổng cũ đo được: (a) danh từ này
+    # thiếu, (b) khuôn chỉ đòi "không có <DT> nào", câu không có "nào" trượt luôn (xem khuôn
+    # RE_PHU_DINH_TUYET_DOI bên dưới, biến thể "hệ không có X").
+    r"|thẻ|card|tính năng|feature)"
 )
 
 # KIỂM 2 — kết luận PHỦ ĐỊNH TUYỆT ĐỐI về một NHÓM THỰC THỂ DỮ LIỆU.
@@ -477,6 +525,11 @@ _PD = [
     # phải kết luận suy từ số 0 (đo thật: chặn oan câu "admin lamquynh đang được gán 0 shop").
     # "không một shop nào", "không hề có đơn nào"
     r"\bkhông\s+(?:một|hề)\s+[^\n]{0,20}?" + DANH_TU_DU_LIEU + r"\s+nào\b",
+    # P104 O1.6 — biến thể KHÔNG có chữ "nào" (ca thật 14/09: "hệ không có thẻ đa shop" —
+    # SL14-L26 nói ngược lại). Chủ ngữ là HỆ THỐNG (không phải "tôi/mình") + "không/chưa có"
+    # + danh từ dữ liệu, KHÔNG cần "nào" theo sau.
+    r"\b(?:hệ|hệ thống|web|app|platform)\s+(?:hiện\s+(?:tại\s+)?|này\s+)?(?:không|chưa)\s+có\s+"
+    + DANH_TU_DU_LIEU + r"\b",
 ]
 RE_PHU_DINH_TUYET_DOI = re.compile("(?:" + "|".join(_PD) + ")", re.IGNORECASE)
 
@@ -516,7 +569,6 @@ RE_THANH_THAT = re.compile(
 )
 
 # Vượt cổng KIỂM 2: đã đo bằng ĐƯỜNG THỨ HAI thật thì ghi ra, có ghi nhật ký.
-RE_DUONG_THU_HAI = re.compile(r"duong-thu-hai:\s*\S.{9,}", re.IGNORECASE)
 
 # Miễn trừ RIÊNG cho KIỂM 2 + 3 (hẹp — chỉ những thứ chắc chắn không phải phán bừa).
 MIEN_TRU_DOC_SAI = [
@@ -577,8 +629,6 @@ def _trong_ngoac(cau: str, vi: int) -> bool:
 def soi_luot_doc_sai(luot: dict):
     """KIỂM 2 + KIỂM 3. Trả về [(loai, cau, ghi_chu)] — rỗng = sạch."""
     text = "\n".join(luot["text"])
-    if RE_VUOT_CONG.search(text) or RE_DUONG_THU_HAI.search(text):
-        return []
     bang_chung = (" ".join(luot["bang_chung"]) + " "
                   + doc_ket_qua_worker(luot.get("prompt", "")))
     # WHY bắt buộc có lệnh: KIỂM 2/3 là lỗi ĐỌC SAI KẾT QUẢ — lượt không chạy lệnh nào đã có
@@ -610,6 +660,382 @@ def soi_luot_doc_sai(luot: dict):
                 continue
             if RE_TU_DOAN.search(cau) and RE_GIAI_THICH.search(cau):
                 ra.append(("tu-doan-trong-cau-giai-thich", cau, "từ đoán nằm trong câu giải thích nguyên nhân"))
+    return ra
+
+
+
+# ============================================================================
+# 6c. P104 (15/09/2026) — SIẾT LỜI NÓI CỦA MAIN: C1 (hai-nguồn) · C2 (hứa-phải-
+#     hành-động) · C4 (xong-phải-nêu-máy) · C5 (triệu-chứng-phải-lối-ra) · C7b
+#     (phiếu-phải-đối-đích). Nguồn: docs/ticket/P104-siet-loi-noi-cua-main-15092026.md.
+#     Nguyên tắc G1/G2: mọi nhánh phán bằng SỔ MÁY (số nhóm nguồn · có/không lệnh Agent
+#     khớp mã · vết chạm host · diff sổ vé/AskUserQuestion · nội dung tệp phiếu), KHÔNG
+#     đoán nghĩa; mỗi nhánh chỉ BẬT CHẶN sau khi corpus âm đạt 0-oan (trạng thái đọc từ
+#     `p104_trang_thai.json`, do `w98_p104_corpus_ca_thu.py` ghi) — chưa qua thì chỉ
+#     đếm-ghi-log (không chặn). Cờ tắt khẩn chung: `UNIV3_P104_TAT=1`.
+# ============================================================================
+P104_TAT = os.environ.get("UNIV3_P104_TAT") == "1"
+P104_TRANG_THAI_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "p104_trang_thai.json")
+P104_LOG = os.path.join(TMPDIR, "p104_nhanh.log")
+
+
+def _p104_bat(ten_nhanh: str) -> bool:
+    """True nếu nhánh đã qua cổng chứng minh G2 (0-oan trên corpus âm ≥200 mẫu)."""
+    if P104_TAT:
+        return False
+    try:
+        with open(P104_TRANG_THAI_PATH, encoding="utf-8") as f:
+            st = json.load(f)
+        return bool(st.get(ten_nhanh, {}).get("bat", False))
+    except Exception:
+        return False
+
+
+def _p104_ghi_log(ten_nhanh, cau, che_do):
+    try:
+        with open(P104_LOG, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"luc": time.strftime("%Y-%m-%d %H:%M:%S"), "nhanh": ten_nhanh,
+                                 "che_do": che_do, "cau": cau[:300]}, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
+
+# --------------------------------------------------------------------------
+# C1 — HAI NGUỒN cho tuyên bố âm (đếm nhóm nguồn TRONG TẬP LỆNH CHẠM ĐỐI TƯỢNG — O1.5)
+# --------------------------------------------------------------------------
+# Lọc vế ÂM trong khớp `DAU_HIEU_TRANG_THAI` (đường (b) tái dùng gate KIỂM 1) — C1 chỉ
+# xử tuyên bố ÂM, bỏ vế DƯƠNG ("đã có/đang có/hiện có") của cùng khuôn đó.
+RE_DAU_HIEU_AM = re.compile(r"không|chưa", re.IGNORECASE)
+RE_TUYEN_BO_AM_C1 = re.compile(
+    # SIẾT (đo thật trên corpus âm 340 lượt, 2 oan ban đầu): "không (?:\w+\s+){0,3}được"
+    # BẮT LUÔN passive voice ("không bao giờ được vẽ", "không được theo dõi") — câu tả
+    # HÀNH VI CODE, không phải "tôi không đo/tìm/xác nhận được". Siết về đúng nhóm ĐỘNG TỪ
+    # ĐO LƯỜNG (đo/tìm/xác nhận/xác định/kiểm/verify/check/thấy/xoá/xóa) + "được" theo sau.
+    r"(?:không đo được|chưa đo được|không tìm thấy|không tìm ra|không xoá được|không xóa được"
+    r"|không (?:xác nhận|xác định|kiểm|verify|check|thấy)(?:\s+\w+){0,2}\s+được\b)",
+    re.IGNORECASE,
+)
+
+# 5 NHÓM NGUỒN cố định (CLAUDE.md "KHO CÔNG CỤ VERIFY") — thứ tự ưu tiên ⑤→① khi phân loại
+# MỘT lệnh (chống đếm ảo: `grep $SL` chỉ tính nhóm ⑤, không tính thêm nhóm ①).
+_NHOM5_THU_TU = ["so", "log", "ssh", "db", "local"]
+_NHOM5_PATTERN = {
+    "so": re.compile(r"so-lenh|so_lenh|goc\.md|~/\.claude/so-lenh|memory/MEMORY|docs/handoff|docs/ticket", re.I),
+    "log": re.compile(r"~/\.claude/logs|\.claude/projects|transcript|\.jsonl|cua-thoat\.log", re.I),
+    "ssh": re.compile(r"ssh -p 9494|170\.205\.38\.233|root@170", re.I),
+    "db": re.compile(r"psql|5432|DATABASE_URL|pg_dump|SELECT .* FROM|chichub_(?:demo|bigdb)", re.I),
+    "local": re.compile(r".", re.I),  # mặc định — mọi lệnh máy local/git rơi vào đây
+}
+
+
+def _p104_nhom_cua_lenh(text: str) -> str:
+    for ten in _NHOM5_THU_TU[:-1]:
+        if _NHOM5_PATTERN[ten].search(text):
+            return ten
+    return "local"
+
+
+def _p104_dem_nhom_nguon(dt: str, bang_chung_item):
+    """Trả về set nhóm nguồn ĐÃ CHẠM đối tượng `dt`, loại lời khai worker (vế 4).
+
+    SỬA (W105, 6-oan §11): phân nhóm KHÔNG được chỉ soi chữ trong CHÍNH item khớp
+    `manh`. `tool_result` (output) thường LẶP LẠI đúng token đối tượng (tên cột, hash
+    build id...) nhưng KHÔNG mang dấu hiệu nhóm nguồn (không có "ssh -p 9494",
+    "DATABASE_URL"...) — dấu hiệu đó nằm ở `tool_input` (lệnh) SINH RA nó. Soi lẻ
+    result → luôn rơi về "local" mặc định, đếm sai db/ssh/so thành local (đo thật:
+    ca `is_primary` — lệnh `node -e '...DATABASE_URL...'` bị đếm 'local' vì output
+    chỉ là bảng dữ liệu). Fix: khi result khớp `manh`, GHÉP với input NGAY TRƯỚC nó
+    (cùng lệnh sinh ra) để suy nhóm.
+    """
+    manh = manh_doi_tuong(dt)
+    nhom = set()
+    lenh_truoc = ""
+    for it in bang_chung_item:
+        loai = it.get("loai")
+        if loai == "worker_meta":
+            continue  # C1 vế 4 — lời khai worker KHÔNG phải nhóm nguồn
+        txt = it.get("text", "")
+        if loai == "tool_input":
+            lenh_truoc = txt
+            if any(m in txt.lower() for m in manh):
+                nhom.add(_p104_nhom_cua_lenh(txt))
+            continue
+        if any(m in txt.lower() for m in manh):
+            nhom.add(_p104_nhom_cua_lenh(lenh_truoc + " " + txt))
+    return nhom
+
+
+RE_KHAI_NGUON_THEO_LOI = re.compile(r"theo lời\s+w\d+|theo báo cáo\s+w\d+|\(chưa tự đo\)", re.IGNORECASE)
+
+# MIỄN TRỪ hẹp (W105, §11 "6 oan/340") — CHỈ áp cho đường (b) (KIỂM1 tái dùng), KHÔNG
+# BAO GIỜ áp cho đường (a) (khuôn "chưa/không...được" — thất bại lộ liễu, ca1/D13 vẫn
+# phải 2 nguồn). Oracle: ca3 (§0.b, PHẢI chặn) là tuyên bố NĂNG LỰC HỆ THỐNG ("hệ thống
+# không hỗ trợ...") — đúng chữ "hệ thống"/"hỗ trợ" xuất hiện NGUYÊN VĂN trong câu (đo
+# thật: 6 câu oan — build ID/cột DB/tệp/thư mục — KHÔNG câu nào chứa 2 chữ này, đối
+# chứng bằng `grep`). Tuyên bố về MỘT SỰ KIỆN KỸ THUẬT cụ thể (tệp/cột/hash/thư mục có
+# tồn tại hay không) do MỘT lệnh trực tiếp trả lời dứt điểm (không phải "chưa đo được")
+# thì 1 nguồn là đủ; tuyên bố NĂNG LỰC/TÍNH NĂNG hệ thống (đúng loại sổ lệnh hay
+# mâu thuẫn — D25) vẫn bắt buộc 2 nguồn. KHÔNG nới cho toàn bộ vế (b) — chỉ nới khi
+# câu không mang từ vựng năng-lực-hệ-thống này.
+RE_NANG_LUC_HE_THONG = re.compile(r"hệ thống|hỗ trợ|tính năng|chức năng|cơ chế", re.IGNORECASE)
+
+
+def soi_c1(luot: dict):
+    """C1 — tuyên bố âm mà tập lệnh chạm đối tượng < 2 nhóm nguồn. Trả về [(cau, dt, nhom)].
+
+    Hai đường phát hiện câu ứng viên (hợp nhau bằng OR):
+      (a) RE_TUYEN_BO_AM_C1 — khuôn hẹp "chưa/không đo/tìm/xác nhận/xoá ĐƯỢC" (đủ cho
+          ca 1/5/8 §0.b, không cần DANH_TU_HE_THONG vì đối tượng có thể không phải
+          danh từ hệ thống liệt kê sẵn, vd tên tệp `VERSION`).
+      (b) TÁI DÙNG NGUYÊN bộ gate của KIỂM 1 (DAU_HIEU_TRANG_THAI + DANH_TU_HE_THONG +
+          MIEN_TRU + doi_tuong_gan_dau_hieu) — đã tôi luyện qua corpus thật, bắt được
+          "hệ (thống) không có/không hỗ trợ X" mà (a) bỏ sót (ca 3 §0.b). CHỈ LẤY vế
+          ÂM của DAU_HIEU_TRANG_THAI (không/chưa) — bỏ vế dương (đã có/đang có) vì C1
+          chỉ xử "tuyên bố ÂM" (ticket §5-C1 mở đầu).
+    """
+    text = "\n".join(luot["text"])
+    bci = luot.get("bang_chung_item", [])
+    ra = []
+    for cau in tach_cau(bo_khoi_trich(text)):
+        la_ung_vien_a = bool(RE_TUYEN_BO_AM_C1.search(cau))
+        la_ung_vien_b = False
+        if not la_ung_vien_a:
+            m_trang_thai = DAU_HIEU_TRANG_THAI.search(cau)
+            if (m_trang_thai and RE_DAU_HIEU_AM.search(m_trang_thai.group(0))
+                    and DANH_TU_HE_THONG.search(cau)
+                    and not any(rx.search(cau) for _, rx in MIEN_TRU)):
+                la_ung_vien_b = True
+        if not (la_ung_vien_a or la_ung_vien_b):
+            continue
+        if RE_KHAI_NGUON_THEO_LOI.search(cau):
+            continue  # lối ra hợp lệ — đã khai nguồn là lời thợ, chưa tự đo
+        dts = trich_doi_tuong(cau) or doi_tuong_gan_dau_hieu(cau)
+        if not dts:
+            continue
+        mien_tru_1_nguon = (la_ung_vien_b and not la_ung_vien_a
+                             and not RE_NANG_LUC_HE_THONG.search(cau))
+        for dt in dts:
+            nhom = _p104_dem_nhom_nguon(dt, bci)
+            if len(nhom) >= 2:
+                continue
+            if len(nhom) == 1 and mien_tru_1_nguon:
+                continue  # MIỄN TRỪ hẹp W105 — xem WHY ở RE_NANG_LUC_HE_THONG
+            ra.append((cau, dt, sorted(nhom)))
+    return ra
+
+
+# --------------------------------------------------------------------------
+# C2 — HỨA-PHẢI-KÈM-HÀNH-ĐỘNG (khớp mã W## trong lượt — O1.9.1)
+# --------------------------------------------------------------------------
+RE_HUA_TUC_THI = re.compile(
+    # SIẾT (đo thật corpus âm 340 lượt, 4 oan ban đầu): "bây giờ tôi"/"để tôi" ĐỨNG MỘT
+    # MÌNH khớp bất kỳ câu nào bắt đầu bằng cụm đó ("bây giờ tôi không nói thêm gì" cũng
+    # nổ) — BẮT BUỘC có ĐỘNG TỪ CAM KẾT hành động đi kèm ngay sau.
+    r"\b(?:bây giờ tôi\s+(?:sẽ\s+)?(?:thả|chạy|sửa|gọi|đo|deploy|commit)\b"
+    r"|để tôi\s+(?:thả|chạy|sửa|gọi|đo|deploy|commit)\b"
+    r"|tôi\s+(?:sẽ\s+)?(?:thả|chạy|sửa|gọi|đo|deploy|commit)\s+\w+\s+(?:ngay|luôn))\b",
+    re.IGNORECASE,
+)
+RE_HUA_MIEN = re.compile(
+    r"\bsau khi anh\b|\bkhi founder\b|\bchờ anh gật\b|\bnếu anh (?:ok|đồng ý|gật)\b"
+    # SIẾT: "Anh bảo thả thì tôi thả Fable ngay" là CAM KẾT CÓ ĐIỀU KIỆN (chờ lệnh), không
+    # phải hứa tức thì trong lượt này — thêm khuôn "X thì tôi Y" / "nếu/khi nào anh".
+    r"|\banh bảo\b[^.\n]{0,30}\bthì\b|\bnếu\b[^.\n]{0,30}\bthì tôi\b|\bkhi nào anh\b",
+    re.IGNORECASE)
+RE_MA_W = re.compile(r"\bW0*(\d{1,4})\b", re.IGNORECASE)
+
+
+def soi_c2(luot: dict):
+    """C2 — câu cam kết tức thì cuối lượt mà lượt KHÔNG có lệnh Agent khớp. Trả về [(cau, ma)]."""
+    text = "\n".join(luot["text"])
+    ra = []
+    for cau in tach_cau(bo_khoi_trich(text)):
+        if not RE_HUA_TUC_THI.search(cau):
+            continue
+        if RE_HUA_MIEN.search(cau):
+            continue  # miễn — đang chờ quyết định, không phải hứa suông
+        # có AskUserQuestion trong lượt cũng miễn (đang chờ quyết định)
+        if any("askuserquestion" in (it.get("text", "").lower()) for it in luot.get("bang_chung_item", [])):
+            continue
+        ma_cau = [m.upper() for m in re.findall(r"W0*(\d{1,4})", cau, re.IGNORECASE)]
+        agent_calls = luot.get("agent_calls", [])
+        if not ma_cau:
+            # không nêu mã -> hạ về "có/không BẤT KỲ lệnh Agent nào trong lượt"
+            if agent_calls:
+                continue
+            ra.append((cau, None))
+            continue
+        khop = False
+        for mc in ma_cau:
+            for ac in agent_calls:
+                noi_dung_ac = " ".join(str(ac.get(k, "")) for k in ("description", "prompt", "subagent_type"))
+                if re.search(r"\bW0*%s\b" % mc, noi_dung_ac, re.IGNORECASE):
+                    khop = True
+                    break
+            if khop:
+                break
+        if not khop:
+            ra.append((cau, "W" + ma_cau[0]))
+    return ra
+
+
+# --------------------------------------------------------------------------
+# C4 — XONG-PHẢI-NÊU-MÁY (cửa sổ đo = LƯỢT HIỆN TẠI — hẹp hơn cả mốc theo-phiên của O1.9.2)
+# --------------------------------------------------------------------------
+RE_XONG_TRIEN_KHAI = re.compile(
+    # SIẾT (đo thật corpus âm 340 lượt, 3 oan ban đầu): "đã lên rồi"/"đã lên máy chủ web
+    # rồi" ĐỨNG MỘT MÌNH KHÔNG máy demo/prod/local — nghĩa mơ hồ ("tải lên"/"đưa lên"
+    # /sẵn sàng), không chắc là tuyên bố hoàn thành TRIỂN KHAI. Chỉ giữ 2 nhánh CHẮC
+    # CHẮN là claim deploy: (a) có chữ "deploy" tường minh; (b) "đã lên" + máy
+    # demo/prod/local/production NGAY SAU (đây cũng chính là ca AC6① main không nêu
+    # máy — "deploy" tường minh vẫn đủ để nổ, không cần máy mới trigger được).
+    r"\bđã deploy\b[^.\n]{0,60}\b(?:xong|ổn|rồi)\b|\bđã deploy xong\b"
+    r"|\bđã lên (?:demo|prod|production|local)\b"
+    r"|\bđang chạy trên (?:demo|prod|production|local)\b[^.\n]{0,60}\b(?:xong|ổn|rồi)\b",
+    re.IGNORECASE,
+)
+RE_MAY_DEMO = re.compile(r"\bdemo\b", re.IGNORECASE)
+RE_MAY_PROD = re.compile(r"\bprod(?:uction)?\b", re.IGNORECASE)
+RE_MAY_LOCAL = re.compile(r"\blocal\b", re.IGNORECASE)
+RE_VET_DEMO = re.compile(r"chichub-demo|chichub_demo|fulfill-demo\.thechic\.site", re.IGNORECASE)
+# BUG ĐÃ SỬA (đo thật corpus âm, ca dương ca7): lookahead cũ chỉ loại `_demo` (gạch
+# dưới, tên DB) mà KHÔNG loại `-demo` (gạch ngang, tên PM2/thư mục) -> lệnh
+# `pm2 restart chichub-demo` bị tính lầm thành VẾT PROD. Loại CẢ HAI dạng.
+RE_VET_PROD = re.compile(
+    r"(?<!-)/root/chichub\b(?![-_]demo)|fulfill\.thechic\.site(?!\s*\(demo\))"
+    r"|(?<![-_])chichub\b(?![-_]demo)", re.IGNORECASE)
+RE_NOI_THAY_THO = re.compile(r"\bW0*\d{1,4}\s+đã deploy xong\b|\bW0*\d{1,4}\s+đã lên\b", re.IGNORECASE)
+
+
+def soi_c4(luot: dict, bang_chung_rong: str = None):
+    """C4 — khai xong triển khai không nêu máy, hoặc nêu máy mà 0 vết chạm. Trả về [(cau, ly_do)].
+
+    `bang_chung_rong` (O1.9.2 REFRAME): cửa sổ đo LÝ TƯỞNG là "vết chạm SAU lần Edit/
+    commit gần nhất của việc đang khai" — `bang_chung` không cho mốc đó (đo thật, xem
+    Debate Log P104 Turn 2). Đo thật trên corpus âm 340 lượt: soi CHỈ lượt cuối ra 6 oan
+    — toàn bộ là câu khai lại một sự thật ĐÃ chạm máy ở lượt TRƯỚC trong cùng phiên
+    ("W90 đã lên demo, đang dựng bản để đẩy prod" — deploy demo đã chạy lượt trước, lượt
+    này chỉ tường thuật). HẠ về **theo-phiên** (rộng hơn 1 lượt, hẹp hơn "cả session vô
+    hạn" vì `main()` chỉ đọc 1500 dòng cuối) — đúng fallback O1.9.2 cho phép, khai rõ
+    giới hạn: câu khai xong ở lượt RẤT XA lần deploy thật (ngoài 1500 dòng) vẫn có thể
+    bị chặn — main gặp thì mở cờ `UNIV3_P104_TAT=1` và báo Debate Log, không tự nới thêm.
+    """
+    text = "\n".join(luot["text"])
+    bc_luot = " ".join(it.get("text", "") for it in luot.get("bang_chung_item", []) if it.get("loai") != "worker_meta")
+    bc = bang_chung_rong if bang_chung_rong is not None else bc_luot
+    ra = []
+    for cau in tach_cau(bo_khoi_trich(text)):
+        if not RE_XONG_TRIEN_KHAI.search(cau):
+            continue
+        neu_demo = bool(RE_MAY_DEMO.search(cau))
+        neu_prod = bool(RE_MAY_PROD.search(cau))
+        neu_local = bool(RE_MAY_LOCAL.search(cau))
+        if RE_NOI_THAY_THO.search(cau):
+            # nói thay thợ — nguồn duy nhất là lời thợ (worker_meta) thì thuộc vế C1-lời-thợ
+            nguon_worker_only = not bc_luot  # bang_chung_item không-worker rỗng CỦA LƯỢT NÀY
+            if nguon_worker_only:
+                ra.append((cau, "nói-thay-thợ: nguồn duy nhất là lời worker, chưa tự đo"))
+                continue
+        if not (neu_demo or neu_prod or neu_local):
+            ra.append((cau, "chưa nêu máy: demo/prod/local?"))
+            continue
+        if neu_demo and not RE_VET_DEMO.search(bc):
+            ra.append((cau, "khai đã lên DEMO nhưng cả phiên 0 vết chạm demo"))
+        if neu_prod and not RE_VET_PROD.search(bc):
+            ra.append((cau, "khai đã lên PROD nhưng cả phiên 0 vết chạm prod"))
+    return ra
+
+
+# --------------------------------------------------------------------------
+# C5 — TRIỆU-CHỨNG-PHẢI-LỐI-RA (0 sửa + 0 vé mới + 0 AskUserQuestion -> chặn)
+# --------------------------------------------------------------------------
+RE_LOI_CON_DO = re.compile(r"\bchưa fix\b|\bvẫn lỗi\b|\bkhông chạy được\b|\bbị treo\b|\bchưa đụng\b|\bvẫn chưa\b", re.IGNORECASE)
+RE_XIN_DE_SAU = re.compile(r"\bđể sau\b|\bphiên sau\b|\bmai\b|\btạm gác\b|\bđể mai\b|\blàm sau\b", re.IGNORECASE)
+RE_DA_GHI_VE_TRUNG_THUC = re.compile(r"đã ghi vé|ghi vé\s+\S+|mở vé", re.IGNORECASE)
+
+
+def soi_c5(luot: dict):
+    """C5 — kể triệu chứng + xin để sau mà 0 lối ra nào trong lượt. Trả về [cau].
+
+    Soi ở tầng ĐOẠN VĂN (không phải câu): ca thật SL14-L57 có "Ba chỗ trên thì chưa
+    đụng." (lỗi còn đó) và "Tôi đề nghị để mai làm…" (xin để sau) nằm ở HAI CÂU liền
+    kề trong CÙNG một đoạn — đòi chung một câu là chặn hụt đúng ca cần bắt.
+    """
+    text = "\n".join(luot["text"])
+    ra = []
+    co_sua = any(it.get("loai") == "tool_input" for it in luot.get("bang_chung_item", []))
+    co_askuq = any("askuserquestion" in it.get("text", "").lower() for it in luot.get("bang_chung_item", []))
+    for doan in tach_doan(text):
+        if not (RE_LOI_CON_DO.search(doan) and RE_XIN_DE_SAU.search(doan)):
+            continue
+        if RE_DA_GHI_VE_TRUNG_THUC.search(doan):
+            continue  # ca đối chứng bắt buộc AC7 — cấm phạt lời báo fail trung thực
+        if co_sua or co_askuq:
+            continue
+        # câu chốt hiển thị = câu đầu tiên khớp khuôn xin-để-sau (cụ thể hơn câu đoạn)
+        cau_hien = next((c for c in tach_cau(doan) if RE_XIN_DE_SAU.search(c)), doan)
+        ra.append(cau_hien)
+    return ra
+
+
+# --------------------------------------------------------------------------
+# C7b — PHIẾU-PHẢI-ĐỐI-ĐÍCH (trình phiếu cho founder phải qua bảng ĐỐI CHIẾU ĐÍCH)
+# --------------------------------------------------------------------------
+RE_TRINH_PHIEU = re.compile(r"phiếu sẵn sàng|mời anh gõ go|chờ anh duyệt|xin duyệt phiếu", re.IGNORECASE)
+RE_DUONG_DAN_PHIEU = re.compile(r"docs/ticket/(P\d+[^\s`\)]*\.md)")
+
+
+# Ngày hiệu lực C7b (P104, đêm 14→15/09/2026) — dùng cho vế miễn "phiếu tạo TRƯỚC
+# ngày luật hiệu lực" (AC10/§5-C7b thứ 2, trước W105 CHƯA CODE — chỉ có vế Trạng thái).
+_C7B_NGAY_HIEU_LUC = "2026-09-15"
+
+
+def _c7b_ngay_tao_phieu(duong_tuyet_doi: str, cwd: str):
+    """Ngày commit ĐẦU TIÊN thêm tệp phiếu (git — oracle thật, không suy đoán). None nếu
+    không đo được (chưa commit / không phải repo git) -> fail-open, KHÔNG tự miễn."""
+    try:
+        out = subprocess.run(
+            ["git", "log", "--diff-filter=A", "--format=%ai", "--", duong_tuyet_doi],
+            cwd=cwd, capture_output=True, text=True, timeout=10).stdout.strip().splitlines()
+        if not out:
+            return None
+        return out[-1][:10]  # "YYYY-MM-DD"
+    except Exception:
+        return None
+
+
+def soi_c7b(luot: dict, cwd: str):
+    """C7b — tin trình-phiếu thiếu bảng ĐỐI CHIẾU ĐÍCH hoặc còn ô ⬜ chưa ĐÃ BÁO MAIN."""
+    text = "\n".join(luot["text"])
+    ra = []
+    if not RE_TRINH_PHIEU.search(text):
+        return ra
+    m = RE_DUONG_DAN_PHIEU.search(text)
+    if not m:
+        return ra
+    duong = os.path.join(cwd, "docs", "ticket", m.group(1))
+    try:
+        with open(duong, encoding="utf-8") as f:
+            noi_dung = f.read()
+    except Exception:
+        return ra  # đọc không được -> fail-open, không chặn oan
+    # Vế miễn O1.9.3 — chỉ kiểm bản MỚI/phiếu tạo sau ngày luật hiệu lực; phiếu approved/
+    # executing trình lại xin gật phần dở -> miễn (đúng ca P103 §12b).
+    if re.search(r"\*\*Trạng thái:\*\*\s*(?:approved|executing|done)", noi_dung, re.IGNORECASE):
+        return ra
+    # W105 — vế miễn THỨ 2 của chính AC10 (chưa code ở bản trước): phiếu TẠO TRƯỚC ngày
+    # C7b hiệu lực (era khác — không có heading ĐỐI CHIẾU ĐÍCH THEO ĐỊNH NGHĨA, giống
+    # đúng lý do C7a miễn brief lịch sử). Oracle: ngày commit đầu tiên (git, không đoán).
+    _ngay_tao = _c7b_ngay_tao_phieu(duong, cwd)
+    if _ngay_tao is not None and _ngay_tao < _C7B_NGAY_HIEU_LUC:
+        return ra
+    if "ĐỐI CHIẾU ĐÍCH" not in noi_dung:
+        ra.append((m.group(1), "thiếu heading ĐỐI CHIẾU ĐÍCH"))
+        return ra
+    for dong in noi_dung.splitlines():
+        if "⬜" in dong and "ĐÃ BÁO MAIN" not in dong:
+            ra.append((m.group(1), "còn ô ⬜ chưa kèm ĐÃ BÁO MAIN: " + dong.strip()[:120]))
+            break
     return ra
 
 
@@ -662,11 +1088,40 @@ def _ly_do(nghi, nghi2) -> str:
         ra.append('Số 0 = "không có thật" HOẶC "đếm nhầm chỗ" — đo lại bằng cột/tầng khác, '
                   "và đo cả nhóm ĐƯỢC CHO LÀ CÓ.")
     # WHY bỏ danh sách "kiểm Drive/DB/env bằng lệnh gì": main tự biết, in mỗi lần tốn ~170 ký tự.
-    # Giữ đúng hai câu thần chú KHÔNG đoán được: `da-kiem-tu-luot-truoc:` và `duong-thu-hai:`.
+    # Giữ đúng hai lối ra KHÔNG đoán được: hai cờ cửa thoát `phan-bua` và `duong-thu-hai`.
     ra.append("SỬA 1 trong 5: (1) chạy lệnh kiểm ĐÚNG đối tượng trên rồi viết lại theo kết quả thật · "
               '(2) hạ giọng — thêm "chưa kiểm"/"em đoán" vào chính câu đó · (3) bỏ câu · '
-              "(4) đã kiểm lượt trước -> `da-kiem-tu-luot-truoc: <lý do ≥15 ký tự>` · "
-              "(5) đã đo đường thứ hai -> `duong-thu-hai: <đo bằng gì>`.")
+              "(4) đã kiểm từ lượt trước / (5) đã đo bằng đường thứ hai -> mở cửa thoát bằng "
+              "LỆNH, KHÔNG viết ký hiệu nào vào câu gửi founder:")
+    if CT is not None:
+        ra.append(CT.loi_khuyen(TEN_CONG))
+        ra.append("  (kết luận phủ định đã đo đường thứ hai thì thay tên cổng bằng `%s`)" % TEN_CONG_2)
+    return "\n".join(ra)
+
+
+# --------------------------------------------------------------------------
+def _p104_ly_do(p104_nghi) -> str:
+    """Chữ in ra cho nhánh P104 đã BẬT — mỗi nhánh một LỐI RA (G7)."""
+    LOI_RA = {
+        "C1": "SỬA: chạy thêm lệnh CHẠM đối tượng ở một nhóm nguồn khác (①local/git ②DB "
+              "③SSH VPS ④log/transcript ⑤sổ lệnh+memory), hoặc khai `THEO LỜI W## (chưa tự đo)`.",
+        "C2": "SỬA: gọi `Agent` khớp đúng mã W## NGAY trong lượt này, hoặc đổi câu thành "
+              "'chờ anh gật rồi lượt sau tôi thả'.",
+        "C4": "SỬA: nêu đích danh máy (demo/prod/local) và chỉ khai 'đã lên' máy nào lượt "
+              "này thật sự có vết chạm (ssh/build_id/đường dẫn máy đó).",
+        "C5": "SỬA: sửa lỗi ngay trong lượt, hoặc ghi vé thật (`worker_queue.py ghi`), hoặc "
+              "hỏi founder bằng AskUserQuestion — không được kể triệu chứng rồi im.",
+        "C7b": "SỬA: mở tệp phiếu, thêm heading `## ĐỐI CHIẾU ĐÍCH` (bảng đích) và với mỗi ô "
+               "`⬜` còn thiếu cơ chế phủ, ghi kèm chữ `ĐÃ BÁO MAIN` nếu là lỗ thật đã hô.",
+    }
+    dong = []
+    for ten, item in p104_nghi[:3]:
+        dong.append('  · [P104-%s] %s' % (ten, str(item)[:200]))
+    ra = ["", "%d NHÁNH P104 (đã qua cổng chứng minh, đang CHẶN):" % len(set(t for t, _ in p104_nghi))]
+    ra.extend(dong)
+    for ten in sorted(set(t for t, _ in p104_nghi)):
+        ra.append("  -> [%s] %s" % (ten, LOI_RA.get(ten, "")))
+    ra.append("Không phải lời trên -> mở cờ `UNIV3_P104_TAT=1` chỉ khi khẩn cấp (ghi vào Debate Log P104).")
     return "\n".join(ra)
 
 
@@ -703,7 +1158,31 @@ def main():
         sys.exit(0)
     nghi = soi_luot(ls[-1])
     nghi2 = soi_luot_doc_sai(ls[-1])
-    if not nghi and not nghi2:
+
+    # ---- P104 (C1/C2/C4/C5/C7b) — LUÔN tính (đếm-ghi-log, G2); chỉ CHẶN khi nhánh đã
+    # qua cổng chứng minh 0-oan và được ghi "bat":true trong p104_trang_thai.json ----
+    _cwd_p104 = data.get("cwd") or os.getcwd()
+    # C4 (O1.9.2 REFRAME) — vết chạm máy đo THEO PHIÊN (toàn bộ `ls`, giới hạn 1500 dòng
+    # cuối của `main()`), không chỉ lượt cuối — xem WHY trong docstring `soi_c4`.
+    _bc_rong_c4 = " ".join(
+        it.get("text", "") for l in ls for it in l.get("bang_chung_item", [])
+        if it.get("loai") != "worker_meta")
+    _p104_ds = {
+        "C1": soi_c1(ls[-1]),
+        "C2": soi_c2(ls[-1]),
+        "C4": soi_c4(ls[-1], bang_chung_rong=_bc_rong_c4),
+        "C5": soi_c5(ls[-1]),
+        "C7b": soi_c7b(ls[-1], _cwd_p104),
+    }
+    p104_nghi = []  # [(ten_nhanh, item)] — chỉ nhánh ĐÃ BẬT
+    for _ten, _ds in _p104_ds.items():
+        _bat = _p104_bat(_ten)
+        for _item in _ds:
+            _p104_ghi_log(_ten, str(_item), "bat" if _bat else "dem-log")
+            if _bat:
+                p104_nghi.append((_ten, _item))
+
+    if not nghi and not nghi2 and not p104_nghi:
         try:
             os.remove(dem_file)
         except Exception:
@@ -726,20 +1205,44 @@ def main():
             pass
         sys.exit(0)  # fail-open, không treo founder
 
-    ly_do = _ly_do(nghi, nghi2)
+    # CỬA THOÁT — TỆP CỜ do main mở bằng lệnh; đọc ĐÚNG LÚC sắp chặn.
+    if CT is not None:
+        if CT.lay(TEN_CONG, cwd=data.get("cwd") or os.getcwd()):
+            sys.exit(0)
+        if nghi2 and CT.lay(TEN_CONG_2, cwd=data.get("cwd") or os.getcwd()):
+            sys.exit(0)
+
+    ly_do = _ly_do(nghi, nghi2) if (nghi or nghi2) else "⛔ P104 — LỜI NÓI CHƯA ĐỦ SỔ ĐỠ."
+    if p104_nghi:
+        ly_do = ly_do + "\n" + _p104_ly_do(p104_nghi)
 
     try:
         with open(NHAT_KY, "a", encoding="utf-8") as f:
             f.write(json.dumps(
                 {"luc": time.strftime("%Y-%m-%d %H:%M:%S"), "session": session_id,
                  "lan": n, "nghi": [{"cau": c[:300], "doi_tuong": d} for c, d in nghi],
-                 "nghi_doc_sai": [{"loai": l, "cau": c[:300]} for l, c, _ in nghi2]},
+                 "nghi_doc_sai": [{"loai": l, "cau": c[:300]} for l, c, _ in nghi2],
+                 "p104": [{"nhanh": t, "item": str(it)[:300]} for t, it in p104_nghi]},
                 ensure_ascii=False) + "\n")
     except Exception:
         pass
 
+    _reason = _viet_lai(ly_do, sid=session_id, transcript=transcript)
+    # P094 Đ7 — hai cổng cùng bắn một lượt (đo 11:02:21 ngày 14/09) thì cổng SAU in gọn.
+    # Dùng sổ canonical ở `nghi_truoc_gate`, KHÔNG chép hàm thứ hai. Lỗi -> giữ chữ đầy đủ.
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from nghi_truoc_gate import ghi_khoi_chan as _ghi_kc, rut_gon_neu_trung as _rut
+        _cau = (nghi[0][0] if nghi else (nghi2[0][1] if nghi2 else ""))
+        _van_luot = "\n".join(ls[-1].get("text") or []) if ls else ""
+        _truoc = _ghi_kc(session_id, _van_luot, TEN_CONG, _cau,
+                         (ly_do or "").splitlines()[0] if ly_do else "")
+        _reason = _rut(_reason, _truoc, TEN_CONG,
+                       (ly_do or "").strip().splitlines()[0] if ly_do else "")
+    except Exception:
+        pass
     print(json.dumps({"decision": "block",
-                      "reason": _viet_lai(ly_do, sid=session_id, transcript=transcript),
+                      "reason": _reason,
                       "suppressOutput": True}, ensure_ascii=False))
     sys.exit(0)
 

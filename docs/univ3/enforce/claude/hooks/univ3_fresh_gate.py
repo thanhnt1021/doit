@@ -3,9 +3,13 @@
 
 Cặp với univ3_freshness_check.py (SessionStart). Đọc state `.claude/.univ3-fresh.json`:
   - verdict STALE (local cũ hơn SSOT) hoặc DRIFT (local lệch MANIFEST) và CHƯA duyệt phiên này
-    -> permissionDecision "ask" (hỏi user duyệt) — chặn MỀM theo founder chốt.
+    -> permissionDecision "allow" + additionalContext nhắc `sync uni` — cổng MỀM.
   - fresh / unknown -> cho qua.
-  - Hỏi 1 LẦN/phiên: sau khi hỏi thì set acked=true để không nag mỗi Edit.
+  - Nhắc 1 LẦN/phiên: nhắc xong set acked=true để không nag mỗi Edit.
+
+WHY "allow + nhắc" chứ không "ask" (26/08 đổi mã, 11/10/2026 sửa chú thích cho khớp):
+"ask" bật hộp xin quyền ở CLI, anh vắng máy là cả phiên đứng chờ. Bản univ3 cũ không
+làm hỏng việc ngay, nên chỉ cần agent biết để tự chạy `sync uni`.
 
 Fail-open: mọi lỗi / thiếu state -> exit 0 (cho qua).
 """
@@ -52,7 +56,7 @@ def main() -> None:
     msg = (
         f"⚠️ univ3 cache {verdict.upper()} ({detail}). "
         "Rule: check + đồng bộ univ3 MỚI NHẤT trước khi làm task. "
-        "Duyệt nếu chấp nhận làm với bản hiện tại; nếu không → chạy `sync uni` trước rồi làm lại."
+        "Lệnh này vẫn chạy (không bật hộp hỏi); việc có đụng luật univ3 thì chạy `sync uni` trước."
     )
     json.dump(
         {

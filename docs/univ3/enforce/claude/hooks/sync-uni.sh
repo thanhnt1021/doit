@@ -19,13 +19,18 @@
 #   sync-uni.sh push    bump VERSION + gen_manifest + verify shasum + push SSOT.
 #   sync-uni.sh pull    chỉ chạy khi check SẠCH; rsync về + install.py + cổng cuối.
 #   sync-uni.sh clone   in ĐÚNG clone của project đang đứng (đừng đoán bằng `*`).
+#   sync-uni.sh bot-nhan-viec [da-co --bot @x --nhom "…" | de-sau | khong-can | thoai-da-co | clitell-da-co]
+#                       không tham số: chỉ in khối hỏi (nếu cần). Có tham số: ghi lựa
+#                       chọn vào docs/bot-nhan-viec.json của project. `check` tự gọi bước hỏi.
 #
 # CỔNG CHỦ SỞ HỮU (25/08/2026): /tmp/sync-uni-state/ dùng chung mọi project ->
 # clone mang dấu `.git/univ3-owner`; push/pull không khớp dấu = DỪNG (exit 7).
 # ==========================================================================
 set -uo pipefail
 
-SSOT_URL="git@github.com:thanhnt1021/univ3.git"
+# WHY biến môi trường: để CA THỬ dựng SSOT giả trong gốc cô lập mà kiểm được nhãn
+# phân loại 3 nguồn (xem `ca-nhan-sync`), khỏi đụng SSOT thật. Chạy thật luôn mặc định.
+SSOT_URL="${UNIV3_SSOT_URL:-git@github.com:thanhnt1021/univ3.git}"
 # Repo SSOT bản LÀM VIỆC trên máy (nơi model sửa rồi commit). Đổi được bằng
 # biến môi trường UNIV3_SSOT_LOCAL. Xem cổng "▶ 3b" bên dưới để biết vì sao cần.
 SSOT_LOCAL="${UNIV3_SSOT_LOCAL:-$HOME/PycharmProjects/univ3-ssot}"
@@ -35,12 +40,17 @@ BK_DIR2="$HOME/.claude/backups"
 TS="$(date +%Y%m%d-%H%M%S)"
 
 CMD="${1:-}"; shift 2>/dev/null || true
-PROJECT="$PWD"; BUMP="patch"; MSG=""
+PROJECT="$PWD"; BUMP="patch"; MSG=""; BOT_TEN=""; BOT_NHOM=""; BOT_CHON=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --project) shift; PROJECT="${1:-$PWD}" ;;
     --bump)    shift; BUMP="${1:-patch}" ;;
     -m|--message) shift; MSG="${1:-}" ;;
+    --bot)     shift; BOT_TEN="${1:-}" ;;
+    --nhom)    shift; BOT_NHOM="${1:-}" ;;
+    da-co|de-sau|khong-can|thoai-da-co|clitell-da-co)
+      [ "$CMD" = "bot-nhan-viec" ] || { echo "Tham số lạ: $1"; exit 2; }
+      BOT_CHON="$1" ;;
     *) echo "Tham số lạ: $1"; exit 2 ;;
   esac; shift
 done
@@ -111,7 +121,7 @@ lock_acquire(){
 
 usage(){ sed -n '2,25p' "$0"; exit 0; }
 [ -n "$CMD" ] || usage
-case "$CMD" in check|push|pull|clone) ;; -h|--help|help) usage ;; *) die "❌ Lệnh con phải là check | push | pull | clone (nhận: $CMD)" 2 ;; esac
+case "$CMD" in check|push|pull|clone|bot-nhan-viec) ;; -h|--help|help) usage ;; *) die "❌ Lệnh con phải là check | push | pull | clone | bot-nhan-viec (nhận: $CMD)" 2 ;; esac
 [ -d "$UNIV3" ] || die "❌ Không thấy $UNIV3 — chạy trong thư mục gốc project." 2
 
 # Tệp CỐ Ý chỉ ở máy (bí mật / bản sinh / cá nhân) — không tính là drift.
@@ -149,6 +159,156 @@ do_backup(){
   [ -d "$HOME_HOOKS" ] && tar -czf "$HB1" -C "$(dirname "$HOME_HOOKS")" "$(basename "$HOME_HOOKS")" && cp "$HB1" "$HB2"
   printf '%s\n' "$BK1" "$SB1" "$HB1" > "$STATE/backup.txt"
   ls -la "$BK1" "$BK2" "$SB1" "$SB2" "$HB1" "$HB2" 2>/dev/null | sed 's/^/   /'
+  # 01/10/2026: không giới hạn thì 1.311 bản universal-hooks (185 MB/bản) chiếm 27 GB, máy
+  # còn 4 GB. Giữ 5 bản mới nhất mỗi loại cho mỗi project; bản vừa tạo luôn nằm trong 5.
+  for _loai in univ3-sync universal-hooks settings; do
+    ls -t "$BK_DIR2/$_loai-$PHASH-"* 2>/dev/null | tail -n +6 | while read -r _cu; do rm -f "$_cu"; done
+  done
+  # 11/10/2026: bản /tmp không có trần → 74 bản universal-hooks (185 MB/bản) = 13 GB, ổ còn 25 GB.
+  # Bản bền đã nằm ở $BK_DIR2; /tmp chỉ cần bản vừa tạo (khôi phục đọc $STATE/backup.txt) + 1 bản trước.
+  for _loai in univ3-sync universal-hooks settings; do
+    ls -t "/tmp/$_loai-$PHASH-"* 2>/dev/null | tail -n +3 | while read -r _cu; do rm -f "$_cu"; done
+  done
+}
+
+# Nội dung tệp $1 ĐÃ TỪNG nằm trên nhánh SSOT chưa? ($2 = đường dẫn trong repo SSOT)
+#   0 = đã từng phát hành   ·   1 = chưa từng có trên SSOT   ·   2 = không tra được
+# WHY: `A == C` (repo dự án khớp máy) KHÔNG chứng minh được bên nào mới. Chỉ lịch sử
+# git của SSOT mới trả lời được câu "nội dung này SSOT đã có bao giờ chưa".
+ssot_tung_co(){
+  local f="$1" rel="$2" sha c
+  [ -d "$CLONE/.git" ] || return 2
+  sha="$(git -C "$CLONE" hash-object "$f" 2>/dev/null)" || return 2
+  [ -n "$sha" ] || return 2
+  # clone --depth 5 quá nông để tra lịch sử: đào sâu ĐÚNG MỘT LẦN cho cả lượt check.
+  if [ ! -f "$STATE/deepened" ]; then
+    git -C "$CLONE" fetch -q --deepen 500 2>/dev/null || true
+    : > "$STATE/deepened"
+  fi
+  for c in $(git -C "$CLONE" rev-list HEAD -- "$rel" 2>/dev/null | head -500); do
+    [ "$(git -C "$CLONE" rev-parse -q --verify "$c:$rel" 2>/dev/null)" = "$sha" ] && return 0
+  done
+  # Không thấy mà lịch sử vẫn còn cụt -> KHÔNG dám kết luận "chưa từng có".
+  [ "$(git -C "$CLONE" rev-parse --is-shallow-repository 2>/dev/null)" = "true" ] && return 2
+  return 1
+}
+
+# ============================================================ BOT NHẬN VIỆC
+# WHY (09/10/2026, lệnh founder L42): dự án nào có bot riêng + nhóm riêng thì làm việc được
+# kiểu «sếp nhắn nhóm → vào sổ việc có mã, Reply là câu trả lời» (skill bot-nhan-viec). Dự án
+# chưa có thì mỗi lần sync uni hỏi lại MỘT câu, tới khi anh chọn «đã có» hoặc «không cần».
+# Tệp dấu nằm trong project (docs/bot-nhan-viec.json) để lựa chọn đi theo dự án, không theo máy.
+# Khối hỏi KHÔNG đổi mã thoát của check — đây là câu hỏi, không phải drift.
+BOT_DAU_REL="docs/bot-nhan-viec.json"
+bot_trang_thai(){ # in: da-co | khong-can | de-sau | thieu-truong | hong | (rỗng = chưa có tệp)
+  f="$PROJECT/$BOT_DAU_REL"
+  [ -f "$f" ] || return 0
+  python3 -c '
+import json,sys
+d=json.load(open(sys.argv[1],encoding="utf-8"))
+t=str(d.get("trang_thai","")).strip()
+if t=="da-co" and not (str(d.get("bot","")).strip() and str(d.get("nhom","")).strip()):
+    print("thieu-truong")
+else:
+    print(t if t in ("da-co","khong-can","de-sau") else "hong")
+' "$f" 2>/dev/null || echo hong
+}
+hoi_bot_nhan_viec(){
+  tt="$(bot_trang_thai)"
+  case "$tt" in da-co|khong-can) return 0 ;; esac
+  case "$tt" in
+    "")           ly="chưa có tệp dấu $BOT_DAU_REL" ;;
+    de-sau)       ly="lần trước anh chọn «để sau»" ;;
+    thieu-truong) ly="tệp dấu ghi «da-co» nhưng thiếu bot/nhóm" ;;
+    *)            ly="tệp dấu $BOT_DAU_REL đọc không được" ;;
+  esac
+  say "⚠ HỎI ANH: dự án này chưa có bot/nhóm nhận việc ($ly)"
+  say "   (a) dựng ngay theo skill bot-nhan-viec"
+  say "   (b) để sau — lần sync uni sau hỏi lại"
+  say "   (c) không cần — ghi lại, các lần sau im"
+  say "   → MAIN: hỏi anh bằng AskUserQuestion 3 lựa chọn trên, rồi ghi lựa chọn:"
+  say "      (b) $HOME_HOOKS/sync-uni.sh bot-nhan-viec de-sau"
+  say "      (c) $HOME_HOOKS/sync-uni.sh bot-nhan-viec khong-can"
+  say "      (a) dựng xong: $HOME_HOOKS/sync-uni.sh bot-nhan-viec da-co --bot @ten_bot --nhom \"Tên nhóm\""
+}
+# WHY (12/10/2026, lệnh founder Task-12102026-03): sếp trả lời bằng THOẠI mà bot không nghe → thẻ ghi
+# «[tin không có chữ]», câu trả lời mất. Anh chốt «cập nhật cho TẤT CẢ dự án», nên mọi dự án đã có bot
+# đều bị nhắc ở mỗi lần check tới khi bot nghe được thoại (skill bot-nhan-viec mục 4b) và ghi dấu
+# `thoai: da-co`. Như khối hỏi bot: chỉ nhắc, KHÔNG đổi mã thoát của check.
+bot_thoai(){ # in: da-co | (rỗng)
+  bot_truong thoai
+}
+bot_truong(){ # $1 = tên trường trong tệp dấu → in giá trị (rỗng nếu chưa có)
+  f="$PROJECT/$BOT_DAU_REL"
+  [ -f "$f" ] || return 0
+  python3 -c 'import json,sys;print(str(json.load(open(sys.argv[1],encoding="utf-8")).get(sys.argv[2],"")).strip())' "$f" "$1" 2>/dev/null || true
+}
+nhac_bot_thoai(){
+  [ "$(bot_thoai)" = "da-co" ] && { say "✓ bot nghe được tin thoại (thoai: da-co)"; return 0; }
+  say "⚠ VIỆC CHO MAIN: bot nhận việc của dự án CHƯA nghe tin thoại — sếp nhắn thoại thì thẻ ghi «[tin không có chữ]»"
+  say "   → làm theo skill bot-nhan-viec mục 4b + ca thử 17–19 (references/ca-thu.md), thử thật một thoại rồi ghi dấu:"
+  say "      $HOME_HOOKS/sync-uni.sh bot-nhan-viec thoai-da-co"
+}
+# WHY (12/10/2026, lệnh founder Task-12102026-06 «áp rule chung ssot để dự án nào có bot cũng có cái này»): lệnh
+# /clitell (skill bot-nhan-viec mục 7d) — chủ nhà nhắn thẳng phiên Claude CLI đang chạy, khỏi đẻ thẻ. Như nhắc thoại:
+# mọi dự án đã có bot bị nhắc ở mỗi lần check tới khi ghi dấu `clitell: da-co`. Chỉ nhắc, KHÔNG đổi mã thoát.
+nhac_bot_clitell(){
+  [ "$(bot_truong clitell)" = "da-co" ] && { say "✓ bot có lệnh /clitell (clitell: da-co)"; return 0; }
+  say "⚠ VIỆC CHO MAIN: bot nhận việc của dự án CHƯA có lệnh /clitell — chủ nhà muốn nói gì với phiên CLI vẫn phải tạo thẻ"
+  say "   → làm theo skill bot-nhan-viec mục 7d + ca thử 20–23 (references/ca-thu.md), thử thật một lời rồi ghi dấu:"
+  say "      $HOME_HOOKS/sync-uni.sh bot-nhan-viec clitell-da-co"
+}
+# WHY (15/10/2026, lệnh founder Task-15102026-06 «lệnh gì tương tác với claude cli đều đồng bộ hết»): skill
+# bot-nhan-viec mục 7f là BỘ LỆNH CHUNG chạm phiên CLI. Tệp dấu khai `lenh_chung` = lệnh dự án đã có; thiếu lệnh nào thì
+# nhắc «dự án X thiếu /…». Danh sách dưới PHẢI khớp bảng 7f (đổi bảng là đổi dòng này cùng lượt). Chỉ nhắc, KHÔNG đổi mã thoát.
+LENH_CHUNG_BAT_BUOC="viec clitell lam lamdi khac cho tatmay momay pause khoidong xoa help"
+nhac_bot_lenh_chung(){
+  f="$PROJECT/$BOT_DAU_REL"
+  thieu="$(python3 -c '
+import json,sys
+d=json.load(open(sys.argv[1],encoding="utf-8"))
+v=d.get("lenh_chung")
+co=set(str(x).strip().lstrip("/").lower() for x in v) if isinstance(v,list) else set()
+print(" ".join("/"+l for l in sys.argv[2].split() if l not in co))
+' "$f" "$LENH_CHUNG_BAT_BUOC" 2>/dev/null)" || thieu="(đọc tệp dấu lỗi)"
+  if [ -z "$thieu" ]; then say "✓ bot đủ bộ lệnh chung chạm phiên CLI (lenh_chung, skill bot-nhan-viec mục 7f)"; return 0; fi
+  say "⚠ VIỆC CHO MAIN: dự án $(basename "$PROJECT") thiếu $thieu (bộ lệnh chung chạm phiên CLI)"
+  say "   → làm theo bảng skill bot-nhan-viec mục 7f, thử thật trên bot rồi thêm tên lệnh vào mảng \"lenh_chung\" của $BOT_DAU_REL"
+}
+cmd_bot_nhan_viec(){
+  if [ -z "$BOT_CHON" ]; then hoi_bot_nhan_viec; exit 0; fi
+  if [ "$BOT_CHON" = "thoai-da-co" ] || [ "$BOT_CHON" = "clitell-da-co" ]; then
+    TRUONG="${BOT_CHON%-da-co}"
+    [ "$(bot_trang_thai)" = "da-co" ] || die "❌ $BOT_CHON chỉ ghi được khi $BOT_DAU_REL đã «da-co» (đủ bot + nhóm)" 2
+    python3 -c '
+import json,sys,datetime
+p=sys.argv[1]; k=sys.argv[2]; d=json.load(open(p,encoding="utf-8"))
+d[k]="da-co"; d[k+"_ghi_luc"]=datetime.date.today().isoformat()
+open(p,"w",encoding="utf-8").write(json.dumps(d,ensure_ascii=False,indent=2)+"\n")
+' "$PROJECT/$BOT_DAU_REL" "$TRUONG" || die "❌ Ghi tệp dấu lỗi" 5
+    say "✓ Đã ghi $BOT_DAU_REL: $TRUONG = da-co"
+    exit 0
+  fi
+  if [ "$BOT_CHON" = "da-co" ] && { [ -z "$BOT_TEN" ] || [ -z "$BOT_NHOM" ]; }; then
+    die "❌ da-co cần --bot @ten_bot và --nhom \"Tên nhóm\" (không ghi khoá / mã nhóm vào đây)" 2
+  fi
+  mkdir -p "$PROJECT/docs"
+  python3 -c '
+import json,sys,os,datetime
+p,chon,bot,nhom=sys.argv[1:5]
+d={}
+if os.path.exists(p):
+    try: d=json.load(open(p,encoding="utf-8"))
+    except Exception: d={}
+d["trang_thai"]=chon
+if bot: d["bot"]=bot
+if nhom: d["nhom"]=nhom
+d["ghi_luc"]=datetime.date.today().isoformat()
+d.setdefault("ghi_chu","Tệp dấu của sync uni (skill bot-nhan-viec). Không ghi khoá / mã nhóm vào đây.")
+open(p,"w",encoding="utf-8").write(json.dumps(d,ensure_ascii=False,indent=2)+"\n")
+' "$PROJECT/$BOT_DAU_REL" "$BOT_CHON" "$BOT_TEN" "$BOT_NHOM" || die "❌ Ghi tệp dấu lỗi" 5
+  say "✓ Đã ghi $BOT_DAU_REL: trạng thái «${BOT_CHON}»"
+  exit 0
 }
 
 # ==================================================================== CHECK
@@ -168,21 +328,73 @@ cmd_check(){
   say "     CẤM \`cat /tmp/sync-uni-state/*/clone.txt | head -1\` — bung ký tự đại diện ra clone của PROJECT KHÁC."
 
   say ""; say "   ── A(repo docs/univ3) ⇄ B(SSOT) ──"
-  DIFF_AB="$(rsync -rcni --delete --exclude='.git/' "$CLONE/" "$UNIV3/" | grep -v '^\.' || true)"
+  # WHY --exclude='.DS_Store': Finder tự sinh lại tệp rác này mỗi lần mở thư mục bằng cửa
+  # sổ Mac. Nó nằm trong .gitignore của univ3 nên SSOT không bao giờ có -> rsync xếp vào
+  # *deleting -> ONLY_A khác rỗng -> cổng ▶4 phán "⛔ CHƯA SẠCH" và chặn pull. CA THẬT
+  # 04-05/09/2026: `sync uni` treo 2 phiên liền chỉ vì tệp rỗng này, repo giống SSOT từng
+  # byte. LOCAL_ONLY.txt không cứu được vì skip_list chỉ lọc vòng C⇄B, ONLY_A lấy thẳng
+  # từ rsync A⇄B.
+  DIFF_AB="$(rsync -rcni --delete --exclude='.git/' --exclude='.DS_Store' "$CLONE/" "$UNIV3/" | grep -v '^\.' || true)"
   ONLY_A="$(printf '%s\n' "$DIFF_AB" | grep '^\*deleting' | awk '{print $2}' || true)"
   if [ -z "$DIFF_AB" ]; then say "   ✓ repo khớp SSOT"; else printf '%s\n' "$DIFF_AB" | sed 's/^/   /'; fi
   [ -n "$ONLY_A" ] && { say "   ⚠️ CHỈ-REPO-CÓ (SSOT chưa có):"; printf '%s\n' "$ONLY_A" | sed 's/^/     · /'; }
 
   say ""; say "   ── C(~/.claude/universal-hooks) ⇄ B(SSOT) ──"
-  SSOT_HOOKS="$CLONE/enforce/claude/hooks"; ONLY_C=""; DIFF_C=""; NEWER_C=""
+  # WHY BỎ HẲN mtime (CA THẬT 03/09/2026 — suýt mất 3 bản vá): nhánh cũ phân loại bằng
+  # `[ "$f" -nt "$SSOT_HOOKS/$b" ]`. Nhưng `git clone` đặt mtime của MỌI tệp trong clone
+  # bằng GIỜ CHECKOUT (luôn là "vừa xong"), nên điều kiện đó LUÔN SAI -> mọi tệp máy vừa
+  # sửa bị dán nhãn "SSOT mới hơn" -> NEWER_C luôn rỗng -> cổng ▶4 KHÔNG BAO GIỜ nổ ->
+  # check phán "✓ SẠCH, được phép pull" trong khi máy đang giữ code SSOT chưa có; ai tin
+  # lời nó mà pull thì rsync đè, mất trắng không một cảnh báo. Đo thật: tệp máy 16:09-16:14,
+  # tệp clone 16:21:13 -> `-nt` = FALSE cả 3 tệp, đúng lúc chính diff ngay trên đã in ra
+  # nội dung chỉ máy mới có.
+  # THAY BẰNG so NỘI DUNG 3 chiều, lấy A (repo docs/univ3/enforce/claude/hooks) làm GỐC SO
+  # — hợp lệ vì install.py copy A -> C (HOOKS_SRC/HOOK_FILES), nên C luôn khởi đi từ A:
+  #   C == A, A != B -> máy còn nguyên bản đã cài, SSOT tiến lên thật -> CHO pull
+  #   C != A, A == B -> máy có code SSOT CHƯA CÓ                      -> CHẶN, phải PUSH
+  #   C != A, A != B -> hai bên cùng sửa một tệp                      -> CHẶN, GỘP TAY
+  #   không có A     -> không rõ gốc, không dám đoán                  -> CHẶN, GỘP TAY
+  SSOT_HOOKS="$CLONE/enforce/claude/hooks"; BASE_HOOKS="$UNIV3/enforce/claude/hooks"
+  ONLY_C=""; DIFF_C=""; PUSH_C=""; MERGE_C=""
   SKIP="$(skip_list)"
   for f in "$HOME_HOOKS"/*; do
     [ -f "$f" ] || continue; b="$(basename "$f")"
     printf '%s\n' "$SKIP" | grep -qxF "$b" && continue
     if [ ! -e "$SSOT_HOOKS/$b" ]; then ONLY_C="$ONLY_C$b"$'\n'
     elif ! diff -q "$SSOT_HOOKS/$b" "$f" >/dev/null 2>&1; then
-      if [ "$f" -nt "$SSOT_HOOKS/$b" ]; then NEWER_C="$NEWER_C$b"$'\n'; DIFF_C="$DIFF_C$b (⚠️ MÁY MỚI HƠN)"$'\n'
-      else DIFF_C="$DIFF_C$b (SSOT mới hơn)"$'\n'; fi
+      if [ ! -e "$BASE_HOOKS/$b" ]; then
+        MERGE_C="$MERGE_C$b"$'\n'; DIFF_C="$DIFF_C$b (⚠️ KHÔNG RÕ GỐC → gộp tay)"$'\n'
+      elif diff -q "$BASE_HOOKS/$b" "$f" >/dev/null 2>&1; then
+        # A == C, khác B. Nhánh này TỪNG kết luận thẳng "SSOT mới hơn — máy còn nguyên bản
+        # đã cài" rồi CHO pull. CA THẬT 04/09/2026 (lô W33): worker vá `worker_queue.py` ở
+        # máy RỒI chép luôn sang `docs/univ3` đúng luật univ3 mà chưa push -> A == C vẫn
+        # đúng, nhưng bên mới hơn là MÁY. Nhãn ngược làm PUSH_C rỗng -> cổng ▶4 phán
+        # "✓ SẠCH" -> pull rsync bản CŨ đè lên bản vá, mất trắng không một cảnh báo.
+        # `A == C` chỉ nói repo khớp máy, KHÔNG nói bên nào mới. Hỏi hai nguồn BẰNG CHỨNG,
+        # không đoán — theo thứ tự rẻ trước:
+        #   (1) bản A còn sửa CHƯA COMMIT trong kho dự án -> chính máy này vừa động vào nó.
+        #   (2) lịch sử git của SSOT: nội dung này ĐÃ TỪNG phát hành chưa.
+        # Không nguồn nào chốt được -> nói thẳng KHÔNG RÕ, cấm đoán một chiều.
+        if [ -n "$(git -C "$PROJECT" status --porcelain -- "docs/univ3/enforce/claude/hooks/$b" 2>/dev/null)" ]; then
+          PUSH_C="$PUSH_C$b"$'\n'
+          DIFF_C="$DIFF_C$b (⚠️ MÁY MỚI HƠN — bản trong docs/univ3 còn sửa chưa commit → phải PUSH)"$'\n'
+        else
+          ssot_tung_co "$f" "enforce/claude/hooks/$b"; RC_TC=$?
+          if [ "$RC_TC" -eq 0 ]; then
+            DIFF_C="$DIFF_C$b (SSOT mới hơn — bản ở máy/repo là bản SSOT đã phát hành)"$'\n'
+          elif [ "$RC_TC" -eq 1 ]; then
+            PUSH_C="$PUSH_C$b"$'\n'
+            DIFF_C="$DIFF_C$b (⚠️ MÁY+REPO CÓ CODE SSOT CHƯA CÓ → phải PUSH)"$'\n'
+          else
+            MERGE_C="$MERGE_C$b"$'\n'
+            DIFF_C="$DIFF_C$b (⚠️ KHÔNG RÕ BÊN NÀO MỚI → ĐỌC DIFF trước khi kéo)"$'\n'
+          fi
+        fi
+      elif diff -q "$BASE_HOOKS/$b" "$SSOT_HOOKS/$b" >/dev/null 2>&1; then
+        PUSH_C="$PUSH_C$b"$'\n'; DIFF_C="$DIFF_C$b (⚠️ MÁY CÓ CODE SSOT CHƯA CÓ → phải PUSH)"$'\n'
+      else
+        MERGE_C="$MERGE_C$b"$'\n'; DIFF_C="$DIFF_C$b (⚠️ HAI BÊN CÙNG SỬA → gộp tay)"$'\n'
+      fi
     fi
   done
   [ -n "$ONLY_C" ] && { say "   ⚠️ CHỈ-MÁY-CÓ (SSOT chưa có):"; printf '%s' "$ONLY_C" | sed 's/^/     · /'; }
@@ -247,8 +459,16 @@ cmd_check(){
     say "   Sửa: trong repo SSOT chạy bash scripts/gen_manifest.sh rồi commit + push."
   fi
 
+  hr; say "▶ 3c. Bot nhận việc của dự án (skill bot-nhan-viec)"
+  BOT_TT="$(bot_trang_thai)"
+  case "$BOT_TT" in
+    da-co) say "   ✓ $BOT_DAU_REL: $BOT_TT"; nhac_bot_thoai | sed 's/^/   /'; nhac_bot_clitell | sed 's/^/   /'; nhac_bot_lenh_chung | sed 's/^/   /' ;;
+    khong-can) say "   ✓ $BOT_DAU_REL: $BOT_TT" ;;
+    *) hoi_bot_nhan_viec | sed 's/^/   /' ;;
+  esac
+
   hr; say "▶ 4. Kết luận"
-  if [ -n "$SSOT_BAD" ] && [ -z "$ONLY_A$ONLY_C$NEWER_C" ]; then
+  if [ -n "$SSOT_BAD" ] && [ -z "$ONLY_A$ONLY_C$PUSH_C$MERGE_C" ]; then
     # WHY tách nhánh riêng: lỗi nằm ở PHÍA SSOT, không phải local có thứ thừa. Việc
     # phải làm khác hẳn (push/commit/gen_manifest ở repo SSOT) nên đừng in hướng dẫn gộp tay.
     rm -f "$STATE/clean"
@@ -259,9 +479,13 @@ cmd_check(){
     say "      · MANIFEST lệch         → bash scripts/gen_manifest.sh && commit && push"
     exit 4
   fi
-  if [ -n "$ONLY_A$ONLY_C$NEWER_C" ]; then
+  if [ -n "$ONLY_A$ONLY_C$PUSH_C$MERGE_C" ]; then
     rm -f "$STATE/clean"
-    say "   ⛔ CHƯA SẠCH — local/máy có thứ SSOT CHƯA CÓ (hoặc bản máy mới hơn)."
+    say "   ⛔ CHƯA SẠCH — local/máy có NỘI DUNG SSOT CHƯA CÓ."
+    [ -n "$PUSH_C" ] && { say "      ⚠️ MÁY CÓ CODE SSOT CHƯA CÓ — chép sang clone rồi PUSH (TUYỆT ĐỐI đừng pull):"
+                          printf '%s' "$PUSH_C" | sed "s|^|        · cp $HOME_HOOKS/|" | sed "s|\$| $CLONE/enforce/claude/hooks/|"; }
+    [ -n "$MERGE_C" ] && { say "      ⚠️ HAI BÊN CÙNG SỬA (hoặc không rõ gốc) — GỘP TAY vào clone rồi push:"
+                           printf '%s' "$MERGE_C" | sed 's|^|        · |'; }
     say "      Pull lúc này = MẤT công vừa làm. Việc phải làm TRƯỚC (model quyết, không phải script):"
     say "      1) Đọc diff trên, chép/gộp tay phần cần giữ vào clone: $CLONE"
     say "      2) Hook mới → thêm tên vào HOOK_FILES trong $CLONE/install.py"
@@ -288,12 +512,38 @@ cmd_push(){
   cd "$CLONE" || die "❌ cd lỗi" 2
   # WHY stash: model đã sửa tệp trong clone rồi mới gọi push -> rebase từ chối khi
   # còn thay đổi chưa commit. Cất đi, đồng bộ với worker khác, rồi bung lại.
-  STASHED=0
-  if [ -n "$(git status --porcelain)" ]; then git stash -q -u && STASHED=1; fi
-  git fetch -q origin && git pull -q --rebase origin main \
-    || die "❌ pull --rebase SSOT lỗi — DỪNG, không tự resolve." 5
+  # WHY bung lại cả khi kéo hỏng (sự cố 15/10/2026, univ3 4.136.0): trước đây kéo
+  # hỏng (mạng) là dừng luôn, stash nằm lại, cây làm việc sạch trơn -> lần đẩy sau
+  # tưởng không có gì, sót 3 tệp. Pop xung đột thì git tự GIỮ stash; in đích danh
+  # stash đó để người gộp tay biết lấy lại ở đâu — cấm drop.
+  STASHED=0; STASH_SHA=""
+  if [ -n "$(git status --porcelain)" ]; then
+    git stash push -q -u -m "sync-uni push $TS" && STASHED=1 && STASH_SHA="$(git rev-parse -q --verify refs/stash)"
+  fi
+  stash_con_giu(){
+    ref="$(git stash list --format='%gd %H' | awk -v s="$STASH_SHA" '$2==s{print $1}')"
+    say "   ⚠️ Thay đổi của bạn VẪN GIỮ trong stash: ${ref:-?} ($STASH_SHA) — KHÔNG xoá."
+    say "      Gộp tay xong rồi mới: git -C $CLONE stash drop ${ref:-<stash>}"
+  }
+  if ! { git fetch -q origin && git pull -q --rebase origin main; }; then
+    # rebase dở -> về đúng HEAD cũ trước khi bung, không tự resolve gì
+    if [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ]; then git rebase --abort >/dev/null 2>&1; fi
+    if [ "$STASHED" = 1 ]; then
+      if git stash pop -q; then
+        say "❌ kéo hỏng, đã trả lại thay đổi vào cây làm việc ($CLONE)."
+      else
+        say "❌ kéo hỏng, và bung stash lại bị xung đột."
+        stash_con_giu
+      fi
+    fi
+    die "❌ pull --rebase SSOT lỗi — DỪNG, không tự resolve. Sửa mạng/xung đột rồi chạy lại push." 5
+  fi
   if [ "$STASHED" = 1 ]; then
-    git stash pop -q || die "❌ Xung đột khi bung thay đổi của bạn lên bản SSOT mới — DỪNG, gộp tay rồi chạy lại." 5
+    if ! git stash pop -q; then
+      say "❌ Xung đột khi bung thay đổi của bạn lên bản SSOT mới — DỪNG, gộp tay rồi chạy lại."
+      stash_con_giu
+      exit 5
+    fi
   fi
   V_OLD="$(cat VERSION)"
   V_NEW="$(python3 - "$V_OLD" "$BUMP" <<'PY'
@@ -372,4 +622,4 @@ cmd_clone(){
   exit 0
 }
 
-case "$CMD" in check) cmd_check ;; push) cmd_push ;; pull) cmd_pull ;; clone) cmd_clone ;; esac
+case "$CMD" in check) cmd_check ;; push) cmd_push ;; pull) cmd_pull ;; clone) cmd_clone ;; bot-nhan-viec) cmd_bot_nhan_viec ;; esac

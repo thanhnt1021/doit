@@ -46,8 +46,8 @@ SAI VỀ PHÍA AN TOÀN — chặn oan làm điều phối câm, tệ hơn để
     lại bảng worker / trích lời chặn cũ thì lượt nào cũng dính.
   · Chặn tối đa 2 lần/lượt rồi thả (fail-open). Mọi lỗi -> cho qua.
 
-CỬA VƯỢT CỔNG (ghi nhật ký): viết trong câu trả lời
-    khac-vung-that: <lý do >= 15 ký tự>
+CỬA VƯỢT CỔNG (ghi nhật ký, DÙNG MỘT LẦN) — khai bằng TỆP CỜ, KHÔNG viết vào câu trả lời:
+    python3 ~/.claude/universal-hooks/cua_thoat.py mo trung-vung "<lý do >= 15 ký tự>"
 
 TỰ KIỂM:
     python3 worker_de_trung_vung_gate.py --ca-thu           # 3 ca thật, worker dựng sẵn
@@ -90,13 +90,16 @@ try:
     import ve_de_sau_gate as VDS          # đọc transcript + làm sạch văn bản (nguồn DUY NHẤT)
 except Exception:
     VDS = None
+try:
+    import cua_thoat as CT                # cửa thoát khai bằng TỆP CỜ, không bằng câu trả lời
+except Exception:
+    CT = None
 
 TMPDIR = "/tmp/claude_hooks"
 NHAT_KY = os.path.join(TMPDIR, "worker_de_trung_vung_gate.log")
 NHAT_KY_BEN = os.path.expanduser("~/.claude/logs/worker-de-trung-vung-gate.log")
 MAX_BLOCKS = 2
-CUA_THOAT = "khac-vung-that:"
-RE_VUOT_CONG = re.compile(re.escape(CUA_THOAT) + r"\s*\S.{14,}", re.IGNORECASE)
+TEN_CONG = "trung-vung"   # tên cờ cửa thoát (xem cua_thoat.py) — KHÔNG còn chuỗi trong reply
 
 
 def bo_dau(s: str) -> str:
@@ -155,8 +158,6 @@ def soi(text: str, ws, cwd: str = ""):
     """
     if not text or not ws or WCE is None or VDS is None:
         return []
-    if RE_VUOT_CONG.search(text):
-        return []
     sach = VDS.bo_trich_dan(VDS.bo_khoi_trich(text))
     cau = VDS.tach_cau(sach)
     bat = []
@@ -174,7 +175,7 @@ def soi(text: str, ws, cwd: str = ""):
             vw = WCE.vung_hep(w[3])
             if not vw:
                 continue
-            chung, kenh = vung_noi & vw, "đường dẫn"
+            chung, kenh = WCE.doi_chieu_vung(vung_noi, vw), "đường dẫn"
             if not chung:
                 hit = {v for v in vw
                        if ten_vung(v) and re.search(r"\b%s\b" % re.escape(ten_vung(v)), kd_cs)}
@@ -218,8 +219,9 @@ def _ly_do(bat, cwd: str) -> str:
         % (c0[:90]),
         "",
         "HOẶC: để việc đó vào hàng chờ, %s xong thì hook nhắc thả." % so0,
-        "HOẶC (chỉ khi thật sự đụng tệp KHÁC hẳn): viết `%s <lý do ≥15 ký tự>` — ghi nhật ký."
-        % CUA_THOAT,
+        "HOẶC (chỉ khi thật sự đụng tệp KHÁC hẳn) — mở cửa thoát bằng LỆNH, KHÔNG viết ký "
+        "hiệu nào vào câu gửi founder:",
+        (CT.loi_khuyen(TEN_CONG) if CT else ""),
         "",
         "Worker đang chạy ngay lúc này:",
         WCE.bang([w for w in _ws_cache] if _ws_cache else [w0]),
@@ -237,22 +239,6 @@ def _ghi_nhat_ky(session, n, bat, cwd, vuot=False):
                       "lan": n, "vuot_cong": vuot,
                       "bat": [{"cau": c[:300], "worker": WCE.so_worker(w, cwd) if WCE else "",
                                "id": w[1], "vung": v, "kenh": k} for c, w, v, k in bat]},
-                     ensure_ascii=False)
-    for p in (NHAT_KY, NHAT_KY_BEN):
-        try:
-            os.makedirs(os.path.dirname(p), exist_ok=True)
-            with open(p, "a", encoding="utf-8") as f:
-                f.write(ban + "\n")
-        except Exception:
-            pass
-
-
-def _ghi_vuot(session, text, cwd):
-    m = RE_VUOT_CONG.search(text or "")
-    if not m:
-        return
-    ban = json.dumps({"luc": time.strftime("%Y-%m-%d %H:%M:%S"), "session": session,
-                      "vuot_cong": True, "ly_do": m.group(0)[:300], "cwd": cwd},
                      ensure_ascii=False)
     for p in (NHAT_KY, NHAT_KY_BEN):
         try:
@@ -318,20 +304,58 @@ def main():
     transcript = data.get("transcript_path", "")
     session = data.get("session_id", "")
     cwd = data.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
-    if not transcript or not os.path.exists(transcript):
-        return 0
+    # KHÔNG return sớm khi thiếu transcript: cổng "nghĩ trước khi nói" gọi hộ ở dưới còn
+    # lưới dự phòng `last_assistant_message`. Bản cũ chết ngay ở đây nên lưới đó KHÔNG BAO
+    # GIỜ tới lượt — W07 đo 04/09: payload không kèm transcript -> 4/4 lượt cho qua, sổ đếm
+    # không nhúc nhích. Phần soi TRÙNG VÙNG bên dưới vẫn cần transcript nên vẫn thoát.
+    lines = []
+    if transcript and os.path.exists(transcript):
+        time.sleep(0.3)                       # block text cuối có thể chưa flush
+        try:
+            with open(transcript, encoding="utf-8") as f:
+                lines = f.readlines()[-1500:]
+        except Exception:
+            lines = []
+    text = "\n".join(VDS.luot_cuoi(lines)["text"]) if lines else ""
 
-    time.sleep(0.3)                           # block text cuối có thể chưa flush
+    # ── CỔNG "NGHĨ TRƯỚC KHI NÓI" (bệnh 6, 04/09/2026) ─────────────────────────
+    # Gọi hộ ở đây thay vì đăng ký hook riêng: settings.json là CẤU HÌNH của founder,
+    # worker không tự sửa. Cùng sự kiện `Stop`, cùng dữ liệu -> không tốn thêm lượt đọc.
     try:
-        with open(transcript, encoding="utf-8") as f:
-            lines = f.readlines()[-1500:]
+        import nghi_truoc_gate as NTG
+        # Bộ đọc lượt cuối RIÊNG làm lưới dự phòng: `VDS.luot_cuoi` kén khuôn bản ghi,
+        # trả rỗng là cổng câm mà không ai biết.
+        _txt = text if text.strip() else NTG.luot_cuoi_day_du(lines)[0]
+        _ly = NTG.chan_o_stop(data, _txt, lines, cwd)
+        if _ly:
+            json.dump({"decision": "block", "reason": _ly}, sys.stdout, ensure_ascii=False)
+            return 0
     except Exception:
-        return 0
-    text = "\n".join(VDS.luot_cuoi(lines)["text"])
+        pass
+
+    # ── CỔNG "CHƯA TRA NHẬT KÝ WORKER" (ca W52/W53, 04/09/2026) ────────────────
+    # Worker đóng rồi nhật ký vẫn còn nguyên; nói "không tìm thấy" mà chưa grep
+    # `subagents/agent-*.jsonl` là chặn. Cũng gọi hộ, cùng lý do trên.
+    try:
+        import tra_nhat_ky_worker_gate as TNK
+        _ly2 = TNK.chan_o_stop(data, text, lines, cwd)
+        if _ly2:
+            json.dump({"decision": "block", "reason": _ly2}, sys.stdout, ensure_ascii=False)
+            return 0
+    except Exception:
+        pass
+
     if not text.strip():
         return 0
-    if RE_VUOT_CONG.search(text):
-        _ghi_vuot(session, text, cwd)
+
+    # W39 01/10/2026 (P114 hướng D — gỡ cổng chưa bắt được ca thật, ưu tiên BỚT): TẮT phần
+    # soi TRÙNG VÙNG TRONG LỜI NÓI. Nhật ký `worker-de-trung-vung-gate.log` có 19 lượt, lượt
+    # cuối 05/09 (26 ngày im); mẫu bắt được là câu PHỦ ĐỊNH ("Tôi chưa thả worker", "Chờ W29
+    # nhả vùng Pipeline") — gác lời nói, đúng tầng P114 §7.5 chỉ là sai. Hành vi thật (thả thợ
+    # vào vùng đang giữ) đã bị `worker_cap_enforce` CỔNG 1 chặn tất định ở lượt `Agent`.
+    # TỆP NÀY VẪN PHẢI ĐĂNG KÝ: nó là chỗ gọi hộ `nghi_truoc_gate` + `tra_nhat_ky_worker_gate`
+    # (hai khối ngay trên). Bật lại phần lời nói: `UNIV3_DE_TRUNG_VUNG_LOI_NOI=1`.
+    if os.environ.get("UNIV3_DE_TRUNG_VUNG_LOI_NOI", "0") != "1":
         return 0
 
     try:
@@ -363,6 +387,10 @@ def main():
         except Exception:
             pass
         return 0                              # fail-open, không treo founder
+
+    # CỬA THOÁT — TỆP CỜ do main mở bằng lệnh; câu gửi founder sạch, không ký hiệu.
+    if CT is not None and CT.lay(TEN_CONG, cwd=cwd):
+        return 0
 
     _ghi_nhat_ky(session, n, bat, cwd)
     print(json.dumps({"decision": "block",

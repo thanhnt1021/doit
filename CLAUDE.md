@@ -1,3 +1,5 @@
+@AGENTS.md
+
 # DoIt — Weekly Life Dashboard
 
 ## Ngôn ngữ

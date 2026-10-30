@@ -152,6 +152,17 @@ def _project_dir(data: dict) -> str:
         cur = parent
 
 
+def _bo_dau_ten(ten: str) -> str:
+    """`w16-vá-ghi-moc.progress` -> `w16-va-ghi-moc.progress`. '' nếu không cứu được."""
+    try:
+        t = unicodedata.normalize("NFD", ten)
+        t = "".join(c for c in t if unicodedata.category(c) != "Mn")
+        t = unicodedata.normalize("NFC", t).replace("đ", "d").replace("Đ", "D").lower()
+        return re.sub(r"[^a-z0-9.-]+", "-", t).strip("-")
+    except Exception:
+        return ""
+
+
 def _check(payload: str, path: str, expect_dir: str) -> list:
     """Trả về danh sách lỗi khuôn (rỗng = hợp lệ)."""
     errors = []
@@ -167,11 +178,22 @@ def _check(payload: str, path: str, expect_dir: str) -> list:
     # 1b. Tên tệp phải mở đầu bằng mã worker `w<số>-` (mối nối tất định, xem RX_TEN_MOC)
     ten = os.path.basename(path.rstrip("/"))
     if not RX_TEN_MOC.match(ten):
-        errors.append(
+        loi = (
             f"• Tên tệp mốc `{ten}` sai quy ước — phải là `w<số>-<slug-có-gạch>.progress`\n"
             f"  (ví dụ `w187-tach-chang-deploy.progress`). Mã W ở đầu tên là thứ DUY NHẤT "
             f"cho cổng ghép mốc về đúng worker; thiếu nó thì mốc bị gán nhầm sang con khác."
         )
+        # WHY in thẳng bản không dấu: 03/09/2026 W16 nhận brief ghi sẵn
+        # `w16-vá-ghi-moc.progress`; thông báo cũ chỉ nói "sai quy ước" mà KHÔNG nói slug
+        # phải không dấu -> worker phải đoán, mất một lượt. Tệ hơn: `worker_board.py`
+        # bắt tên tệp bằng `[A-Za-z0-9._-]+` nên tên có dấu còn bị đọc CỤT thành slug khác.
+        goi_y = _bo_dau_ten(ten)
+        if goi_y and RX_TEN_MOC.match(goi_y):
+            loi += (
+                f"\n  Tên bạn đưa có DẤU TIẾNG VIỆT — slug phải KHÔNG DẤU, chỉ `[a-z0-9-]`."
+                f"\n  Sửa thành: `{goi_y}` (nhãn bên trong vẫn phải có dấu đầy đủ)."
+            )
+        errors.append(loi)
 
     line = unicodedata.normalize("NFC", payload).strip("\n")
 

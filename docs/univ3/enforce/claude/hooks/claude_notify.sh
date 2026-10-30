@@ -44,6 +44,10 @@ case "$EVENT" in
   PreToolUse)
     TOOL=$(echo "$INPUT" | jq -r '.tool_name // empty')
     if [ "$TOOL" = "AskUserQuestion" ]; then
+      # Đang AFK thì afk_hoi_inbox_gate.py chặn câu hỏi này — báo «chờ trả lời» là báo sai.
+      if python3 -c "import sys;sys.path.insert(0,'$SCRIPT_DIR');import afk_trang_thai as t;sys.exit(0 if t.dang_afk() else 1)" 2>/dev/null; then
+        exit 0
+      fi
       # Extract first question text
       QUESTION=$(echo "$INPUT" | jq -r '.tool_input.questions[0].question // "Interactive question"')
       if [ ${#QUESTION} -gt 200 ]; then

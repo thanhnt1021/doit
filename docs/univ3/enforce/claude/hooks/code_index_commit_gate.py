@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""PreToolUse(Bash) soft-gate: hỏi xác nhận khi `git commit` lúc PROJECT_SUMMARY
+"""PreToolUse(Bash) soft-gate: nhắc khi `git commit` lúc PROJECT_SUMMARY
 lỗi thời (Mắt xích A — CI-3, xem _meta/CODE_INDEX_ARCHITECTURE_v1.md).
 
-Tự gating: chỉ "ask" khi command là git commit VÀ index thật sự stale. Project
+Tự gating: chỉ nhắc khi command là git commit VÀ index thật sự stale. Project
 chưa có docs/PROJECT_SUMMARY.md -> is_stale = False -> im (không phiền). Đây là
-SOFT gate (permissionDecision='ask'): user vẫn commit được, chỉ nhắc.
+SOFT gate ("allow" + additionalContext): commit vẫn chạy, agent nhận lời nhắc.
+WHY không "ask" (26/08 đổi mã, 11/10/2026 sửa chú thích cho khớp): hộp xin quyền
+làm đứng phiên khi anh vắng máy; index cũ không đáng chặn một cái commit.
 
 Fail-open: mọi lỗi -> exit 0 (cho qua), không bao giờ vỡ phiên.
 """

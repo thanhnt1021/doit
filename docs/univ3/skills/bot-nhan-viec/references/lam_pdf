@@ -1,0 +1,5 @@
+#!/bin/bash
+# Lối gọi ngắn: scripts/sep-viec/lam_pdf <tệp.md> --ra <tệp.pdf> — chạy pdf/lam_pdf.mjs (cài gói lần đầu bằng pnpm).
+D="$(cd "$(dirname "$0")/pdf" && pwd)"
+[ -d "$D/node_modules" ] || pnpm --dir "$D" install --frozen-lockfile >&2 || exit 3
+exec node "$D/lam_pdf.mjs" "$@"

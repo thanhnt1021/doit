@@ -1,0 +1,315 @@
+{
+ "_doc": "Corpus ĐÔNG LẠNH cho ca L1.4 của w11_ca_thu.py — nguyên văn mục sổ lệnh đã gán nhãn tay. Sinh 24/09/2026 (W29) vì sổ lệnh tự xoá thư mục quá 14 ngày (so_lenh.GIU_NGAY=14): oracle neo vào sổ sống thì rụng dần, ca thử đỏ theo thời gian dù mã D4 không đổi một dòng.",
+ "sinh_ngay": "2026-09-24",
+ "nhan_mat_vi_so_da_don": [
+  "2026-09-08/L13",
+  "2026-09-08/L16",
+  "2026-09-08/L19",
+  "2026-09-08/L23",
+  "2026-09-08/L25",
+  "2026-09-08/L26",
+  "2026-09-08/L29",
+  "2026-09-08/L35",
+  "2026-09-08/L43",
+  "2026-09-09/L06",
+  "2026-09-09/L10",
+  "2026-09-09/L14",
+  "2026-09-09/L29",
+  "2026-09-09/L33",
+  "2026-09-09/L48",
+  "2026-09-09/L49",
+  "2026-09-09/L61",
+  "2026-09-09/L64",
+  "2026-09-09/L65"
+ ],
+ "muc": [
+  {
+   "ngay": "2026-09-10",
+   "ma": "L03",
+   "nhan": 1,
+   "van": "\n## L03 · 12:07 VN · phiên cc0854cf · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nđịt mẹ mày sửa ngay con cặc. check tại sao có rule mà vẫn đéo làm đúng. fix root cause. sửa ngay cái địt con cụ mày. có rule cấm mày sửa ngay rồi nữa cơ. mà vẫn sửa ngay sửa ngay con cặc. địt cụ mày.\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-10",
+   "ma": "L04",
+   "nhan": 0,
+   "van": "\n## L04 · 12:46 VN · phiên cc0854cf · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nlàm 1 mạch đi để bố còn duyệt lúc về, bố mày phải ra ngoài. mấy vấn đề hôm qua fix lỗi hôm nay fix lại đã được chưa????\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-10",
+   "ma": "L06",
+   "nhan": 0,
+   "van": "\n## L06 · 13:20 VN · phiên cc0854cf · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nnhưng đã sửa được chưa?????\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-10",
+   "ma": "L10",
+   "nhan": 1,
+   "van": "\n## L10 · 13:45 VN · phiên cc0854cf · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nkhông đợc!!! đã điền tới W19 tao cần hoạt động thực sự của 19 con worker!!! những con bị chết như nào???\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-10",
+   "ma": "L12",
+   "nhan": 0,
+   "van": "\n## L12 · 13:58 VN · phiên cc0854cf · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nbao giờ mới fix lỗi nhảy số xong????\n\nBảng 19 dòng ở tin trước giữ nguyên, chỉ đính chính hai ô: W10 và W17 tôi ghi \"đã lên web\" là dựa trên số tôi đo trước đó (demo và prod cùng chạy bản b521bb4), nhưng chưa mở trang thật bấm thử từng nút. Đã ghi tiêu chí nghiệm thu vào sổ để chạy đối chiếu tự động, chưa chạy.\n\nCòn câu founder chửi thì tôi nhận: lỗi nhảy số chưa fix xong. Nhìn chính bảng đó thấy rõ — W16 thả lúc 12:47, bản vá vào lúc 12:45, vậy mà 12:50 vẫn nhảy sang W17. Vá rồi vẫn nhảy, vì nó chỉ nhả số khi được gọi tay chứ chưa tự động.\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-10",
+   "ma": "L19",
+   "nhan": 1,
+   "van": "\n## L19 · 15:11 VN · phiên cc0854cf · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nVÁ CÁI LỒN GÌ FIX ROOT CAUSE VÀ 2 CON THỢ KIA CHẠY TỚI ĐÂU RỒI ĐỊT MẸ MÀY, BAO GIỜ MỚI FIX XONG CÁC LỖI PHƯƠNG VÀ HẠNH VÀ HẬU BÁO??????\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-10",
+   "ma": "L21",
+   "nhan": 1,
+   "van": "\n## L21 · 15:16 VN · phiên cc0854cf · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nmấy lỗi fix xong sao đéo gửi thông báo vào nhóm Hệ thống???\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-10",
+   "ma": "L22",
+   "nhan": 1,
+   "van": "\n## L22 · 15:20 VN · phiên cc0854cf · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nmày bị rồ à??? gửi vào nhóm hệ thống nói rõ lỗi đã được fix như nào, báo họ check cho chắc. địt cụ mày.\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-11",
+   "ma": "L06",
+   "nhan": 1,
+   "van": "\n## L06 · 10:33 VN · phiên cc0854cf · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nhnay tao đang gấp nên thi công xong thì chỉ cần check code rồi báo Phương test thử. nhưng test phải có debug signal hay gì đấy để biết lỗi là gì nhé, hiện trong trang luôn là lỗi gì để Phương test tao còn nhắn lại\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-11",
+   "ma": "L12",
+   "nhan": 0,
+   "van": "\n## L12 · 10:48 VN · phiên cc0854cf · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nchạy đi nhưng mà các mảng này lâu không nhỉ??? ý là phải sửa mã chuẩn rồi đưa lên web đúng không?\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-11",
+   "ma": "L13",
+   "nhan": 1,
+   "van": "\n## L13 · 10:48 VN · phiên cc0854cf · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\ný là đã có code chưa mà cho lên?? đã cho lên thì phải cho cả 2. xong chưa?\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-11",
+   "ma": "L15",
+   "nhan": 1,
+   "van": "\n## L15 · 10:55 VN · phiên cc0854cf · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\ný là thông báo kiểu đấy khiến tao khong hiểu và hoảng loạn. note lại để tí làm sau. giờ tao cần xong cái W03 này để còn tắt máy đi có việc. sắp xong chưa??\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-11",
+   "ma": "L16",
+   "nhan": 0,
+   "van": "\n## L16 · 10:58 VN · phiên cc0854cf · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nsao lâu thế nhỉ xong chưa???????\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-11",
+   "ma": "L23",
+   "nhan": 1,
+   "van": "\n## L23 · 12:32 VN · phiên cc0854cf · HOI · 1 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nkhôg chỉ ở đây mà có thể ở nhiều chỗ khác nữa. cứ nhớ Definition of Done là fix được để không sup nào bị lỗi, thế thôi. \n- CHƯA CHẮC: đơn A67-4159849025 đẩy được còn A67-4158546680 thì không — hai đơn đi hai loại xưởng khác nhau: một bên ghi Google Sheet, một bên gọi API. Tôi nghi khác biệt nằm ở đó, nhưng không dám khẳng định vì chưa ai đọc code đường ghi Sheet. Cách hiểu còn lại: lỗi do đơn này đã fulfill thủ công trước đó làm lệch dữ liệu. Tôi đưa cả hai vào phiếu làm hướng nghi ngờ, để thợ xây kiểm bằng code thật rồi mới kết\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-11",
+   "ma": "L26",
+   "nhan": 1,
+   "van": "\n## L26 · 13:32 VN · phiên cc0854cf · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nvấn đề đơn này vẫn chưa đẩy được hiểu chưa địt cụ mày????? hệ thống web báo đã đẩy nhưng bên sup đéo có. fix thì phải fix để sau đấy Phương manual ựược đơn này và thành công hiểu chưa. địt cái con cụ mày không thì mày sửa làm con cặc gì?\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-11",
+   "ma": "L27",
+   "nhan": 1,
+   "van": "\n## L27 · 13:33 VN · phiên cc0854cf · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nkhông phải đặt lên trên mọi thứ, mà từ nay trở đi những đơn như đơn này sẽ không bị lỗi nữa. và đơn này sửa xong thì phải làm chuản được không lỗi để coi như là 1 proof đã sửa chuẩn. hiểu chưa??????????\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-13",
+   "ma": "L03",
+   "nhan": 1,
+   "van": "\n## L03 · 11:00 VN · phiên cc0854cf · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nNHANH CON MẸ MÀY LÊN!!!! VỤ HGT CẦN GÌ NỮA???? CỨ ĐỂ ĐẤY USER TỰ ĐIỀN HAY PHẢI CÓ DANH SÁCH HAY NHƯ NÀO???\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-13",
+   "ma": "L06",
+   "nhan": 0,
+   "van": "\n## L06 · 12:20 VN · phiên cc0854cf · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nđịt cụ nhà mày thế còn gì lỗi khôg?? địt cụ mày có công cụ đo rồi mà sao mày cứ cố tình skip để không check không đo?? địt cụ nhà mày còn gì sai maỳ chưa sửa không didjt cái thằng cụ mày???? xong hết chưa??? địt bà nhà mày\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-13",
+   "ma": "L11",
+   "nhan": 0,
+   "van": "\n## L11 · 12:55 VN · phiên cc0854cf · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nXONG CHƯA???????\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-13",
+   "ma": "L12",
+   "nhan": 1,
+   "van": "\n## L12 · 13:00 VN · phiên cc0854cf · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nxong chưa?????? quyết cái gì????? token thì phải ở chỗ bảo mật và không bao giờ xóa, nhưng phải bảo mật để lúc push lên git thì không bị expose. mày làm AI kiểu lồn gì mà mày đéo hiểu cái đấy à???\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-13",
+   "ma": "L13",
+   "nhan": 0,
+   "van": "\n## L13 · 13:08 VN · phiên cc0854cf · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nxong chưa???????\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-14",
+   "ma": "L03",
+   "nhan": 1,
+   "van": "\n## L03 · 09:42 VN · phiên fc506570 · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nbố mày cần fix cái này tận gốc!!! đéo bao giờ fix tận gốc, xong hôm buồi nào làm việc cũng thả ra rồi giết, sau đấy quên con mẹ mày task luôn!!! ngu vãi cả lồn!!!!Cổng nhai_lai_gate.py chặn cả 3 worker ngay lúc thả (lý do: lượt này chưa có lệnh tra nào) — nên chúng hiện \"Done · 0 tool uses\" = chưa chạy một giây nào, không phải làm xong. Lỗi ở tôi: thả thợ trước khi tự tra. Tra ngay bây giờ.\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-14",
+   "ma": "L06",
+   "nhan": 1,
+   "van": "\n## L06 · 09:48 VN · phiên fc506570 · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nLẠI GIẾT THỢ????\n⏺ 2 tho-fulfill agents finished\nW01 vé task không bốc hơi · 0 tool uses\n⎿  Done\nW02 tải ảnh đồng loạt · 0 tool uses\n⎿  Done ĐÉO FIX TRƯỚC À???? XEM ĐIỀU KIỆN THẢ THỢ LÀ GÌ RỒI THẢ ĐI 1!!!!!!!!\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-14",
+   "ma": "L12",
+   "nhan": 1,
+   "van": "\n## L12 · 11:00 VN · phiên fc506570 · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\n⛔ [EtsyFulfillChichub] w02-tai-anh-dong-loat ĐANG CHỜ CÁI ĐÃ XONG — lô 20260914-104609 xong lúc 10:57, thừa 3 phút → ĐÁNH THỨC NGAY bằng SendMessage (lô 20260914-104609 ĐÃ XONG lúc 10:57 · khoá deploy đã nhả · không còn tiến trình build/deploy nào chạy)\n\ncác task sáng nay xong chưa??? hoàn thành chưa?? có lỗi không?\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-14",
+   "ma": "L21",
+   "nhan": 0,
+   "van": "\n## L21 · 14:16 VN · phiên fc506570 · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nmày phải đọc hết prompt của tao rồi hãy nghĩ xem làm gì chứ??? ngu vãi cả lồn. fix ngu như con chó.\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-14",
+   "ma": "L22",
+   "nhan": 0,
+   "van": "\n## L22 · 14:17 VN · phiên fc506570 · HOI · 0 gạch\nẢNH: [Image #59] → (đang lấy)\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\n[Image #59] 1 loạit xếp hàng này thả chưa???????????? hệ thống worker mày vẫn chưa fix xong à??????????\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-14",
+   "ma": "L23",
+   "nhan": 0,
+   "van": "\n## L23 · 14:19 VN · phiên fc506570 · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\ntại sao W08 không làm được?? tìm ra được cách làm cho W23 chưa?\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-14",
+   "ma": "L28",
+   "nhan": 1,
+   "van": "\n## L28 · 15:15 VN · phiên fc506570 · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\ntao phải đi. có gì không ngắt được không? (KHÔNG NGẮT ĐƯỢC CHỨ KHÔNG PHẢI LÀ KHÔNG NÊN NGẮT, VÌ TAO CẦN PHẢI ĐI GẤP), NÊN TAO CẦN TẮT MÁY. LƯU LẠI HẾT ĐỂ LÁT MỞ MÁY CHẠY TIẾP.\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-14",
+   "ma": "L32",
+   "nhan": 0,
+   "van": "\n## L32 · 15:42 VN · phiên fc506570 · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\ncó cả W25 kia đã xong chưa???????\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-14",
+   "ma": "L44",
+   "nhan": 1,
+   "van": "\n## L44 · 19:13 VN · phiên fc506570 · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nthế oke chưa??? fix cái vụ phân quyền với duyệt chưa???? mày chỉ cần duyệt lại là designer sẽ được thêm vào thẻ như ngày xưa nhé.\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-14",
+   "ma": "L45",
+   "nhan": 1,
+   "van": "\n## L45 · 19:40 VN · phiên fc506570 · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\npipeline 2 chuông là sao, nó không gộp được à, hay là 2 loại khác nhau?? cần có chuông duyệt cho riêng admin nhé. và vụ OCR đã oke chưa?? OCR gửi ảnh report các kiểu\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-14",
+   "ma": "L60",
+   "nhan": 0,
+   "van": "\n## L60 · 22:15 VN · phiên fc506570 · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nTAO BẢO ĐỌC THÌ MÀY ĐỌC THẾ TỨC LÀ MÀY ĐÉO CÓ CRITCIAL THINKING WORKING SMART AUTOMATIC SYSTEM. THẾ THÌ TAO CẦN MÀY LÀM LỒN GÌ???????? ĐÉO HIỂU PHẢI LÀM GÌ À????\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-14",
+   "ma": "L64",
+   "nhan": 1,
+   "van": "\n## L64 · 22:20 VN · phiên fc506570 · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nkhông phải là mày quyết. mày phải quyết ra cái cách để đáp ứng DOD big goal của tao. chứ không phải là quick reaction quick respond cho từng cái tin như này. tao đã bảo từ sáng và yêu cầu của tao cần phải được đáp ứng. mày là cái lồn gì mày có biết không?? mày là con nô lệ của tao. và mày phải vận dụng hệ thống thông minh c ủa mày mà nghĩ ra cách đạt được cái yêu cầu này của tao hiểu chưa địt mẹ mày???? thả 1 con ki-su và tho-xay RRI-T model Fable để ra được phiếu chuẩn fix cái này 1 and for all. bố mày yêu cầu là cái địt mẹ mày cần phải làm được. bằng được thì thôi.\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-14",
+   "ma": "L65",
+   "nhan": 1,
+   "van": "\n## L65 · 22:22 VN · phiên fc506570 · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nthế những c ái này nếu fix được thì worker có get in line và get in places đúng chưa? tự xếp hàng, tự gộp, tự dọn, tự xóa, nói chung là tự động. có trongâyấy chưa???\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-14",
+   "ma": "L69",
+   "nhan": 1,
+   "van": "\n## L69 · 22:54 VN · phiên fc506570 · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nĐÃ ĐỦ CẢ 5 CHƯA?? VÀ TẠI SAO CÓ CÁI THÓI QUEN CÂU CUỐI LÀ BÂY GIỜ TÔI THẢ, NHƯNG XONG ĐÉO ÂYẤYẤY THẢ CÁI GÌ?? CÁI LỖI LỒN NÀY CÓ NẰM TRONG BRIEF LỖI ĐỂ NGHĨ CÁCH FIX CHƯA MÀ MÀY BẢO ĐỦ?\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-14",
+   "ma": "L72",
+   "nhan": 0,
+   "van": "\n## L72 · 23:28 VN · phiên fc506570 · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nxong con này hì tiếp theo thế nào để hệ thống thực sựd ược sửa?\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-15",
+   "ma": "L08",
+   "nhan": 0,
+   "van": "\n## L08 · 00:30 VN · phiên fc506570 · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nthế fix xong thì có hết bệnh này không\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-15",
+   "ma": "L15",
+   "nhan": 0,
+   "van": "\n## L15 · 00:42 VN · phiên fc506570 · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nĐỊT MẸ THẾ TẠI SAO TAO ĐÃ YÊUÂUẦUẦU ĐÃ L RÀM RÕ DOD MÀ M ÀY VẪN CỐ TÌNH TẠO RA 1 C ÁI PHIẾU NHƯ CÁI CON CẶCÂYẬYẬY? XONG RỒI CÒN BỊA V ỚI TAO LÀ PHI DẾU ĐÃ CHUẨN???? HẢ????\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-15",
+   "ma": "L16",
+   "nhan": 1,
+   "van": "\n## L16 · 00:44 VN · phiên fc506570 · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nĐỊT MẸ TAO Đ ÉO QUAN TÂM.  ÁI TAO QUAN TÂM LÀ TẠO RA PHIẾU CHUẢN ĐÚNG DOD CUAR TAO. M ÀY CÓ L ÀM ĐƯỢC KHÔNG??????? CỨ GIẢI THÍCH L VÒNG VÀ LÒNG V ÒNG NHƯ BỊ BẠI NÃO\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-15",
+   "ma": "L19",
+   "nhan": 0,
+   "van": "\n## L19 · 00:49 VN · phiên fc506570 · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nTÓM L ẠI LÀ PHIẾU NÀY CÓ ĐẠT ĐƯỢC YÊU CẦU GỐC CỦA TAO KHÔNG HAY LẠI TẠO RA 1 HỆ THỐNG WORKER TỰ ĐÈ CHÂN NHAU NHƯ LỒN\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-15",
+   "ma": "L24",
+   "nhan": 1,
+   "van": "\n## L24 · 06:03 VN · phiên fc506570 · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nfix nốt 2 bộ hồi quy đang trượt đi sgán mai con cặc à???\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-18",
+   "ma": "L14",
+   "nhan": 1,
+   "van": "\n## L14 · 13:46 VN · phiên 6c038223 · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nsố trong này không chỉnhựoược như Excel sheet à?? tao muốn edit tại cell như excel sheet cơ. https://fulfill.thechic.site/reports. đã từng request task 1 l ần rồi. bảo đào sâu nghiên cứu công thức, tương quan giữa c ác cell, c ác ô, công thức, để biết cách liên kết và sửaựoượcược. tính to án được dựa vào chỉ số c ác kiểu. https://docs.google.com/spreadsheets/d/1v5XPM39aCjEP7e6LF7ninkwXUrL37dmtYYrmGfCAKqY/edit?gid=1435355564#gid=1435355564. có chưa???\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-18",
+   "ma": "L15",
+   "nhan": 1,
+   "van": "\n## L15 · 13:53 VN · phiên 6c038223 · HOI · 0 gạch\nẢNH: [Image #104] → anh/L15-104.png\nẢNH: [Image #105] → anh/L15-105.png\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\n[Image #104] [Image #105] sao Hạnh b áo up driver lên thẻ để FF báo lỗi như này a ạ - sao Hạnh báo dán link thì lỗi?????????? đây là 1 link cả folder. hệ thgốn có c ái đó chưa? cần chuyển cả folder. E23-4175829145 check xem tại sao và cần fix theo hướng nào!\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-19",
+   "ma": "L02",
+   "nhan": 1,
+   "van": "\n## L02 · 09:21 VN · phiên 6c038223 · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nthế tại sao tao yêu cầu từâtấtất lâu mà s ửa xong lại không có kết quả? con n ào  lânận ận ệnh sửa c ái n ày ngay từ đầu, và nó đã l àm gì, tại sao lại không có kết quả, báo c áo lại tao trước.\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-21",
+   "ma": "L09",
+   "nhan": 1,
+   "van": "\n## L09 · 14:11 VN · phiên df745bf3 · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\ntao chỉ còn thông tin gì thì bảo vào nhóm Hệ thgốn cho họ quyết, yếu tố con nơiờiời fulfill. cả 1 và 3. còn duyệt lần 2 thì ai duyệt?? là challenge xong chưa??? xong rồi thì go phiếu b ằng Opus worker đi\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-21",
+   "ma": "L15",
+   "nhan": 1,
+   "van": "\n## L15 · 14:40 VN · phiên df745bf3 · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nđáng đổi thì nâng hết mẹ lên 15s đi. ngu vãi lồn. con nào đang fix 2 vấn đề Phương vừa hỏi???? fix xong chưa???\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-21",
+   "ma": "L16",
+   "nhan": 0,
+   "van": "\n## L16 · 14:45 VN · phiên df745bf3 · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nthế tức là W08 đang làm? đúng không? sao bảo từ sáng mà giơ mới làm??? và cái phiếu viết time line với sửa lại chia vùng xonh chưa để bố mày còn go??? hả??? địt mẹ mày\n---8<--- HẾT ---8<---\n"
+  },
+  {
+   "ngay": "2026-09-21",
+   "ma": "L20",
+   "nhan": 0,
+   "van": "\n## L20 · 15:09 VN · phiên df745bf3 · HOI · 0 gạch\n---8<--- NGUYÊN VĂN, KHÔNG SỬA ---8<---\nxác minh có chưa???????? nó thuộc về tính toán vận hành ấy có chưa???\n---8<--- HẾT ---8<---\n"
+  }
+ ]
+}

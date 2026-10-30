@@ -53,7 +53,12 @@ def do_dia():
 
 
 def cho_don():
-    """Ba kho tạm lớn nhất còn dọn được — nói LUÔN dọn gì, không chỉ đưa con số."""
+    """Ba kho tạm lớn nhất còn dọn được — nói LUÔN dọn gì, không chỉ đưa con số.
+
+    WHY chạy song song: bản cũ `du` lần lượt 6 thư mục (mỗi cái tới 6 giây) → hook
+    mất 7-8 giây, quá hạn 5 giây, founder chỉ thấy dòng đỏ "timed out" (W35, 05/10/2026).
+    Hàm này giờ chỉ chạy trong tiến trình NỀN (`--do-kho`), lượt hook đọc kết quả đã lưu.
+    """
     ung_vien = [
         ("kho tạm npm", "~/.npm"),
         ("kho gói pnpm", "~/Library/pnpm"),
@@ -62,21 +67,53 @@ def cho_don():
         ("kho tạm pip", "~/Library/Caches/pip"),
         ("bản dựng cũ trong /tmp", "/tmp"),
     ]
-    ket = []
+    chay = []
     for ten, p in ung_vien:
-        duong = os.path.expanduser(p)
-        if not os.path.isdir(duong):
-            continue
+        duong = os.path.realpath(os.path.expanduser(p))  # /tmp là liên kết → du không đi theo
+        if os.path.isdir(duong):
+            chay.append((ten, p, subprocess.Popen(["du", "-sk", "-x", duong], stdout=subprocess.PIPE,
+                                                  stderr=subprocess.DEVNULL, text=True)))
+    het_han = time.time() + 60
+    ket = []
+    for ten, p, pr in chay:
         try:
-            out = subprocess.run(["du", "-sk", "-x", duong], capture_output=True,
-                                 text=True, timeout=6).stdout.split("\t")[0]
-            gb = int(out) / 1024 / 1024
+            out, _ = pr.communicate(timeout=max(1, het_han - time.time()))
+            gb = int(out.split("\t")[0]) / 1024 / 1024
         except Exception:
+            pr.kill()
             continue
         if gb >= 1:
             ket.append((gb, ten, p))
     ket.sort(reverse=True)
     return ket[:3]
+
+
+DO_LAI_SAU = 30 * 60  # kết quả đo kho tạm dùng lại trong 30 phút
+
+
+def do_kho_nen():
+    """Chế độ `--do-kho`: đo rồi ghi vào state — chạy tách rời, không ai đợi."""
+    ket = cho_don()
+    st = doc_state()  # đọc lại ngay trước khi ghi: lượt hook có thể đã ghi state trong lúc đo
+    st["kho"] = {"luc": time.time(), "ket": ket}
+    st.pop("dang_do", None)
+    ghi_state(st)
+
+
+def lay_kho(st, bay_gio):
+    """Trả kết quả đo đã lưu; cũ quá 30 phút thì thả tiến trình nền đo lại (không đợi)."""
+    kho = st.get("kho") or {}
+    cu = bay_gio - float(kho.get("luc", 0)) > DO_LAI_SAU
+    dang_do = bay_gio - float(st.get("dang_do", 0)) < 120
+    if cu and not dang_do:
+        try:
+            subprocess.Popen([sys.executable, os.path.abspath(__file__), "--do-kho"],
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL, start_new_session=True)
+            st["dang_do"] = bay_gio
+        except Exception:
+            pass
+    return [tuple(x) for x in kho.get("ket", [])], bool(kho)
 
 
 def bo_nho():
@@ -116,10 +153,13 @@ def ghi_state(d):
 
 
 def main():
+    if "--do-kho" in sys.argv:
+        do_kho_nen()
+        return
     try:
-        json.load(sys.stdin)
+        data = json.load(sys.stdin)
     except Exception:
-        pass
+        data = {}
 
     pct, con_gb, duong = do_dia()
 
@@ -143,16 +183,32 @@ def main():
 
     # ---- Mức 2: nguy hiểm -> nhắc mỗi lượt, kèm dọn được gì ----
     st["nhac_nguy_hiem"] = bay_gio
+    goi_y, da_co = lay_kho(st, bay_gio)
     ghi_state(st)
-    goi_y = cho_don()
-    dong_goi_y = " · ".join(f"{ten} ~{gb:.0f} GB ({p})" for gb, ten, p in goi_y) or "không thấy kho tạm lớn"
-    print(f"🔴 ĐĨA MÁY SẮP HẾT: đã dùng {pct}%, chỉ còn {con_gb:.0f} GB trống ({duong})"
-          f"{bo_nho()}.\n"
-          f"   Hậu quả thật: dựng bản (build) và tải gói có thể chết giữa chừng, "
-          f"trình duyệt thử nghiệm không mở được.\n"
-          f"   Dọn được ngay: {dong_goi_y}.\n"
-          f"   Lệnh an toàn: `npm cache clean --force` · `pnpm store prune` · "
-          f"`pip3 cache purge` · `brew cleanup --prune=all` · `xcrun simctl erase all`.")
+    dong_goi_y = (" · ".join(f"{ten} ~{gb:.0f} GB ({p})" for gb, ten, p in goi_y) or "không thấy kho tạm lớn") \
+        if da_co else "đang đo kho tạm ở nền, lượt sau sẽ có số"
+    day_du = (f"🔴 ĐĨA MÁY SẮP HẾT: đã dùng {pct}%, chỉ còn {con_gb:.0f} GB trống ({duong})"
+              f"{bo_nho()}.\n"
+              f"   Hậu quả thật: dựng bản (build) và tải gói có thể chết giữa chừng, "
+              f"trình duyệt thử nghiệm không mở được.\n"
+              f"   Dọn được ngay: {dong_goi_y}.\n"
+              f"   Lệnh an toàn: `npm cache clean --force` · `pnpm store prune` · "
+              f"`pip3 cache purge` · `brew cleanup --prune=all` · `xcrun simctl erase all`.")
+    # W21 C-HX 20/10/2026 (lệnh founder L40): khối ~513 ký tự in ĐỦ mỗi lượt, 63/64 lượt chỉ khác
+    # số «lượt dữ liệu ra đĩa». Nay qua nhac_gon: in đủ lần đầu phiên / sau nén / mỗi 40 lượt /
+    # khi % đĩa nhảy ≥ 2 nấc hoặc danh sách chỗ dọn đổi; còn lại MỘT dòng vẫn có số % + GB.
+    # Hỏng gì cũng in đủ (fail-open). Cửa tắt UNIV3_NHAC_GON=0.
+    ra = day_du
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import nhac_gon as NG
+        dau = "%d|%s|%s" % (pct // 2, da_co, "|".join(ten for _gb, ten, _p in goi_y))
+        ra = NG.gon(data if isinstance(data, dict) else {}, "dia-may", day_du,
+                    f"🔴 Đĩa máy vẫn {pct}% (còn {con_gb:.0f} GB) — cách dọn đã in đủ trước trong phiên.",
+                    dau=dau)
+    except Exception:
+        ra = day_du
+    print(ra)
     sys.exit(0)
 
 

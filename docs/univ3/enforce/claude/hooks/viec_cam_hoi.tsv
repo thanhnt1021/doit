@@ -1,0 +1,43 @@
+# viec_cam_hoi.tsv — DANH SACH MAY DOC DUOC (ban BO DAU co chu y, xem muc VI SAO BO DAU).
+#
+# VI SAO CO TEP NAY (29/09/2026): cong `tu_lam_viec_da_co_luat_gate.py` KHONG duoc phep doi
+# chieu voi TRI NHO cua dieu phoi — tri nho da hong hai lan trong cung mot buoi sang. No doi
+# chieu voi tep nay. Them luat moi -> them DUNG MOT DONG o day, cong tu phu, khong sua ma.
+#
+# VI SAO BO DAU: cot `tu_khoa` la REGEX cham vao ban da bo dau cua cau (`_khong_dau`), nen
+# chinh no bat buoc phai khong dau. De ca tep cung mot he chu cho khoi lan. Phan giai thich
+# co dau nam o cot `phai_lam`.
+#
+# KHONG BIA LUAT MOI: moi dong deu trich tu luat DANG CO (`AGENTS.md`, `CLAUDE.md`,
+# `docs/SESSION_SPINE.md`). Cot `nguon` ghi dung cho trich de tra nguoc.
+#
+# KHUON — 5 cot, ngan bang TAB (dong bat dau bang `#` hoac rong = bo qua):
+#   nhom      CAM-HOI  = luat bat TU LAM, hoi Dev la sai
+#             PHAI-HOI = luat bat PHAI HOI Dev (cong KHONG BAO GIO chan cau hoi loai nay)
+#   ma        ma ngan, duy nhat — in ra luc chan de tra nguoc
+#   tu_khoa   regex (da bo dau + viet thuong) nhan ra cau dang noi ve viec do; ngan bang |
+#   nguon     dieu luat goc (tep:dong hoac §muc)
+#   phai_lam  mot cau CO DAU: luat bat lam gi
+#
+CAM-HOI	gui-tin-nhom	gui tin|gui vao nhom|nhan vao nhom|nhan cho nhom|bao nhom|bao vao nhom|thong bao nhom|tin vao nhom|len nhom|trong nhom|nhom van hanh|nhom he thong|telegram	AGENTS.md:45	Việc Mặt tiền xong là TỰ gửi tin vào nhóm vận hành ngay, kèm ảnh khoanh đỏ — không chờ ai nhắc, không xin duyệt.
+CAM-HOI	nho-nguoi-dung-thu	nho .{0,30}(vao thu|bam thu|thu ho|thu giup|thu gium)|nho nguoi dung|nguoi dung xac nhan|nho dung vai|nho .{0,25}(phuong|my|hau|hanh|ha)\b	docs/SESSION_SPINE.md §17	Khai «chưa tự thử được» thì tin gửi nhóm TỰ kèm câu nhờ người đúng vai vào thử — tự gửi, không hỏi Dev có nên nhờ không.
+CAM-HOI	chup-anh-khoanh-do	chup anh|chup man hinh|khoanh do|anh truoc sau|kem anh	AGENTS.md:45	Việc Mặt tiền phải tự chụp ảnh khoanh đỏ lúc tự kiểm; tin không ảnh là chưa đủ.
+CAM-HOI	commit-local	\bcommit\b	AGENTS.md:44	Build/fix xong là TỰ commit local — không hỏi. (Riêng push/merge vẫn phải chờ lệnh rõ, xem nhóm PHAI-HOI.)
+CAM-HOI	deploy-demo	deploy demo|len demo|day len demo|dua len demo|deploy len demo|ban demo	AGENTS.md:44	Build/fix xong là TỰ deploy demo để test — không hỏi.
+CAM-HOI	tat-tien-trinh-nen	tat tien trinh|tat dev server|dong browser|dong trinh duyet|pkill|kill tien trinh|don tien trinh nen|tat server nen	AGENTS.md:56	Tiến trình nền mình dựng thì mình tự tắt trước khi kết thúc — không hỏi.
+CAM-HOI	don-rac-tam	xoa file tam|xoa tep tam|don rac|xoa thu muc tam|xoa du lieu thu|don du lieu thu|clear rate limit|go khoa tai khoan thu	CLAUDE.md §Auto-decide	Dọn rác do chính mình tạo (tệp tạm, dữ liệu thử, khoá của tài khoản thử) là tự làm.
+CAM-HOI	tu-kiem-build	chay build|chay tsc|chay lint|chay test|chay kiem thu|tu kiem lai|verify lai	CLAUDE.md §Auto-decide	Verify-after-change (build/tsc/lint/test) là tự chạy, không xin phép.
+CAM-HOI	sua-tai-lieu	cap nhat tai lieu|ghi vao tai lieu|sua tai lieu|cap nhat changelog|ghi changelog|cap nhat progress|ghi session.?spine|ghi vao spine|ghi luat	AGENTS.md:51	Ghi luật/tài liệu sau khi xong việc là phần của việc — tự ghi.
+CAM-HOI	day-kho-luat	day ve univ3|day kho luat|sync uni|push univ3|day len ssot|day ve kho goc	AGENTS.md:53	Sửa tệp trong kho luật univ3 thì tự đẩy về SSOT ngay trong phiên.
+CAM-HOI	backup-2-noi	sao luu|backup|luu 2 noi|luu hai noi	AGENTS.md:57	Backup DB/tệp quan trọng: tự lưu 2 nơi trong cùng lệnh.
+CAM-HOI	tao-design-md	design\.md|tao design|tai lieu thiet ke	AGENTS.md:52	Đụng UI mà thiếu docs/DESIGN.md thì tự tạo trước rồi mới code.
+CAM-HOI	lam-not-viec-con-do	lam not|lam tiep phan con|mo them vung|tha them tho|tha them worker|chay them mot luot|de sau|lam sau	docs/SESSION_SPINE.md §15	Phần việc còn dở mà TỰ LÀM ĐƯỢC thì làm nốt ngay trong lượt, hoặc đẻ vé — cấm đẩy ngược về Dev.
+CAM-HOI	gui-bu-tin-sot	gui bu|con thieu tin|chua co tin|tin con sot	AGENTS.md:45	Thấy việc Mặt tiền chưa có tin thì gửi bù NGAY trong ngày.
+#
+PHAI-HOI	credential	mat khau|password|api key|token|secret|chia khoa|credential|\.env	CLAUDE.md §LUÔN hỏi Dev	Đụng credential thì LUÔN hỏi — cổng không bao giờ chặn câu hỏi loại này.
+PHAI-HOI	xoa-du-lieu-song	drop table|delete from|xoa du lieu that|xoa don|xoa shop|xoa nguoi dung|xoa ban ghi	CLAUDE.md §LUÔN hỏi Dev	Xoá dữ liệu sống phải hỏi.
+PHAI-HOI	tat-bao-mat	tat rate limit|tat csrf|tat jwt|bo xac thuc|bypass middleware|tat bao mat	CLAUDE.md §LUÔN hỏi Dev	Tắt tính năng bảo mật phải hỏi.
+PHAI-HOI	quyet-dinh-nghiep-vu	mo quyen|phan quyen|quyen toi dau|quyen den dau|vai tro nao|role nao|gia bao nhieu|tinh gia|luong nghiep vu|luong don|trang thai don|phuong an a|phuong an b|cach 1 hay cach 2|cach mot hay cach hai|chon cach nao|chon phuong an	CLAUDE.md §LUÔN hỏi Dev	Quyết định nghiệp vụ (quyền, giá, luồng, trạng thái) là của Dev — phải hỏi.
+PHAI-HOI	push-merge	git push|push len|merge vao main|force push|reset --hard|branch -d|clean -f	AGENTS.md:44	push/merge và lệnh git phá huỷ chỉ làm khi có lệnh rõ — phải hỏi.
+PHAI-HOI	migration-apply	apply migration|chay migration|migrate deploy|ap migration	CLAUDE.md §LUÔN hỏi Dev	Migration APPLY phải để Dev duyệt SQL trước.
+PHAI-HOI	deploy-prod	deploy prod|len prod|day len prod|dua len prod|ban chinh thuc	docs/SESSION_SPINE.md §4	Lên prod phải có chủ đích và có lệnh rõ.

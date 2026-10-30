@@ -65,17 +65,37 @@ KET_THUC = {"completed", "killed", "failed", "error", "errored",
 # coi chúng CÒN SỐNG mãi mãi -> đúng cái đẻ ra dòng ma trên bảng. Bảng danh sách này thì
 # harness làm mới liên tục và có TRẠNG THÁI của MỌI con, nên lần xuất hiện CUỐI CÙNG của
 # một id chính là trạng thái hiện hành.
+# W140 09/10/2026 — DẤU «NHẮN TIẾP THỢ CŨ». `SendMessage` vào một thợ đã xong thì harness
+# chạy lại đúng agent đó và ghi vào transcript cha một tool_result
+# `{"success":true,"message":"Resuming agent …","resumedAgentId":"<id>"}` (đo 05/10/2026:
+# 15 lần trong phiên chính, 4 lần ở phiên khác). Bản cũ coi «kết thúc là một chiều» nên thợ
+# sống lại vẫn bị tính là chết -> không đếm vào trần 5 + vùng tệp của nó coi như TRỐNG
+# (`worker_queue.vung_dang_giu` đọc chung `running_workers`) -> thợ khác được thả vào đúng
+# chỗ đó. Bắt cả dạng chữ thoát (`\"resumedAgentId\":\"…`) lẫn dạng JSON thường.
+RX_HOI = re.compile(r'resumedAgentId\\?"\s*:\s*\\?"([0-9A-Za-z_-]+)')
 RX_DS = re.compile(r"\b([0-9a-f]{15,20})\b\s*\u00b7\s*[\w.-]+\s*\u00b7\s*"
                    r"(running|completed|killed|failed|error|errored|cancelled|canceled|timeout|timed_out)\b")
 
 RX_COMMIT = re.compile(r"\[[\w./+-]{1,40}\s+([0-9a-f]{7,40})\]")
 RX_STASH = re.compile(r"stash@\{\d+\}")
+# W133 (05/09/2026): sổ bàn giao từng cắt `x[:1200]` từ ĐẦU câu — đúng lúc `ĐỂ LẠI:` /
+# `CHỜ VÙNG:` / `PID đã dựng` luôn nằm ở ĐUÔI báo cáo cuối (quy ước "Báo cáo cuối" của
+# spine) nên bị cắt mất 100%. RX_CHOT vét các dòng này ra riêng, KHÔNG bị ảnh hưởng bởi
+# giới hạn độ dài của phần thân.
+RX_CHOT = re.compile(
+    r"^\s*(?:ĐỂ LẠI|CHỜ VÙNG|PID đã dựng[^:\n]*)\s*:.*$", re.MULTILINE)
 
 
 def _du_an(cwd):
+    # WHY dùng `re.sub` chứ không phải `replace("/", "-")`: Claude Code đặt tên thư mục
+    # transcript bằng cách thay MỌI ký tự không phải chữ/số thành gạch nối, không riêng
+    # dấu `/`. Dự án có dấu chấm trong tên (`chiemtinh.jst4.fun`) thì quy tắc cũ dựng ra
+    # `...-chiemtinh.jst4.fun` — thư mục KHÔNG tồn tại — rồi vòng lặp leo lên cha
+    # `-Users-buddhy-PycharmProjects` (thư mục của dự án KHÁC) => không thấy agent nào,
+    # bảng in "❓ mất dấu agent" cho mọi worker và statusLine in RỖNG (ca 09/09/2026).
     p = os.path.abspath(cwd or os.getcwd())
     while True:
-        c = os.path.join(PROJECTS_ROOT, p.replace("/", "-"))
+        c = os.path.join(PROJECTS_ROOT, re.sub(r"[^A-Za-z0-9]", "-", p))
         if os.path.isdir(c):
             return c
         cha = os.path.dirname(p)
@@ -121,8 +141,9 @@ def ids_ket_thuc(cha_jsonl):
         c = {"off": 0, "ids": {}}
     off = int(c.get("off") or 0)
     ids = dict(c.get("ids") or {})
+    hoi = set(c.get("hoi") or [])          # W140: id đã được nhắn tiếp (sống lại)
     if off > kc:
-        off, ids = 0, {}          # tệp bị cắt/thay -> đọc lại từ đầu
+        off, ids, hoi = 0, {}, set()      # tệp bị cắt/thay -> đọc lại từ đầu
     if off >= kc and ids is not None and off > 0:
         return ids
     try:
@@ -131,14 +152,33 @@ def ids_ket_thuc(cha_jsonl):
             noi = fh.read()
     except OSError:
         return None
+    # W140: gom MỌI sự kiện rồi xử theo VỊ TRÍ trong tệp — «sống lại» chỉ có nghĩa khi so
+    # thứ tự với «kết thúc». Ba loại: thông báo kết thúc (tn) · bảng danh sách (ds) · nhắn
+    # tiếp (hoi). Thợ đã sống lại thì CHỈ thông báo kết thúc MỚI (tn) mới chấm chết lại; bảng
+    # danh sách có thể là ảnh chụp CŨ lặp lại do prompt cache (xem chú thích dưới) nên không
+    # đủ tin để giết một thợ vừa được nhắn tiếp. Thợ sống lại mà bị TaskStop không có thông
+    # báo thì lưới `SONG_TOI_DA` + phiên cha chết của `running_workers` vẫn thu.
+    su_kien = []
     for m in RX_TASK_ID.finditer(noi):
         s = RX_STATUS.search(noi, m.end(), m.end() + 400)
         if s and s.group(1).lower() in KET_THUC:
-            ids[m.group(1)] = s.group(1).lower()
+            su_kien.append((m.start(), "tn", m.group(1), s.group(1).lower()))
     # Bảng danh sách subagent — đọc theo THỨ TỰ TỆP nên lần xuất hiện cuối thắng.
     for m in RX_DS.finditer(noi):
         aid, tt = m.group(1), m.group(2).lower()
         if tt in KET_THUC:
+            su_kien.append((m.start(), "ds", aid, tt))
+    for m in RX_HOI.finditer(noi):
+        su_kien.append((m.start(), "hoi", m.group(1), ""))
+    su_kien.sort(key=lambda x: x[0])
+    for _vt, loai, aid, tt in su_kien:
+        if loai == "hoi":
+            hoi.add(aid)
+            ids.pop(aid, None)
+        elif loai == "tn":
+            ids[aid] = tt
+            hoi.discard(aid)
+        elif aid not in hoi:
             ids[aid] = tt
         # KHÔNG bao giờ gỡ kết luận vì thấy `running`: khối danh sách này bị lặp lại
         # NGUYÊN VĂN ở các bản ghi sau (prompt cache) nên một ảnh chụp CŨ vẫn nằm phía
@@ -149,7 +189,7 @@ def ids_ket_thuc(cha_jsonl):
         if time.time() - cu > 3:      # bảng chạy rất dày -> không ghi đĩa mỗi lượt
             tmp = p + ".tmp"
             with open(tmp, "w", encoding="utf-8") as fh:
-                json.dump({"off": kc, "ids": ids}, fh)
+                json.dump({"off": kc, "ids": ids, "hoi": sorted(hoi)}, fh)
             os.replace(tmp, p)
     except Exception:
         pass
@@ -271,14 +311,27 @@ def _brief_tu_cha(goc, aid, tool_use_id, cha_agent=""):
     tep += sorted(glob.glob(os.path.join(goc, "*", "subagents", "agent-*.jsonl")),
                   key=lambda f: os.path.getmtime(f), reverse=True)[:60]
     moc_id = '"agentId":"%s"' % aid
+    # W08 17/10/2026 — ĐỌC BYTE + DÒ VỊ TRÍ, chỉ giải mã đúng dòng chứa mã. Bản cũ giải mã
+    # cả tệp rồi `splitlines()` + `replace(" ", "")` từng dòng: phiên cha 192 MB (47212242)
+    # làm một lượt quét mất 11,7 giây (đo 09:3x 17/10, `cProfile`: 19,5/21,4 giây nằm ở
+    # đây) > trần 5–8 giây của hook -> hook bị giết giữa chừng, sổ `.da-xet` không kịp ghi,
+    # lượt sau lại quét lại từ đầu.
+    khoa = [k.encode("utf-8") for k in (tool_use_id, aid) if k]
     for f in tep:
         try:
-            noi = open(f, encoding="utf-8", errors="replace").read()
+            with open(f, "rb") as fh:
+                noi = fh.read()
         except OSError:
             continue
-        if (tool_use_id or "@@") not in noi and moc_id not in noi:
-            continue
-        for ln in noi.splitlines():
+        dau = set()
+        for k in khoa:
+            vt = noi.find(k)
+            while vt != -1:
+                dau.add(noi.rfind(b"\n", 0, vt) + 1)
+                vt = noi.find(k, vt + 1)
+        for d0 in sorted(dau):
+            c0 = noi.find(b"\n", d0)
+            ln = noi[d0:c0 if c0 != -1 else len(noi)].decode("utf-8", errors="replace")
             if tool_use_id and tool_use_id in ln:
                 try:
                     r = json.loads(ln)
@@ -307,17 +360,37 @@ def _brief_tu_cha(goc, aid, tool_use_id, cha_agent=""):
 
 
 def _tien_do(scope, slug):
-    """(mốc, nhãn) từ tệp .progress đang sống, hoặc bản đã dọn vào done/. (None,'') nếu không có."""
+    """(mốc, nhãn) từ tệp .progress đang sống, hoặc bản đã dọn vào done/. (None,'') nếu không có.
+
+    W37 09/09/2026: lấy MỐC LỚN NHẤT trong toàn bộ tệp (`worker_state.moc_lon_nhat`),
+    không phải dòng đầu (`.readline()`) — tệp ghi NỐI nhiều dòng đọc dòng đầu ra % thấp
+    -> `quet()` tưởng worker dừng giữa chừng, dựng lại vé cho việc đã xong (cùng họ bug
+    với ca S12 W36, xem `docs/bang-chung/S12-so-khong-biet-da-bam-tat-09092026.md`).
+    """
     if not slug:
         return None, ""
     d = os.path.join(PROGRESS_ROOT, scope)
     ung = [os.path.join(d, slug + ".progress")]
     ung += sorted(glob.glob(os.path.join(d, "done", "*__%s__*.progress" % slug)),
                   key=lambda p: os.path.getmtime(p) if os.path.exists(p) else 0, reverse=True)
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import worker_state as _WSTATE
+    except Exception:
+        _WSTATE = None
     for f in ung:
         try:
-            nn, _, nhan = open(f, encoding="utf-8").readline().strip().partition("|")
-            return int(nn), nhan.strip()[:60]
+            noi = open(f, encoding="utf-8", errors="replace").read()
+        except Exception:
+            continue
+        if _WSTATE is not None:
+            nn, nhan = _WSTATE.moc_lon_nhat(noi)
+            if nn is not None:
+                return nn, nhan[:60]
+        # lùi về dòng đầu nếu module chủ lỗi hoặc không dòng nào hợp khuôn
+        nn_s, _, nhan_s = noi.splitlines()[0].partition("|") if noi.splitlines() else ("", "", "")
+        try:
+            return int(nn_s.strip()), nhan_s.strip()[:60]
         except Exception:
             continue
     return None, ""
@@ -374,6 +447,22 @@ def _dau_vet(jl):
     if RX_STASH.search(noi) or "git stash push" in noi:
         ra.append("có git stash")
     return " · ".join(ra)
+
+
+def _cat_giua(t, cap=2400):
+    """Cắt văn bản dài quá `cap` ký tự, GIỮ ĐẦU + ĐUÔI, cắt PHẦN GIỮA (W133).
+
+    Trước sửa: `x[:1200]` cắt từ đầu -> mất toàn bộ đuôi, đúng chỗ quy ước "Báo cáo
+    cuối" của spine luôn đặt `ĐỂ LẠI:`/`CHỜ VÙNG:`/`PID đã dựng`. Đo thật trên ca W128
+    (agent a4c09698ad9bfd10e): báo cáo cuối dài 5753 ký tự, 3 dòng đó nằm ở vị trí
+    5518/5554/5734 — đều SAU mốc cắt 1200 -> mất 100%.
+    """
+    if len(t) <= cap:
+        return t
+    dau = cap * 2 // 3
+    duoi = cap - dau
+    bi_cat = len(t) - dau - duoi
+    return t[:dau] + ("\n\n… (đã cắt %d ký tự ở giữa, xem transcript nếu cần đủ) …\n\n" % bi_cat) + t[-duoi:]
 
 
 def so_ban_giao(jl, cwd, aid):
@@ -446,8 +535,21 @@ def so_ban_giao(jl, cwd, aid):
         ra.append("## Tệp đã ghi (%d)\n" % len(tep)
                   + "\n".join("- %s" % x for x in tep[-20:]))
     if loi:
+        # Vét ĐỂ LẠI:/CHỜ VÙNG:/PID đã dựng ra section RIÊNG, không chung số phận với
+        # phần cắt-độ-dài bên dưới — quét vài lời cuối cho chắc (dedup theo thứ tự xuất
+        # hiện, ưu tiên lời gần cuối nhất vì đó là bản chốt sau cùng).
+        chot, thay = [], set()
+        for x in loi[-3:]:
+            for m in RX_CHOT.finditer(x):
+                dong = m.group(0).strip()
+                if dong not in thay:
+                    thay.add(dong)
+                    chot.append(dong)
+        if chot:
+            ra.append("## Chốt lại (vét riêng, KHÔNG bị cắt)\n"
+                      + "\n".join("- " + d for d in chot))
         ra.append("## Lời cuối của chính worker — kết luận + chỗ đang dở\n"
-                  + "\n\n".join("> " + x[:1200].replace("\n", "\n> ") for x in loi[-2:]))
+                  + "\n\n".join("> " + _cat_giua(x).replace("\n", "\n> ") for x in loi[-2:]))
     p = os.path.join(thu_muc, "ban-giao-%s.md" % aid)
     try:
         with open(p, "w", encoding="utf-8") as fh:
@@ -479,6 +581,68 @@ def _ghi_so(p, d):
         pass
 
 
+# P138 11/10/2026 — VÉ THẢ LẠI PHẢI MANG DÒNG `CHỜ VÙNG` CỦA THỢ TRƯỚC.
+# Ca thật: thợ P137 khai `CHỜ VÙNG: src/lib/notifications src/lib/mebox …` (TR dòng 1392) rồi
+# dừng ở 35%; máy hồi sinh vé `9e5d43d6e9` chép NGUYÊN brief cũ, `vung: ""` -> thả lại là kẹt y
+# nguyên. Quét NGƯỢC nhiều lượt chứ không chỉ lượt cuối: lượt cuối của thợ đó (TR dòng 1418,
+# 286 ký tự «…tôi kết thúc lượt ở đây») không còn dòng `CHỜ VÙNG` —
+# `worker_de_lai.bao_cao_cuoi` (chỉ lượt cuối) ra rỗng, đo 11/10.
+RX_CHO_VUNG = re.compile(r"^[\s>*#·\-]*(?:CHỜ VÙNG|CHO VUNG|Chờ vùng)\s*:\s*(.+)$", re.M)
+RX_CHO_VUNG_RONG = re.compile(r"^(?:kh[ôo]ng(?:\s+c[óo])?|none|-|—|n/?a)\b", re.I)
+
+
+def cho_vung_cuoi(jl):
+    """Dòng `CHỜ VÙNG:` gần nhất (khác «không») trong các lượt assistant ở đuôi transcript."""
+    for r in reversed(_duoi_ban_ghi(jl)):
+        if r.get("type") != "assistant":
+            continue
+        c = (r.get("message") or {}).get("content")
+        van = ""
+        if isinstance(c, list):
+            van = "\n".join(str(b.get("text") or "") for b in c
+                            if isinstance(b, dict) and b.get("type") == "text")
+        elif isinstance(c, str):
+            van = c
+        for m in reversed(list(RX_CHO_VUNG.finditer(van))):
+            v = m.group(1).strip().strip("`").strip()
+            if v and not RX_CHO_VUNG_RONG.match(v):
+                return v
+    return ""
+
+
+def khoi_cho_vung(so, nn, cho_vung):
+    return ("⚠ THỢ TRƯỚC (%s) DỪNG Ở %s VÌ KẸT VÙNG: %s\n"
+            "Dòng `GHI:` bên dưới là của brief CŨ — SỬA cho đủ theo phiếu (gộp thêm các vùng "
+            "trên) TRƯỚC khi thả; cổng GHI-khớp-phiếu (P138) sẽ chặn nếu chưa đủ.\n\n"
+            % (so or "W??", ("%d%%" % nn) if nn is not None else "mốc không rõ", cho_vung))
+
+
+def ket_luan(jl, scope):
+    """«xong» | «dung» cho agent ĐÃ kết thúc — CÙNG luật với `quet()` (mốc nói trước, lời khai sau).
+
+    W08 17/10/2026: `worker_board.dong_bo_trang_thai` từng ghi `done` cho MỌI dòng sổ số mất
+    bóng trên bảng, kể cả thợ chết ở 50% -> `wseq list` in «xong» cho việc đang dở. Nay bảng
+    hỏi hàm này trước khi đóng sổ; một luật, hai chỗ dùng, không đo lần hai.
+    """
+    try:
+        import worker_board as WB
+        meta = json.load(open(jl[:-len(".jsonl")] + ".meta.json", encoding="utf-8"))
+        mo_ta = str(meta.get("description") or "")
+        slug_td = WB.slug_td_cua_agent(jl)
+    except Exception:
+        mo_ta, slug_td = "", ""
+    try:
+        import worker_board as WB
+        nn, _ = _tien_do(scope, slug_td or WB.slug_hoa(mo_ta))
+    except Exception:
+        nn = None
+    if nn is None:
+        nn, _ = _moc_tu_transcript(jl)
+    if nn is not None:
+        return "xong" if nn >= 100 else "dung"
+    return "xong" if da_tra_bao_cao(jl) else "dung"
+
+
 def quet(cwd, dry=False):
     """Quét worker chết giữa chừng -> tạo vé. Trả về [(số vé, tên việc, mốc, lý do)]."""
     try:
@@ -504,6 +668,26 @@ def quet(cwd, dry=False):
         pass
     song_slug.discard("")
 
+    # W08 17/10/2026 (Task-17102026-03) — PHIÊN CHA CHẾT THÌ THỢ CHẾT THEO, KHÔNG CHỜ HARNESS.
+    # Máy đơ/tắt cứng giết cả tiến trình phiên -> harness KHÔNG BAO GIỜ kịp ghi khối
+    # `<task-notification>` kết thúc vào transcript cha. Bản cũ chỉ tin nguồn đó
+    # (`if aid not in xong: continue`) nên thợ chết theo máy bị coi là "còn sống" mãi mãi:
+    # ca thật sáng 17/10 — W01 (portfolio, 50%) và W03 (6 ca E2E, 30%) của phiên 47212242
+    # chết lúc máy quá tải, 0 vé, 0 sổ bàn giao, việc rơi mất. Dùng CÙNG thước sống/chết với
+    # bảng (`worker_board.ket_thuc_cua` -> `worker_cap_enforce.phien_con_song`): agent chỉ
+    # chết theo phiên khi KHÔNG phiên nào chứa nó (kể cả symlink của phiên nối tiếp) còn sống.
+    try:
+        import worker_cap_enforce as _WCE
+        _song_ids = _WCE.phien_con_song()
+    except Exception:
+        _song_ids = None
+    _tep_cua = {}       # aid -> [tệp thật, *symlink] cho `cha_con_giu` (W35 28/10)
+    if _song_ids is not None:
+        for _jl in sorted(glob.glob(os.path.join(goc, "*", "subagents", "agent-*.jsonl"))):
+            _a = os.path.basename(_jl)[len("agent-"):-len(".jsonl")]
+            _ds = _tep_cua.setdefault(_a, [])
+            (_ds.insert(0, _jl) if not os.path.islink(_jl) else _ds.append(_jl))
+
     cache_cha = {}
     for jl in glob.glob(os.path.join(goc, "*", "subagents", "agent-*.jsonl")):
         try:
@@ -519,10 +703,15 @@ def quet(cwd, dry=False):
         if phien not in cache_cha:
             cache_cha[phien] = ids_ket_thuc(phien)
         xong = cache_cha[phien]
+        # W35 28/10: tính cả phiên cha mở lại cùng mã — tiến trình cũ chết, thợ chết theo.
+        chet_theo_phien = (_song_ids is not None and bool(_tep_cua.get(aid))
+                           and _WCE.cha_con_giu(_tep_cua[aid]) is False)
+        if chet_theo_phien and (xong is None or aid not in xong):
+            xong = dict(xong or {}, **{aid: "phiên cha đã chết — máy tắt/đơ"})
         if xong is None:
             continue                       # mất nguồn tất định -> không dám phán
         if aid not in xong:
-            continue                       # harness chưa báo kết thúc -> còn sống
+            continue                       # harness chưa báo kết thúc, phiên cha còn sống
         # từ đây: agent ĐÃ kết thúc. Xét xem xong việc hay bị dừng giữa chừng.
         if not dry:
             so[aid] = int(mt)
@@ -568,6 +757,15 @@ def quet(cwd, dry=False):
                 "dau_vet": _dau_vet(jl), "agent": aid,
                 "ban_giao": "" if dry else so_ban_giao(jl, cwd, aid),
                 "co_prompt": bool(ti["prompt"])}
+        # P138: không tự nới dòng `GHI:` (luật «brief KHAI, cổng ĐỌC KHAI»,
+        # worker_cap_enforce.vung_viec_moi) — chỉ dán cảnh báo lên ĐẦU prompt + trường riêng.
+        cv = cho_vung_cuoi(jl)
+        if cv:
+            them["cho_vung"] = cv
+            m_so = re.match(r"\s*(W\d+)", mo_ta)
+            if ti["prompt"] and not ti["prompt"].startswith("⚠ THỢ TRƯỚC"):
+                ti["prompt"] = khoi_cho_vung(m_so.group(1) if m_so else "", nn, cv) + ti["prompt"]
+            ly += " — kẹt vùng: %s" % cv[:120]
         if dry:
             moi.append(("(dry)", ti["description"][:50], nn, ly, bool(ti["prompt"])))
             continue

@@ -9,15 +9,15 @@ màn đăng nhập. chỉ để test xem từ màn đăng nhập vào có hóc g
 WHY hook chứ không thêm dòng luật: lỗi này ĐÃ XẢY RA (trí nhớ dự án ghi "reset pass =
 123456"). Luật markdown là xác suất, permissionDecision là cổng tất định.
 
-WHY "ask" chứ KHÔNG "deny": hook không biết AI khởi xướng lệnh — agent tự tiện hay
-chính founder ra lệnh. "ask" đúng cho cả hai: agent tự tiện thì founder thấy câu hỏi
-hiện lên bất ngờ và chặn lại được; founder chủ động ra lệnh thì bấm duyệt 1 cái là chạy,
-không phải sửa hook / tắt hook / `--no-verify`. "deny" thì khoá tay luôn chính chủ.
+WHY "deny" chứ KHÔNG "ask" (11/10/2026, anh Thành): "ask" bật hộp xin quyền ở CLI —
+anh vắng máy (hoặc máy chủ chết giữa chừng như 10/10) thì cả phiên đứng chờ một cái bấm
+không ai bấm. Đặt lại mật khẩu thật trên production KHÔNG BAO GIỜ là việc agent tự làm,
+nên chặn thẳng không mất gì. Cửa thoát cho chính chủ: anh tự gõ lệnh trong terminal
+riêng — hook chỉ soi lệnh do agent gọi qua công cụ Bash.
 WHY KHÔNG có cơ chế nhớ lựa chọn / file skip vĩnh viễn (khác docs_bootstrap_gate.py):
-đây là thao tác đụng mật khẩu THẬT trên production, mỗi lần đều đáng hỏi lại; nhớ 1 lần
-rồi im mãi là mở toang cửa.
+đây là thao tác đụng mật khẩu THẬT trên production; mở 1 lần rồi im mãi là mở toang cửa.
 
-  PreToolUse Bash — soi lệnh sắp chạy. HỎI (ask) khi hội đủ 2 điều kiện:
+  PreToolUse Bash — soi lệnh sắp chạy. CHẶN (deny) khi hội đủ 2 điều kiện:
     (1) nhắm vào DB PRODUCTION: `--remote`, `--env production|prod`, hoặc gọi
         api.cloudflare.com/.../d1/ qua curl;
     (2) là câu lệnh GHI (UPDATE/INSERT/REPLACE/DELETE) vào bảng người dùng
@@ -186,12 +186,14 @@ def main() -> int:
             return 0
         dbname = db_name(cmd)
         reason = (
-            "XÁC NHẬN — lệnh này sắp GHI vào bảng người dùng / mật khẩu trên DB PRODUCTION.\n"
+            "CHẶN — lệnh này sắp GHI vào bảng người dùng / mật khẩu trên DB PRODUCTION.\n"
             f"  DB: {dbname or '(không rõ tên)'}  ·  môi trường: PRODUCTION\n"
             f"  Sắp ghi: {bad}\n\n"
             "Nếu chỉ để VƯỢT MÀN ĐĂNG NHẬP mà test thì KHÔNG cần reset mật khẩu — "
             "ký session token / tạo user test / chạy D1 local là đủ.\n\n"
             + HOW_TO
+            + "\n\nNếu chính chủ dự án thật sự cần chạy: đưa nguyên lệnh cho anh ấy tự gõ trong "
+            "terminal — agent KHÔNG tự chạy, KHÔNG tìm đường vòng."
         )
     except Exception:
         return 0
@@ -200,7 +202,7 @@ def main() -> int:
         {
             "hookSpecificOutput": {
                 "hookEventName": "PreToolUse",
-                "permissionDecision": "ask",
+                "permissionDecision": "deny",
                 "permissionDecisionReason": reason,
             }
         },

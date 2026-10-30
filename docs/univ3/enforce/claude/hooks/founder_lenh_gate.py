@@ -60,6 +60,14 @@ TRAN_PHUT = 45          # cờ HOI quá hạn -> thôi chặn (van an toàn)
 NGUONG_DAI = 600        # lượt dài hơn ngần này ký tự = bản giao việc, không phải câu hỏi
 
 AGENT_TOOLS = {"Agent", "Task"}
+# 07/09/2026 (W01): giao việc cho worker ĐANG CHẠY qua `SendMessage` cũng là "biến câu hỏi
+# của founder thành việc" — nhưng trước nay cổng chỉ canh Agent + Bash nên lọt thẳng.
+# Chỉ chặn tin GIAO VIỆC MỚI (module dùng chung `giao_viec_moi.py`), tin điều phối vẫn qua.
+MSG_TOOLS = {"SendMessage"}
+try:
+    from giao_viec_moi import la_giao_viec_moi
+except Exception:                      # thiếu module -> fail-open
+    la_giao_viec_moi = None
 
 # Lệnh Bash "có hậu quả" — chỉ nhúm này bị soi, phần còn lại của Bash KHÔNG đụng tới
 # (chặn Bash diện rộng sẽ giết luôn việc main đang đọc/kiểm chứng để TRẢ LỜI câu hỏi).
@@ -272,8 +280,8 @@ Lượt vừa rồi của founder KHÔNG phải lệnh làm việc ({loai_ly_do}
 
 Founder đang HỎI / GÓP Ý / CUNG CẤP THÔNG TIN. Việc đúng lúc này:
   1. TRẢ LỜI đúng câu hỏi bằng dữ kiện đã kiểm (không thả worker, không chạy lệnh).
-  2. Nếu bạn nghĩ việc này CẦN làm → HỎI LẠI bằng `AskUserQuestion` rồi chờ founder chốt.
-     (Founder duyệt qua AskUserQuestion là cổng này tự mở.)
+  2. Nếu bạn nghĩ việc này CẦN làm → HỎI LẠI bằng {cach_hoi} rồi chờ founder chốt.
+     (Founder duyệt qua AskUserQuestion là cổng này tự mở; founder vắng thì chờ anh trả lời tin.)
   3. TUYỆT ĐỐI không tự suy ra "vậy chắc founder muốn tôi làm X" rồi thi hành.
 
 Chỉ khi founder ĐÃ ra lệnh rõ ở một lượt trước và bạn đang tiếp tục đúng lệnh đó,
@@ -281,6 +289,17 @@ mới được vượt cổng: thêm vào description/prompt/lệnh CẢ HAI:
     {cua_thoat}
     {nhan} "<chép nguyên văn câu founder ra lệnh>"
 Thiếu phần chép nguyên văn = vẫn chặn. Mọi lần vượt cổng đều bị ghi nhật ký."""
+
+
+def _cach_hoi(data, nhanh=False) -> str:
+    """Vé d991d9a878 (W301): anh vắng khỏi CLI (cờ /afk hoặc đang làm qua Telegram) → hỏi qua tin riêng,
+    không bảo AskUserQuestion. Nguồn duy nhất: `afk_trang_thai.cach_hoi_anh`. Hỏng → chữ cũ."""
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import afk_trang_thai as TT
+        return TT.cach_hoi_anh(str((data or {}).get("cwd") or os.getcwd()), nhanh=nhanh)
+    except Exception:
+        return "`AskUserQuestion`"
 
 
 def main() -> None:
@@ -309,8 +328,8 @@ def main() -> None:
         if loai == "HOI":
             # Lớp xác suất mỏng phủ lên cổng tất định — 2 dòng, không hơn.
             print("⚠️ Lượt này founder đang HỎI/GÓP Ý (%s), KHÔNG phải giao việc: "
-                  "trả lời trước đã. Muốn làm gì thêm → hỏi lại bằng AskUserQuestion, "
-                  "cấm tự thả worker / tự chạy lệnh." % ly_do)
+                  "trả lời trước đã. Muốn làm gì thêm → hỏi lại bằng %s, "
+                  "cấm tự thả worker / tự chạy lệnh." % (ly_do, _cach_hoi(data, nhanh=True)))
         sys.exit(0)
 
     if ev != "PreToolUse":
@@ -327,6 +346,16 @@ def main() -> None:
     if ten in AGENT_TOOLS:
         viec = "thả worker «%s»" % str(ti.get("description") or ti.get("subagent_type") or "?")[:60]
         van_ban = " ".join(str(ti.get(k) or "") for k in ("description", "prompt", "subagent_type"))
+    elif ten in MSG_TOOLS:
+        if la_giao_viec_moi is None:
+            sys.exit(0)
+        la_giao, ly_do_msg = la_giao_viec_moi(str(ti.get("message") or ""),
+                                              str(ti.get("summary") or ""))
+        if not la_giao:
+            sys.exit(0)               # điều phối thường -> KHÔNG chặn
+        viec = "giao việc mới qua SendMessage cho «%s» (%s)" % (
+            str(ti.get("to") or "?")[:30], ly_do_msg)
+        van_ban = " ".join(str(ti.get(k) or "") for k in ("summary", "message"))
     elif ten == "Bash":
         lenh = str(ti.get("command") or "")
         if not BASH_HAU_QUA.search(lenh):
@@ -374,6 +403,7 @@ def main() -> None:
         trich=str(trang_thai.get("trich") or "")[:200],
         cua_thoat=CUA_THOAT,
         nhan=NHAN_TRICH,
+        cach_hoi=_cach_hoi(data),
     ))
 
 

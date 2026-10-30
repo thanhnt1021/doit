@@ -29,6 +29,10 @@ EDIT_RULE = """\
   Nếu đang ĐOÁN nguyên nhân → HUỶ sửa này, đi verify trước. Sửa mù = hỏng thêm + đốt thời gian của founder.
 """
 
+PROMPT_NGAN = ("⛔ LUẬT SỐ 1 (đã in đủ đầu phiên): KHÔNG ĐOÁN — tái hiện bằng công cụ → nguyên nhân gốc "
+               "có file:dòng/output → sửa xong verify lại rồi mới nói «xong».\n")
+EDIT_NGAN = "⛔ Sắp đổi code: đã tái hiện + có nguyên nhân gốc bằng công cụ chưa? Đang đoán thì dừng.\n"
+
 EDIT_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
 
 
@@ -44,11 +48,18 @@ def main() -> int:
     except Exception:
         return 0
     event = str(data.get("hook_event_name") or "")
+    # W140 09/10/2026: chữ TĨNH in đủ một lần mỗi phiên/thợ (và khi đổi, sau nén ngữ cảnh,
+    # mỗi 40 lượt); các lượt khác một dòng — xem nhac_gon.py. Hỏng thì về bản đủ.
+    try:
+        sys.path.insert(0, __import__("os").path.dirname(__import__("os").path.abspath(__file__)))
+        import nhac_gon as NG
+    except Exception:
+        NG = None
     if event == "UserPromptSubmit":
-        emit("UserPromptSubmit", PROMPT_RULE)
+        emit("UserPromptSubmit", NG.gon(data, "no-guess-prompt", PROMPT_RULE, PROMPT_NGAN) if NG else PROMPT_RULE)
     elif event == "PreToolUse":
         if str(data.get("tool_name") or "") in EDIT_TOOLS:
-            emit("PreToolUse", EDIT_RULE)
+            emit("PreToolUse", NG.gon(data, "no-guess-edit", EDIT_RULE, EDIT_NGAN) if NG else EDIT_RULE)
     return 0
 
 

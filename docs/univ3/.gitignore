@@ -2,5 +2,6 @@ __pycache__/
 *.pyc
 .DS_Store
 enforce/claude/hooks/telegram_config.env
+enforce/claude/hooks/telegram_xin_quyen.env
 LOCAL_ONLY.txt
 _meta/backups/

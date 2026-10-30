@@ -65,6 +65,7 @@ GRACE_CHUA_GHI_MIN="${WATCHDOG_GRACE_CHUA_GHI_MIN:-25}"
 HARD_RELEASE_MIN="${WATCHDOG_HARD_RELEASE_MIN:-45}"
 WLOCK_ROOT_DIR="${WLOCK_ROOT:-$CLAUDE_HOME/worker-locks}"
 WLOCK_SH="$SCRIPT_DIR/wlock.sh"
+WLOCK_LOG_FILE="${WLOCK_LOG:-$CLAUDE_HOME/wlock.log}"
 
 STALE_MIN="${LEVELS%%,*}"
 
@@ -110,6 +111,32 @@ off_con_hieu_luc() {
 mtime_of() { stat -L -f '%m' "$1" 2>/dev/null || stat -L -c '%Y' "$1" 2>/dev/null; }
 btime_of() { stat -L -f '%B' "$1" 2>/dev/null || stat -L -c '%W' "$1" 2>/dev/null; }
 
+# Cờ tắt đã ĐỦ CŨ mà VẪN có worker đang chạy? (0 = có -> lưới an toàn phải đá vào)
+# Ân hạn `OFF_AN_HAN_MIN`: ngay sau lệnh chốt ngày có thể còn worker chưa tắt hẳn — tôn
+# trọng cờ trong khoảng đó, đừng bật lại ngay làm chốt ngày bất khả thi.
+# Nguồn "worker sống" = `worker_cap_enforce.running_workers` — CÙNG nguồn bảng worker dùng,
+# cố ý không đẻ phép đo thứ hai.
+OFF_AN_HAN_MIN="${WATCHDOG_OFF_AN_HAN_MIN:-30}"
+CO_TUOI=0
+co_worker_song_lau() {
+  local m; m=$(mtime_of "$FLAG_OFF"); [ -n "$m" ] || return 1
+  CO_TUOI=$(( $(now) - m ))
+  [ "$CO_TUOI" -ge $(( OFF_AN_HAN_MIN * 60 )) ] || return 1
+  local n
+  n=$(WD_HOOKS="$SCRIPT_DIR" python3 - <<'PYW' 2>/dev/null
+import os, sys
+sys.path.insert(0, os.environ.get("WD_HOOKS", ""))
+try:
+    import worker_cap_enforce as W
+    cwd = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
+    print(len(W.running_workers(cwd)[0]))
+except Exception:
+    print(0)
+PYW
+)
+  [ "${n:-0}" -gt 0 ]
+}
+
 # Diễn giải số giây thành chuỗi tiếng Việt gọn
 human() {
   local s=$1
@@ -154,13 +181,15 @@ send_telegram() {
 # Đẩy 1 cảnh báo vào hàng đợi để hook UserPromptSubmit chèn vào phiên CLI.
 # Dùng python cho phần JSON: nhãn tiếng Việt có thể chứa dấu nháy/gạch đứng.
 queue_alert() {
-  # $1=project $2=slug $3=loai $4=pct $5=nhan $6=giay_im $7=trang_thai_agent $8=muc $9=goi_y
+  # $1=project $2=slug $3=loai $4=pct $5=nhan $6=giay_im $7=trang_thai_agent $8=muc $9=goi_y ${10}=tai_nguyen(khoá)
   python3 - "$ALERT_DIR" "$@" <<'PYQ' 2>/dev/null
 import json,os,sys,time
 d,proj,slug,kind,pct,label,sil,agent,lv,hint = sys.argv[1:11]
+res = sys.argv[11] if len(sys.argv) > 11 else ""
 os.makedirs(d,exist_ok=True)
 rec={"ts":time.strftime("%Y-%m-%d %H:%M:%S"),"project":proj,"slug":slug,"kind":kind,
-     "pct":pct,"label":label,"silence_s":int(sil),"agent":agent,"level":int(lv),"hint":hint}
+     "pct":pct,"label":label,"silence_s":int(sil),"agent":agent,"level":int(lv),"hint":hint,
+     "res":res}
 with open(os.path.join(d,proj+".jsonl"),"a",encoding="utf-8") as f:
     f.write(json.dumps(rec,ensure_ascii=False)+"\n")
 PYQ
@@ -197,6 +226,16 @@ except Exception:
     sys.exit(1)
 sys.exit(0 if da_dong(sys.argv[2], sys.argv[3]) else 1)
 PYD
+}
+
+# ĐÃ CHUYỂN CHỦ: việc của slug này đã có worker SỐNG khác gánh (đổi chủ giữa chừng bằng
+# SendMessage). Ca 07/09: `w36` chết, việc sang `w38`; tệp mốc tên `w36` đứng ở 35% nên
+# con canh kêu đỏ "im 21 phút, nghi treo/chết" trong khi việc chạy ngon. Hỏi ĐÚNG phép đo
+# của bảng (`worker_board.chuyen_chu_cua`) — không đẻ phép đo thứ hai.
+# WHY fail-open: python/import hỏng -> coi như CHƯA chuyển -> watchdog kêu như cũ, tuyệt
+# đối không được im lặng nuốt worker treo thật.
+da_chuyen_chu_mo() {  # $1=project(scope)  $2=slug ; in mã W## nếu có, mã thoát 0/1
+  UNIV3_SCOPE="$1" python3 "$SCRIPT_DIR/worker_board.py" --da-chuyen-chu "$2" 2>/dev/null
 }
 
 # Agent ĐÃ TRẢ BÁO CÁO CUỐI: transcript còn ấm hàng chục phút sau khi worker bàn giao xong,
@@ -241,11 +280,11 @@ level_for() {
 # ghép được "agent đang chạy" với "slug tiến độ", kể cả khi agent CHƯA ghi
 # lần nào (đúng ca worker im lặng).
 
-AG_KEYS=(); AG_MTIME=(); AG_BTIME=(); AG_DONE=()
+AG_KEYS=(); AG_MTIME=(); AG_BTIME=(); AG_DONE=(); AG_TEP=()
 
 scan_agents() {
   local proj="$1"
-  AG_KEYS=(); AG_MTIME=(); AG_BTIME=(); AG_DONE=()
+  AG_KEYS=(); AG_MTIME=(); AG_BTIME=(); AG_DONE=(); AG_TEP=()
   local d f tgt m b slug cache aid
   local tep=() bc=() dong=""
   for d in "$TASKS_ROOT"/*-"$proj"/*/tasks; do
@@ -266,7 +305,7 @@ scan_agents() {
         [ -n "$slug" ] && echo "$slug" > "$cache"
       fi
       [ -n "$slug" ] || continue
-      AG_KEYS+=("$slug"); AG_MTIME+=("$m"); AG_BTIME+=("$b"); tep+=("$f")
+      AG_KEYS+=("$slug"); AG_MTIME+=("$m"); AG_BTIME+=("$b"); tep+=("$f"); AG_TEP+=("$f")
     done
   done
   # Hỏi một lần cho cả lô: mỗi lần gọi python tốn ~50ms, chia cho từng agent thì phí.
@@ -277,6 +316,32 @@ scan_agents() {
   for k in "${!AG_KEYS[@]}"; do AG_DONE+=("${bc[$k]:-0}"); done
 }
 
+# ── BỘ ĐỌC TỆP MỐC DUY NHẤT (W23 10/09/2026) ────────────────────────────────
+# Gọi `worker_state.py --doc-moc <proj>` MỘT LẦN cho cả lô mỗi vòng quét (không phải mỗi
+# tệp một lần — mỗi lượt gọi python tốn ~50ms). Con canh KHÔNG tự tách `NN|nhãn` nữa:
+# tách hai nơi là hai kết quả khi thợ ghi nối nhiều dòng.
+MOC_KEYS=(); MOC_LINE=()
+
+scan_moc() {
+  local proj="$1" dong slug rest
+  MOC_KEYS=(); MOC_LINE=()
+  while IFS= read -r dong; do
+    [ -n "$dong" ] || continue
+    slug="${dong%%$'\t'*}"; rest="${dong#*$'\t'}"
+    MOC_KEYS+=("$slug")
+    MOC_LINE+=("${rest%%$'\t'*}|$(printf '%s' "$rest" | cut -f2)")
+  done < <(UNIV3_PROGRESS_ROOT="$PROGRESS_ROOT" python3 "$SCRIPT_DIR/worker_state.py" \
+             --doc-moc "$proj" 2>/dev/null)
+}
+
+doc_moc() {  # proj slug -> `NN|nhãn` (rỗng nếu không có)
+  local want="$2" i
+  for i in "${!MOC_KEYS[@]}"; do
+    [ "${MOC_KEYS[$i]}" = "$want" ] && { echo "${MOC_LINE[$i]}"; return 0; }
+  done
+  echo ""
+}
+
 agent_mtime() {  # slug -> mtime mới nhất (rỗng nếu không có)
   local want="$1" i best=""
   for i in "${!AG_KEYS[@]}"; do
@@ -285,6 +350,39 @@ agent_mtime() {  # slug -> mtime mới nhất (rỗng nếu không có)
     fi
   done
   echo "$best"
+}
+
+agent_tep() {  # slug -> transcript agent ghi gần nhất (rỗng nếu không có)
+  local want="$1" i best="" bm=0
+  for i in "${!AG_KEYS[@]}"; do
+    if [ "${AG_KEYS[$i]}" = "$want" ] && [ "${AG_MTIME[$i]}" -gt "$bm" ]; then
+      bm="${AG_MTIME[$i]}"; best="${AG_TEP[$i]:-}"
+    fi
+  done
+  echo "$best"
+}
+
+# W61 30/10/2026 (FF-30102026-37) — tin canh gửi anh Thành gọi thợ bằng SỐ + TÊN VIỆC + MÃ THẺ
+# («thợ W44 (Thư A35 không về · thẻ FF-30102026-13)»), không bằng slug kỹ thuật. Anh chê tin
+# «Worker w44-thu-a35-khong-ve im lặng 20 phút - kẹt ở 98% "…" - agent CŨNG im 37 phút»: đọc chả hiểu.
+ten_tho_doc() {  # $1=project $2=slug $3=transcript agent (có thể rỗng)
+  local r
+  r=$(python3 - "$SCRIPT_DIR" "$1" "$2" "${3:-}" <<'PYT' 2>/dev/null
+import sys
+sys.path.insert(0, sys.argv[1])
+try:
+    import worker_board as wb
+    print(wb.cau_ten_tho(sys.argv[2], sys.argv[3], tep=sys.argv[4]))
+except Exception:
+    print("")
+PYT
+)
+  [ -n "$r" ] || r="thợ ${2//-/ }"
+  echo "$r"
+}
+
+ten_du_an_gon() {  # tên dự án cho người đọc
+  case "$1" in EtsyFulfillChichub) echo "ChicHub" ;; *) echo "$1" ;; esac
 }
 
 agent_btime() {  # slug -> thời điểm agent bắt đầu (birth time sớm nhất)
@@ -320,7 +418,11 @@ check_worker() {
 
   local pct="" label="" cur_hash="" ts_ref=""
   if [ -n "$pf" ] && [ -f "$pf" ]; then
-    local line; line=$(head -1 "$pf" 2>/dev/null)
+    # W23 10/09/2026 — MỘT BỘ ĐỌC tệp mốc cho cả hệ: `worker_state.moc_lon_nhat` (mốc LỚN
+    # NHẤT toàn tệp). `head -1` cũ lấy DÒNG ĐẦU -> thợ nào ghi NỐI là con canh đọc `10%`
+    # trong khi bảng/sổ trạng thái đọc `100%`; hai bên cùng đếm, hai kết quả.
+    local line; line=$(doc_moc "$proj" "$slug")
+    [ -n "$line" ] || line=$(head -1 "$pf" 2>/dev/null)
     pct="${line%%|*}"; label="${line#*|}"
     cur_hash=$(hash_of "$pf")
     ts_ref=$(mtime_of "$pf")
@@ -340,7 +442,8 @@ check_worker() {
   # Nội dung đổi -> reset đồng hồ im lặng
   if [ "$cur_hash" != "$o_hash" ]; then
     if [ "${o_lv:-0}" -gt 0 ] && [ "$NOTIFY_RECOVER" = "1" ] && [ "$SEED_MODE" = "0" ] && [ "$pct" != "100" ]; then
-      send_telegram "✅ [${proj}] Worker ${slug} đã nhúc nhích lại — hiện ở ${pct}% \"${label}\""
+      send_telegram "✅ Trợ lý hệ thống $(ten_du_an_gon "$proj"): $(ten_tho_doc "$proj" "$slug" "$(agent_tep "$slug")") đã chạy lại — đang ở ${pct}%: ${label//\"/}
+- Anh cần làm gì: không cần làm gì."
     fi
     o_ts="$ts_ref"; o_lv=0
   fi
@@ -348,12 +451,19 @@ check_worker() {
 
   # Đạt 100 -> báo xong rồi ngừng theo dõi
   if [ "$pct" = "100" ]; then
-    [ "$SEED_MODE" = "0" ] && send_telegram "✅ [${proj}] Worker ${slug} XONG — 100% \"${label}\""
+    [ "$SEED_MODE" = "0" ] && send_telegram "✅ Trợ lý hệ thống $(ten_du_an_gon "$proj"): $(ten_tho_doc "$proj" "$slug" "$(agent_tep "$slug")") đã XONG — ${label//\"/}"
     echo "${cur_hash}|${o_ts}|0|1" > "$kf"
     log "XONG: ${key} — 100% ${label}"
     return 0
   fi
 
+  # W23 10/09/2026 — IM LẶNG ĐO BẰNG HOẠT ĐỘNG THẬT CỦA THỢ, MỘT ĐỒNG HỒ DUY NHẤT:
+  #     im lặng = bây giờ − max(mtime tệp mốc, mtime transcript agent)
+  # Định nghĩa gốc ở `worker_state.hoat_dong_cuoi` (bên Python dùng chung). Bản cũ chỉ đo
+  # mtime tệp mốc -> thợ chạy MỘT lệnh dài (bộ kiểm thử, ssh, build) không có gì để ghi là
+  # bị hô "im lặng 1 giờ 0 phút", NGAY TRONG CÙNG TIN NHẮN đã tự in "agent còn chạy 3 phút
+  # trước" (ca thật 10/09). Hai vế đá nhau vì đọc hai đồng hồ.
+  [ -n "$amt" ] && [ "$amt" -gt "${o_ts:-0}" ] && o_ts="$amt"
   local silence=$(( t_now - o_ts )); [ "$silence" -lt 0 ] && silence=0
   local mins=$(( silence / 60 ))
   local lv; lv=$(level_for "$mins")
@@ -376,35 +486,57 @@ check_worker() {
   if [ -n "$amt" ]; then
     asil=$(( t_now - amt ))
     if [ "$asil" -ge $(( STALE_MIN * 60 )) ]; then
-      agent_note=" — agent CŨNG im $(human "$asil") → nghi treo/chết"
+      agent_note="thợ cũng không chạy lệnh nào suốt $(human "$asil") → nghi bị treo hoặc đã dừng"
       agent_state="im $(human "$asil")"
     else
       alive=1
-      agent_note=" — agent vẫn hoạt động $(human "$asil") trước"
+      agent_note="thợ vẫn đang chạy lệnh (lần cuối $(human "$asil") trước) — chỉ chậm ghi tiến độ, có thể đang ở bước dài"
       agent_state="còn chạy ($(human "$asil") trước)"
     fi
   else
-    agent_note=" — không thấy agent nào đang chạy → nghi đã chết"
+    agent_note="không thấy thợ này còn chạy → nghi đã dừng"
     agent_state="không thấy agent"
   fi
 
   if [ "$alive" = "1" ]; then sev="$lv"; else sev=3; fi
 
+  # CỔNG "ĐÃ CHUYỂN CHỦ" — chỉ hỏi khi agent của chính slug này đã im/chết (tức sắp kêu
+  # mức 🔴). Việc còn người gánh thì đây KHÔNG phải worker treo: ghi cờ, ghi log, im.
+  if [ "$alive" != "1" ]; then
+    local nguoi_gap; nguoi_gap=$(da_chuyen_chu_mo "$proj" "$slug")
+    if [ -n "$nguoi_gap" ]; then
+      echo "${cur_hash}|${o_ts}|${lv}|1" > "$kf"
+      log "BỎ QUA ${key}: việc đã CHUYỂN CHỦ sang ${nguoi_gap} (dấu vết cũ mồ côi, KHÔNG phải treo)"
+      return 0
+    fi
+  fi
+
   local icon hint kind
   case "$sev" in
     1) icon="🟡"; hint="theo dõi thêm — có thể đang ở bước dài (build/deploy), chưa cần can thiệp" ;;
-    2) icon="⚠️"; hint="thúc worker báo tiến độ + đòi bằng chứng lệnh thật; không có thì cân nhắc resume" ;;
-    *) icon="🔴"; hint="agent đã im — resume đúng agent đó, hoặc giao lại việc cho worker mới" ;;
+    2) icon="⚠️"; hint="LÀM NGAY LƯỢT NÀY (không đợi founder hỏi): 1) TỰ ĐO BẰNG CHỨNG NGOÀI LỜI KHAI — việc deploy: ssh vào máy chủ đọc BUILD_ID + trạng thái tiến trình; việc dữ liệu: chạy đúng truy vấn đọc trên DB thật; việc tệp: ls -la / git log tệp đích. 2) Đo xong mới kết luận: xong rồi -> tự đóng dòng, chưa xong -> SendMessage đòi mốc + tên lệnh đang chạy. CẤM chỉ ngồi đọc con số worker tự khai" ;;
+    *) icon="🔴"; hint="LÀM NGAY LƯỢT NÀY, TỰ XỬ CHO THÔNG rồi mới trình founder: 1) ĐO BẰNG CHỨNG NGOÀI LỜI KHAI (deploy -> ssh đọc BUILD_ID; dữ liệu -> truy vấn thật; tệp -> ls -la/git log). 2) Việc ĐÃ XONG ngoài đời -> đóng dòng, ghi 100 vào tệp .progress, TaskStop con đó. 3) Việc CHƯA xong -> TaskStop rồi thả lại từ vé hàng chờ (brief còn nguyên). Founder đã cho phép tự xử phần ĐỌC/ĐO/gỡ kẹt; chỉ dừng hỏi khi phải GHI vào dữ liệu sống" ;;
   esac
 
-  local msg
+  local msg tho can dau
+  tho=$(ten_tho_doc "$proj" "$slug" "$(agent_tep "$slug")")
+  if [ "$alive" = "1" ]; then
+    can="không cần làm gì — thợ vẫn đang chạy."
+  else
+    can="không cần làm gì nếu phiên chính đang chạy (nó tự xử ở lượt kế); phiên chính đang ngồi im thì anh nhắn nó một câu bất kỳ (vd «chạy tiếp») để nó xử."
+  fi
   if [ "$cur_hash" = "CHUA_GHI" ]; then
     kind="chua-ghi-tien-do"
-    msg="${icon} [${proj}] Worker ${slug} chạy nhưng CHƯA ghi tiến độ $(human "$silence")${agent_note}"
+    dau="${icon} Trợ lý hệ thống $(ten_du_an_gon "$proj"): ${tho} chạy $(human "$silence") mà chưa báo tiến độ lần nào"
   else
     kind="im-lang"
-    msg="${icon} [${proj}] Worker ${slug} im lặng $(human "$silence") — kẹt ở ${pct}% \"${label}\"${agent_note}"
+    dau="${icon} Trợ lý hệ thống $(ten_du_an_gon "$proj"): ${tho} im $(human "$silence") chưa báo tiến độ
+- Đang ở: ${pct}% — ${label//\"/}"
   fi
+  msg="${dau}
+- Máy thấy: ${agent_note}
+- Máy đã làm: ghi việc này cho phiên chính — phiên chính đo lại và tự gỡ kẹt (thả lại thợ nếu cần)
+- Anh cần làm gì: ${can}"
 
   log "CẢNH BÁO mức ${sev} (mốc ${lv}): ${key} — im $(human "$silence") — ${pct}% ${label} — agent ${agent_state}"
 
@@ -453,12 +585,65 @@ tu_nha_khoa() {
     ly_do=""
 
     if [ -n "$pid" ] && [ "$pid" != "0" ] && ! kill -0 "$pid" 2>/dev/null; then
-      ly_do="chủ khoá PID $pid đã chết"
+      # ĐƯỜNG CƯỚP KHOÁ THỨ HAI (tìm ra 07/09/2026 lúc rà lại): chỗ này TỰ nhả khoá khi
+      # thấy PID chết, KHÔNG đi qua `reap_lock` của wlock — nên bản vá "khoá bám VIỆC" ở
+      # wlock bị đi vòng qua. Bằng chứng cùng ngày: 19:39:32 "TỰ NHẢ KHOÁ 'build' của
+      # 'w65-pipeline' — chủ khoá PID 59106 đã chết" trong khi w65 vẫn đang chạy.
+      # Nay: KHÔNG tự quyết. Gọi wlock (nguồn DUY NHẤT biết nhóm tiến trình + mốc worker),
+      # rồi xem khoá còn hay mất mà nói.
+      bash "$WLOCK_SH" status >/dev/null 2>&1
+      if [ -d "$ld" ]; then
+        log "GIỮ khoá '$res' của '$owner' — vỏ PID $pid chết nhưng wlock xác nhận việc còn chạy"
+        continue
+      fi
+      log "THU HỒI (qua wlock) khoá '$res' của '$owner' — chủ khoá PID $pid đã chết"
+      queue_alert "${proj:-khong-ro}" "${owner:-?}" "khoa-tu-nha" "" \
+        "khoá '$res' đã thu hồi — chủ khoá PID $pid chết, không còn dấu hiệu việc chạy" "$held" \
+        "khoá đã trả cho hàng chờ" 2 \
+        "BÁO chủ cũ '${owner:-?}' nếu nó còn sống: nó đang tưởng mình giữ khoá '$res'" "$res"
+      [ "$DRY_RUN" = "0" ] && send_telegram "🔧 [${proj:-?}] Watchdog trả khoá '$res' của '${owner:-?}' về hàng chờ — chủ khoá PID $pid đã chết và không còn dấu hiệu việc đang chạy."
+      continue
     elif [ -z "$pid" ] || [ "$pid" = "0" ]; then
       : # khoá không canh PID -> để lease của wlock lo, đừng đoán
     else
-      # Chủ còn sống: chỉ nhả khi CHÍNH WORKER đó đã im hẳn (hai tín hiệu thật).
-      if [ "$held" -ge $(( HARD_RELEASE_MIN * 60 )) ] && [ -n "$owner" ]; then
+      # M2 (P088, W36 09/09/2026) — NHẢ THEO VIỆC, không đợi 45 phút cứng: `res` là
+      # deploy/build MÀ lô đúng khoá này (xong SAU mốc `since` acquire) đã ghi `done`
+      # trong chain.log VÀ không còn tiến trình build/deploy nào chạy thật (`ps`) -> việc
+      # dùng khoá đã kết thúc dù worker còn sống (C3: nó có thể đang làm việc KHÁC không
+      # cần khoá này nữa). Đệm 120 giây tránh đua ngay lúc lô vừa ghi xong.
+      if [ -z "$ly_do" ] && { [ "$res" = "deploy" ] || [ "$res" = "build" ]; } && [ -n "$proj" ]; then
+        local viec_xong
+        viec_xong=$(python3 - "$SCRIPT_DIR" "$proj" "$since" <<'PYW' 2>/dev/null
+import sys, time
+sys.path.insert(0, sys.argv[1])
+try:
+    import worker_state as ws
+except Exception:
+    sys.exit(0)
+proj, since = sys.argv[2], float(sys.argv[3] or 0)
+try:
+    dang_chay = ws.build_dang_chay()
+except Exception:
+    dang_chay = None
+if dang_chay:            # còn build/deploy THẬT đang chạy -> chưa xong, đừng nhả
+    sys.exit(0)
+try:
+    lo_xong = ws.lo_da_xong(proj)
+except Exception:
+    lo_xong = {}
+moc = max([t for t in lo_xong.values() if t and t > since], default=None)
+if moc and (time.time() - moc) >= 120:
+    print("lô kết thúc lúc %s, không còn build/deploy chạy thật, thừa %.0f giây"
+          % (time.strftime("%H:%M:%S", time.localtime(moc)), time.time() - moc))
+PYW
+)
+        if [ -n "$viec_xong" ]; then
+          ly_do="việc dùng khoá '$res' đã xong theo chain.log ($viec_xong) — nhả theo VIỆC, không đợi $(human $(( HARD_RELEASE_MIN * 60 )))"
+        fi
+      fi
+      # Chủ còn sống: nếu chưa có lý do "nhả theo việc" ở trên thì chỉ nhả khi CHÍNH
+      # WORKER đó đã im hẳn (hai tín hiệu thật) — lưới cuối GIỮ NGUYÊN 45 phút (V5/M2).
+      if [ -z "$ly_do" ] && [ "$held" -ge $(( HARD_RELEASE_MIN * 60 )) ] && [ -n "$owner" ]; then
         local amt pfm im_agent im_td
         amt=$(agent_mtime "$owner")
         pfm=$(mtime_of "${PROGRESS_ROOT}/${proj:-khong-ro}/${owner}.progress" 2>/dev/null)
@@ -479,12 +664,292 @@ tu_nha_khoa() {
       log "TỰ NHẢ KHOÁ '$res' của '$owner' — $ly_do"
       queue_alert "${proj:-khong-ro}" "${owner:-?}" "khoa-tu-nha" "" \
         "watchdog TỰ NHẢ khoá '$res' — $ly_do" "$held" "khoá đã trả cho hàng chờ" 2 \
-        "công sức của worker KHÔNG bị đụng; nếu nó còn sống và cần khoá thì xin lại"
+        "BÁO NGAY cho chủ cũ '${owner:-?}': nó ĐANG TƯỞNG MÌNH CÒN GIỮ khoá '$res'. Chưa báo mà nó ghi tiếp = hai bên cùng ghi một tài nguyên" \
+        "$res"
       [ "$DRY_RUN" = "0" ] && send_telegram "🔧 [${proj:-?}] Watchdog TỰ NHẢ khoá '$res' của '${owner:-?}' — $ly_do. Hàng chờ chạy tiếp; code của worker không bị đụng."
     else
       log "KHÔNG nhả được khoá '$res' của '$owner' ($ly_do)"
     fi
   done
+}
+
+# ========================= CANH KHOÁ (04/09/2026) =========================
+# WHY: 04/09 lúc 17:59:43 khoá 'deploy' của w51-anh-the-pipeline bị thu hồi TRONG KHI nó
+# vẫn đang deploy (wlock bám PID của shell lệnh Bash — shell chết là khoá bị coi là mồ
+# côi), w53 chen vào ngay. Con canh im re suốt: nó chỉ soi worker sống/chết và % tiến độ,
+# KHÔNG hề soi khoá. Founder: *"tao bảo mày làm con watchdog làm cảnh à"*.
+# Bốn điều canh dưới đây, cộng NHỊP ĐẬP HỘ để bản vá wlock hoạt động đúng.
+#
+# NGƯỠNG "giữ quá lâu" lấy từ số đo thật trong wlock.log (thời gian CẤP->NHẢ):
+#   deploy: lô p90=652s max thường 2988s · worker p90=633s  -> gấp đôi p90 ~ 22' -> 25'
+#   build : lô p90=303s · worker p90=89s                    -> gấp đôi p90 ~ 10' -> 15'
+KHOA_LAU_DEPLOY_MIN="${WATCHDOG_KHOA_LAU_DEPLOY_MIN:-25}"
+KHOA_LAU_BUILD_MIN="${WATCHDOG_KHOA_LAU_BUILD_MIN:-15}"
+KHOA_LAU_KHAC_MIN="${WATCHDOG_KHOA_LAU_KHAC_MIN:-20}"
+# Chờ khoá quá lâu. wlock tự kêu ở mức 5'/10' vào phiên CLI; con canh vào cuộc ở 10'.
+KHOA_CHO_LAU_MIN="${WATCHDOG_KHOA_CHO_LAU_MIN:-10}"
+# Worker được coi là CÒN SỐNG nếu transcript agent hoặc tệp mốc nhúc nhích trong ngần này.
+KHOA_CON_SONG_MIN="${WATCHDOG_KHOA_CON_SONG_MIN:-10}"
+
+# Worker `$1` còn sống không (0 = còn). Hai nguồn thật: transcript agent + tệp mốc.
+worker_con_song() {
+  local slug="$1" t_now amt pfm f
+  t_now=$(now)
+  amt=$(agent_mtime "$slug")
+  [ -n "$amt" ] && [ $(( t_now - amt )) -lt $(( KHOA_CON_SONG_MIN * 60 )) ] && return 0
+  for f in "$PROGRESS_ROOT"/*/"$slug.progress"; do
+    [ -f "$f" ] || continue
+    pfm=$(mtime_of "$f")
+    [ -n "$pfm" ] && [ $(( t_now - pfm )) -lt $(( KHOA_CON_SONG_MIN * 60 )) ] && return 0
+  done
+  return 1
+}
+
+# Project của worker `$1` (đọc từ chỗ đặt tệp mốc). Rỗng nếu không rõ.
+project_cua() {
+  local f
+  for f in "$PROGRESS_ROOT"/*/"$1.progress"; do
+    [ -f "$f" ] || continue
+    basename "$(dirname "$f")"; return 0
+  done
+  echo ""
+}
+
+# (0) NHỊP ĐẬP HỘ — mảnh nối với bản vá wlock ngày 04/09.
+# Khoá nay giữ theo TÊN CHỦ + hạn dùng (không bám tiến trình nào, vì mỗi lệnh Bash của
+# worker là một tiến trình chết ngay). Worker im lặng vài phút giữa hai lệnh là bình
+# thường, nên con canh chạm hộ vào khoá CHỪNG NÀO CHỦ CỦA NÓ CÒN SỐNG. Chủ chết thật thì
+# KHÔNG chạm -> hết hạn -> wlock thu hồi như cũ. Đây là chỗ khiến "hạn dùng" không phải
+# đoán mò một con số to đùng.
+nhip_dap_ho() {
+  local ld res owner pid
+  for ld in "$WLOCK_ROOT_DIR"/*.lock; do
+    [ -d "$ld" ] || continue
+    pid=$(cat "$ld/pid" 2>/dev/null | tr -d ' \r\n')
+    [ -z "$pid" ] || [ "$pid" = "0" ] || continue     # khoá canh PID -> không cần nhịp đập
+    owner=$(cat "$ld/owner" 2>/dev/null | tr -d ' \r\n')
+    [ -n "$owner" ] || continue
+    worker_con_song "$owner" || continue
+    res=$(basename "$ld" .lock)
+    bash "$WLOCK_SH" renew "$res" --owner="$owner" >/dev/null 2>&1
+  done
+}
+
+# (1) Khoá bị THU HỒI trong khi chủ khoá VẪN CÒN SỐNG — đúng ca 17:59:43.
+# Đọc các dòng THU HỒI MỚI trong wlock.log kể từ lần quét trước (nhớ theo số dòng).
+bat_thu_hoi_oan() {
+  local logf="${WLOCK_LOG_FILE}" moc kf tong dong res owner proj msg
+  [ -f "$logf" ] || return 0
+  kf="$STATE/wlock-thu-hoi-dong"
+  moc=$(cat "$kf" 2>/dev/null); moc=${moc:-0}
+  tong=$(wc -l < "$logf" 2>/dev/null | tr -d ' '); tong=${tong:-0}
+  # Log bị xoay vòng (mv sang .1) -> số dòng tụt; đọc lại từ đầu thay vì bỏ qua.
+  [ "$tong" -lt "$moc" ] && moc=0
+  echo "$tong" > "$kf"
+  [ "$tong" -gt "$moc" ] || return 0
+  # SEED: lần đầu chạy thì chỉ ghi mốc, không bới cả lịch sử ra kêu.
+  [ "$moc" = "0" ] && return 0
+  while IFS= read -r dong; do
+    case "$dong" in *"THU HỒI khoá mồ côi"*) : ;; *) continue ;; esac
+    res=$(printf '%s' "$dong" | sed -n "s/.*THU HỒI khoá mồ côi '\([^']*\)'.*/\1/p")
+    owner=$(printf '%s' "$dong" | sed -n "s/.*của '\([^']*\)'.*/\1/p")
+    [ -n "$owner" ] || continue
+    worker_con_song "$owner" || continue      # chủ đã chết thật -> thu hồi ĐÚNG, im
+    proj=$(project_cua "$owner"); proj=${proj:-khong-ro}
+    msg="⛔ [${proj}] MẤT KHOÁ OAN: khoá '$res' của '$owner' vừa bị THU HỒI trong khi worker này VẪN ĐANG CHẠY. Người khác có thể chen vào cùng lúc — kiểm 'wlock status' và báo '$owner' dừng bước đang làm."
+    log "MẤT KHOÁ OAN: '$owner' còn sống mà khoá '$res' bị thu hồi — $dong"
+    queue_alert "$proj" "$owner" "khoa-thu-hoi-oan" "" \
+      "khoá '$res' bị thu hồi oan trong lúc worker còn chạy" "0" "worker còn sống" 3 \
+      "BÁO NGAY '$owner': nó tưởng còn giữ khoá '$res'. Hai bên cùng deploy = tráo đè bản dựng" \
+      "$res"
+    [ "$SEED_MODE" = "1" ] && continue
+    [ "$ALERTS_SENT" -lt "$MAX_ALERTS" ] && { send_telegram "$msg" && ALERTS_SENT=$(( ALERTS_SENT + 1 )); }
+  done < <(tail -n +$(( moc + 1 )) "$logf")
+}
+
+# (2) HAI BẢN DỰNG THẬT chạy song song — ca gãy nặng nhất (hai bản tráo đè nhau).
+# ĐẾM BẢN DỰNG, KHÔNG ĐẾM TIẾN TRÌNH CÙNG TÊN (sửa 05/09/2026 — W07).
+# WHY bản cũ (đếm gốc cây tiến trình khớp 'deploy-batch.sh') SAI hai tầng:
+#  (a) `scripts/deploy-batch.sh` tự chép mình ra `/tmp/deploy-batch-pin-XXXXXX` rồi
+#      `exec bash "$SNAP"` (deploy-batch.sh:47 và :56) -> dòng lệnh của tiến trình LÔ
+#      THẬT không còn chữ 'deploy-batch.sh'. Thứ đếm được chỉ là cái shell ĐÃ GỌI lô.
+#  (b) Hai lô cùng SỐNG là chuyện thường ngày, không phải tai nạn: lô sau nằm chờ khoá
+#      'deploy' (deploy-batch.sh:730) hoặc còn trong cửa sổ gom vé — chưa dựng gì cả.
+#      ĐO THẬT 05/09/2026: worker-watchdog.log kêu liên tiếp 12:30:29 · 13:04:09 ·
+#      13:06:28 · 13:07:39, trong khi chain.log ghi các lô kết thúc NỐI ĐUÔI nhau
+#      (13:06:33 xong lô 125933 -> mở lô nối tiếp; 13:14:40 xong lô 130552) — không hề
+#      có hai bản dựng chồng nhau. Bốn tin Telegram kêu oan.
+# ĐẾM MỚI — một "bản dựng thật" = một lượt chạy `deploy-remote.sh`, hoặc lệnh ssh gọi
+# thẳng `/root/deploy-zd.sh` · `/root/deploy-promote.sh`. Đó là chỗ DUY NHẤT chạm vào
+# `.next` trên VPS (deploy-batch.sh:416 build, :473 promote); gom vé và chờ khoá không
+# tính. Trong một lô, build/promote demo/promote prod chạy TUẦN TỰ (deploy-batch.sh:870
+# rồi :891) nên một lô lành mạnh chỉ bao giờ có ĐÚNG MỘT lượt.
+# HAI CỬA KÊU:
+#  · cửa 1 — từ 2 lượt dựng trở lên cùng lúc (gõ tay deploy-remote.sh trong lúc lô đang
+#    dựng; hoặc khoá hỏng khiến hai lô cùng dựng).
+#  · cửa 2 — đúng 1 lượt dựng, nhưng khoá 'deploy' đang do một tiến trình CÒN SỐNG giữ
+#    mà lượt dựng đó KHÔNG nằm trong cây tiến trình của chủ khoá -> kẻ chen ngang.
+#    Chủ khoá không canh PID (pid=0, mặc định `auto` của wlock) thì cửa 2 TẮT: thiếu
+#    căn cứ thì thà im, cửa 1 vẫn đỡ.
+DEPLOY_DEM_THU="${DEPLOY_DEM_THU:-0}"   # 1 = chỉ in kết quả đếm, không gửi/không ghi
+
+goc_cay_dung() {   # in PID gốc của từng LƯỢT DỰNG đang chạy (mỗi gốc = 1 lượt)
+  ps -eo pid,ppid,command 2>/dev/null |
+    grep -F -e 'deploy-remote.sh' -e '/root/deploy-zd.sh' -e '/root/deploy-promote.sh' |
+    grep -v grep |
+    awk '{pid[$1]=1; cha[$1]=$2} END{for(p in pid) if(!(cha[p] in pid)) print p}'
+}
+
+la_hau_due_pid() { # <pid con> <pid tổ tiên> -> 0 nếu con nằm trong cây của tổ tiên
+  local p="$1" t="$2" i=0
+  [ -n "$t" ] && [ "$t" != "0" ] || return 1
+  while [ -n "$p" ] && [ "$p" != "0" ] && [ "$p" != "1" ] && [ "$i" -lt 40 ]; do
+    [ "$p" = "$t" ] && return 0
+    p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ')
+    i=$(( i + 1 ))
+  done
+  return 1
+}
+
+# W22 21/09/2026 — TÊN Ổ KHOÁ GẮN DỰ ÁN: khoá deploy không còn là MỘT ổ `deploy.lock`
+# mà là `deploy@<dự án>.lock` cho từng dự án (xem `wlock.sh` §res_key). Hàm này trước đây
+# đọc đúng một đường dẫn cứng nên sau khi tách sẽ luôn thấy "không ai giữ" -> mất hẳn
+# nhánh bắt "dựng chen ngang", và kêu oan mỗi khi HAI DỰ ÁN KHÁC NHAU deploy song song
+# (chuyện từ nay là HỢP LỆ). Nay: gom MỌI ổ deploy (cả tên trần di sản), và chỉ kêu khi
+# số lượt dựng NHIỀU HƠN số khoá deploy đang giữ — tức có lượt dựng không ai bảo kê.
+bat_deploy_song_song() {
+  local chu="" chu_pid=0 n_khoa=0 n_pid_canh=0
+  local n kf cu msg p d ly="" pids_s="" lac_s="" cp
+  local -a pids=() lac=() chu_pids=() chus=()
+  while IFS= read -r p; do [ -n "$p" ] && pids+=("$p"); done < <(goc_cay_dung)
+  n=${#pids[@]}
+
+  for d in "$WLOCK_ROOT_DIR"/deploy.lock "$WLOCK_ROOT_DIR"/deploy@*.lock; do
+    [ -d "$d" ] || continue
+    n_khoa=$(( n_khoa + 1 ))
+    cp=$(cat "$d/pid" 2>/dev/null | tr -d ' \r\n'); cp=${cp:-0}
+    kill -0 "$cp" 2>/dev/null || cp=0
+    chus+=("$(cat "$d/owner" 2>/dev/null | tr -d ' \r\n')@$(basename "$d" .lock)")
+    if [ "$cp" != "0" ]; then chu_pids+=("$cp"); n_pid_canh=$(( n_pid_canh + 1 )); fi
+  done
+  chu=$(printf '%s, ' ${chus[@]+"${chus[@]}"}); chu=${chu%, }
+  [ "${#chu_pids[@]}" -ge 1 ] && chu_pid="${chu_pids[0]}"
+
+  # "lạc" = lượt dựng KHÔNG nằm trong cây của bất kỳ chủ khoá deploy nào (chỉ xét chủ có
+  # canh PID — chủ pid=0 thì không có cây nào để đối chiếu).
+  local q la_con
+  for p in ${pids[@]+"${pids[@]}"}; do
+    la_con=0
+    for q in ${chu_pids[@]+"${chu_pids[@]}"}; do
+      la_hau_due_pid "$p" "$q" && { la_con=1; break; }
+    done
+    [ "$la_con" = "0" ] && lac+=("$p")
+  done
+  pids_s=$(printf '%s ' ${pids[@]+"${pids[@]}"}); pids_s=${pids_s% }
+  lac_s=$(printf '%s ' ${lac[@]+"${lac[@]}"});   lac_s=${lac_s% }
+
+  if [ "$n" -ge 2 ] && [ "$n" -gt "$n_khoa" ]; then
+    ly="$n lượt dựng chạy cùng lúc (PID $pids_s) mà chỉ có $n_khoa khoá 'deploy' đang giữ"
+  elif [ "$n" -ge 1 ] && [ "$n_pid_canh" -ge 1 ] && [ "${#lac[@]}" -ge 1 ]; then
+    ly="một lượt dựng (PID $lac_s) chạy NGOÀI cây tiến trình của mọi chủ khoá deploy (${chu:-không ai giữ}) — chen ngang"
+  fi
+
+  if [ "$DEPLOY_DEM_THU" = "1" ]; then
+    echo "lượt dựng thật: $n (PID: ${pids_s:-không có})"
+    echo "chủ khoá deploy: ${chu:-(không ai giữ)} — $n_khoa ổ, $n_pid_canh ổ có canh PID"
+    echo "ngoài cây chủ khoá: ${lac_s:-không có}"
+    [ -n "$ly" ] && echo "KẾT LUẬN: KÊU — $ly" || echo "KẾT LUẬN: IM — không có hai bản dựng song song"
+    return 0
+  fi
+
+  if [ -z "$ly" ]; then rm -f "$(keyfile "deploysong/dung")" 2>/dev/null; return 0; fi
+  kf=$(keyfile "deploysong/dung"); cu=$(cat "$kf" 2>/dev/null)
+  echo "$n|$lac_s" > "$kf"
+  msg="⛔ HAI BẢN DỰNG CHẠY CÙNG LÚC: $ly. Hai bản dựng sẽ tráo đè nhau — dừng bớt một lượt NGAY (ps -eo pid,ppid,command | grep deploy-remote.sh)."
+  log "DEPLOY SONG SONG: $ly"
+  queue_alert "khong-ro" "deploy" "deploy-song-song" "" \
+    "$ly" "0" "" 3 \
+    "dừng bớt một lượt deploy ngay, hai bản dựng đang tráo đè nhau" "deploy"
+  [ "$SEED_MODE" = "1" ] && return 0
+  [ "$cu" = "$n|$lac_s" ] && return 0
+  [ "$ALERTS_SENT" -lt "$MAX_ALERTS" ] && { send_telegram "$msg" && ALERTS_SENT=$(( ALERTS_SENT + 1 )); }
+  return 0
+}
+
+# (3) Khoá giữ quá lâu bất thường · (4) có con xếp hàng chờ quá lâu.
+bat_khoa_lau_va_cho_lau() {
+  local ld res owner since held nguong proj kf cu msg pct nhan pf
+  local t_now; t_now=$(now)
+  for ld in "$WLOCK_ROOT_DIR"/*.lock; do
+    [ -d "$ld" ] || continue
+    res=$(basename "$ld" .lock)
+    owner=$(cat "$ld/owner" 2>/dev/null | tr -d ' \r\n')
+    since=$(cat "$ld/since" 2>/dev/null | tr -d ' \r\n')
+    held=$(( t_now - ${since:-$t_now} )); [ "$held" -lt 0 ] && held=0
+    case "$res" in
+      deploy) nguong=$(( KHOA_LAU_DEPLOY_MIN * 60 )) ;;
+      build)  nguong=$(( KHOA_LAU_BUILD_MIN  * 60 )) ;;
+      *)      nguong=$(( KHOA_LAU_KHAC_MIN   * 60 )) ;;
+    esac
+    [ "$held" -ge "$nguong" ] || { rm -f "$(keyfile "khoalau/$res")" 2>/dev/null; continue; }
+    proj=$(cat "$ld/project" 2>/dev/null | tr -d ' \r\n'); proj=${proj:-khong-ro}
+    pct=""; nhan=""
+    # Tệp mốc tìm theo project ghi trong khoá TRƯỚC, không thấy thì dò mọi project:
+    # `project` trong khoá là nơi lệnh wlock được gọi, không phải lúc nào cũng khớp chỗ
+    # worker ghi mốc -> thiếu vế này thì tin nhắn chỉ nói "?% không rõ", vô dụng.
+    for pf in "$PROGRESS_ROOT/$proj/$owner.progress" "$PROGRESS_ROOT"/*/"$owner.progress"; do
+      [ -f "$pf" ] || continue
+      pct=$(cut -d'|' -f1 "$pf" 2>/dev/null | tr -d ' \r\n')
+      nhan=$(cut -d'|' -f2- "$pf" 2>/dev/null | tr -d '\r\n')
+      break
+    done
+    kf=$(keyfile "khoalau/$res"); cu=$(cat "$kf" 2>/dev/null)
+    echo "$(( held / nguong ))" > "$kf"      # chỉ báo lại khi vượt thêm một bậc ngưỡng
+    msg="⏱ [${proj}] Khoá '$res' bị '$owner' giữ $(human "$held") (bất thường, ngưỡng $(human "$nguong")) — bước cuối: ${pct:-?}% ${nhan:-không rõ}. Hàng chờ đứng sau nó."
+    log "KHOÁ GIỮ LÂU: '$res' của '$owner' $(human "$held") — ${pct:-?}% ${nhan:-?}"
+    queue_alert "$proj" "$owner" "khoa-giu-lau" "${pct:-}" \
+      "giữ khoá '$res' $(human "$held") — ${nhan:-không rõ bước}" "$held" "" 2 \
+      "hỏi '$owner' còn chạy thật không; treo thì 'wlock release $res --owner=$owner --force'" \
+      "$res"
+    [ "$SEED_MODE" = "1" ] && continue
+    [ "$cu" = "$(( held / nguong ))" ] && continue
+    [ "$ALERTS_SENT" -lt "$MAX_ALERTS" ] && { send_telegram "$msg" && ALERTS_SENT=$(( ALERTS_SENT + 1 )); }
+  done
+
+  local qd ve noi qowner qproj qt cho hl
+  for qd in "$WLOCK_ROOT_DIR"/*.q; do
+    [ -d "$qd" ] || continue
+    res=$(basename "$qd" .q)
+    for ve in "$qd"/*; do
+      [ -f "$ve" ] || continue
+      noi=$(head -1 "$ve" 2>/dev/null)
+      qowner=$(printf '%s' "$noi" | awk 'BEGIN{FS="\037"}{print $1}')
+      qproj=$(printf '%s' "$noi" | awk 'BEGIN{FS="\037"}{print $3}')
+      qt=$(printf '%s' "$noi" | awk 'BEGIN{FS="\037"}{print $5}')
+      [ -n "$qowner" ] && [ -n "$qt" ] || continue
+      cho=$(( t_now - qt )); [ "$cho" -ge $(( KHOA_CHO_LAU_MIN * 60 )) ] || continue
+      hl=$(cat "$WLOCK_ROOT_DIR/$res.lock/owner" 2>/dev/null | tr -d ' \r\n')
+      kf=$(keyfile "cholau/$res/$qowner"); cu=$(cat "$kf" 2>/dev/null)
+      echo "$(( cho / (KHOA_CHO_LAU_MIN * 60) ))" > "$kf"
+      msg="⏳ [${qproj:-khong-ro}] '$qowner' xếp hàng chờ khoá '$res' đã $(human "$cho") — đang giữ: '${hl:-không ai}'. Nó đứng im tới khi khoá được nhả."
+      log "CHỜ KHOÁ LÂU: '$qowner' chờ '$res' $(human "$cho") — đang giữ '${hl:-không ai}'"
+      queue_alert "${qproj:-khong-ro}" "$qowner" "khoa-cho-lau" "" \
+        "chờ khoá '$res' $(human "$cho") — đang giữ '${hl:-không ai}'" "$cho" "" 2 \
+        "giục chủ khoá '${hl:-?}' nhả, hoặc cho '$qowner' chạy --priority=urgent" "$res"
+      [ "$SEED_MODE" = "1" ] && continue
+      [ "$cu" = "$(( cho / (KHOA_CHO_LAU_MIN * 60) ))" ] && continue
+      [ "$ALERTS_SENT" -lt "$MAX_ALERTS" ] && { send_telegram "$msg" && ALERTS_SENT=$(( ALERTS_SENT + 1 )); }
+    done
+  done
+}
+
+canh_khoa() {
+  [ -d "$WLOCK_ROOT_DIR" ] || return 0
+  [ -f "$WLOCK_SH" ] || return 0
+  nhip_dap_ho
+  bat_thu_hoi_oan
+  bat_deploy_song_song
+  bat_khoa_lau_va_cho_lau
 }
 
 # ------------- BẮT CA "CHỜ CÁI ĐÃ XONG" (gốc chung, 27/08/2026) -----------
@@ -536,6 +1001,83 @@ PYW
   )
 }
 
+# ═══════ M2.1 (P088, W36 09/09/2026) — CON CANH TỰ CHẠY LÔ DEPLOY (Q2 founder chốt) ═══════
+# CẢ demo lẫn prod, founder chốt cả hai. R1 (.next-new zero-downtime) + R2 (mã thoát build
+# RIÊNG, không `| tail`) + R5 (đỏ thì DỪNG, không tự chữa) đã có SẴN trong
+# `scripts/deploy-batch.sh`/`deploy-promote.sh` (A36/A37, Debate Log P088 Turn 3) — hàm
+# này chỉ QUYẾT ĐỊNH KHI NÀO gọi, KHÔNG sửa một dòng nào trong `scripts/deploy-*.sh`.
+#
+# ⚠️ CHƯA khớp NGUYÊN VĂN R4 ("cổng parity phải XANH TRƯỚC KHI đụng prod"): luồng THẬT của
+# `deploy-batch.sh run` chạy parity SAU KHI đã promote prod (O2.1, đo bằng lệnh thật —
+# `deploy-batch.sh:866-899`). Viết lại đúng thứ tự đòi dựng một bộ orchestrator MỚI thay
+# `deploy-batch.sh` (rủi ro cao hơn nhiều so với gọi lệnh đã chạy tốt) — CHỜ kỹ sư/founder
+# xác nhận phương án ở Debate Log O2.1 trước khi tháo cờ dưới đây.
+# CỜ AN TOÀN (mặc định TẮT — bật rõ ràng sau khi founder soát code, KHÔNG tự bật ngầm):
+#   export UNIV3_WATCHDOG_AUTO_DEPLOY=1
+P088_AUTO_DEPLOY="${UNIV3_WATCHDOG_AUTO_DEPLOY:-0}"
+P088_DEPLOY_REPO="${UNIV3_P088_DEPLOY_REPO:-/Users/buddhy/PycharmProjects/LOYTeam/EtsyFulfillChichub}"
+
+p088_tu_dong_deploy() {   # $1 = project (khớp thư mục deploy-queue/<project>)
+  [ "$P088_AUTO_DEPLOY" = "1" ] || return 0
+  local proj="$1"
+  [ "$proj" = "EtsyFulfillChichub" ] || return 0     # chỉ project CÓ deploy-batch.sh
+  [ -f "$P088_DEPLOY_REPO/scripts/deploy-batch.sh" ] || return 0
+  local du_dieu_kien
+  du_dieu_kien=$(python3 - "$SCRIPT_DIR" "$proj" <<'PYW' 2>/dev/null
+import sys, time
+sys.path.insert(0, sys.argv[1])
+try:
+    import worker_state as ws
+except Exception:
+    sys.exit(0)
+try:
+    ve = ws.ve_deploy(sys.argv[2])
+except Exception:
+    ve = {"cho": {}}
+cho = ve.get("cho") or {}
+n = sum(len(v) for v in cho.values())
+if n == 0:
+    sys.exit(0)
+moc = min((float(v.get("t0") or v.get("luc") or time.time())
+           for items in cho.values() for v in items), default=time.time())
+qua_cua_so = (time.time() - moc) >= 12 * 60
+if qua_cua_so or n >= 4:
+    print("1")
+PYW
+)
+  [ "$du_dieu_kien" = "1" ] || return 0
+  # Không có lô nào đang chạy thật -> mới xin khoá & chạy (chống 2 lô chồng, AGENTS-ORCH.md:296)
+  local dang_chay
+  dang_chay=$(python3 - "$SCRIPT_DIR" <<'PYW' 2>/dev/null
+import sys
+sys.path.insert(0, sys.argv[1])
+try:
+    import worker_state as ws
+    print("1" if ws.build_dang_chay() else "")
+except Exception:
+    pass
+PYW
+)
+  [ -z "$dang_chay" ] || { log "P088 auto-deploy: có lô đang chạy thật -> bỏ qua vòng này"; return 0; }
+  log "P088 auto-deploy: đủ điều kiện (cửa sổ 12' hoặc >=4 vé) -> chạy scripts/deploy-batch.sh run"
+  local logf="/tmp/claude_hooks/p088-auto-deploy-$(date +%Y%m%d-%H%M%S).log"
+  mkdir -p /tmp/claude_hooks
+  ( cd "$P088_DEPLOY_REPO" && bash scripts/deploy-batch.sh run ) >"$logf" 2>&1
+  local rc=$?                     # R2: mã thoát lấy RIÊNG, không qua `| tail`/pipe
+  if [ "$rc" -eq 0 ]; then
+    log "P088 auto-deploy: XONG (rc=0), log: $logf"
+  else
+    # R5: ĐỎ thì DỪNG + BÁO, KHÔNG tự chữa, KHÔNG retry ở đây (deploy-batch.sh tự lo
+    # rollback nội bộ của chính nó nếu có; watchdog KHÔNG gọi lại lệnh này lần hai).
+    log "P088 auto-deploy: LỖI (rc=$rc) — xem $logf — CẦN CAN THIỆP, không tự chạy lại"
+    queue_alert "$proj" "auto-deploy" "p088-deploy-fail" "" \
+      "watchdog tự chạy deploy-batch.sh run THẤT BẠI (rc=$rc)" "0" \
+      "đọc log $logf rồi chạy tay lại" 3 \
+      "KHÔNG tự thử lại — đọc log tìm nguyên nhân trước" "deploy"
+    [ "$DRY_RUN" = "0" ] && send_telegram "🔴 [$proj] Watchdog tự deploy THẤT BẠI (rc=$rc). Log: $logf — KHÔNG tự thử lại, cần người xem."
+  fi
+}
+
 one_cycle() {
   ALERTS_SENT=0
   tu_nha_khoa
@@ -550,7 +1092,9 @@ one_cycle() {
     if [ -n "$ONLY_PROJECTS" ] && [[ ",$ONLY_PROJECTS," != *",$proj,"* ]]; then continue; fi
 
     scan_agents "$proj"
+    scan_moc "$proj"
     bat_cho_da_xong "$proj"
+    p088_tu_dong_deploy "$proj"
     seen=""
 
     # 1) Các worker CÓ file tiến độ
@@ -584,6 +1128,57 @@ one_cycle() {
       TRACKED=$(( TRACKED + 1 ))
       check_worker "$proj" "$s" ""
     done
+  done
+
+  # Canh khoá đặt CUỐI vòng: nó cần AG_KEYS mới nhất do scan_agents ở trên vừa dựng
+  # (worker_con_song hỏi transcript agent). Đặt lên đầu là hỏi dữ liệu của vòng trước.
+  canh_khoa
+
+  p088_viec_khac_moi_du_an
+}
+
+# M0/M3 (P088, W36 09/09/2026) — S25 (cháu chết không báo cáo, nhánh A29 "chỉ in chữ")
+# đi qua ĐÚNG MỘT cửa hợp nhất `viec_state` (gọi lại `worker_chau.canh_bao()`, KHÔNG quét
+# `spawnDepth` lần hai) thay vì mỗi nơi tự hỏi `worker_chau` riêng — AC2 (con canh cũng
+# phải GỌI `viec_state`, không chỉ ba tệp Python kia).
+p088_viec_khac_moi_du_an() {
+  local pdir proj cwd_du_an
+  for pdir in "$PROGRESS_ROOT"/*; do
+    [ -d "$pdir" ] || continue
+    proj=$(basename "$pdir")
+    if [ -n "$ONLY_PROJECTS" ] && [[ ",$ONLY_PROJECTS," != *",$proj,"* ]]; then continue; fi
+    cwd_du_an=$(python3 - "$SCRIPT_DIR" "$proj" <<'PYW' 2>/dev/null
+import sys, glob, os
+sys.path.insert(0, sys.argv[1])
+try:
+    import worker_board as wb
+except Exception:
+    sys.exit(0)
+# Suy cwd thật từ thư mục transcript đã biết basename khớp `proj` — cách rẻ nhất: quét
+# PROJECTS_ROOT tìm thư mục có transcript agent NHẮC tên proj trong path gốc (best-effort,
+# fail-open: không suy được thì bỏ qua, KHÔNG đoán bừa).
+for d in glob.glob(os.path.join(wb.PROJECTS_ROOT, "*")):
+    if os.path.basename(d).rstrip("-").endswith(sys.argv[2]):
+        print(d)
+        break
+PYW
+)
+    [ -n "$cwd_du_an" ] || continue
+    python3 - "$SCRIPT_DIR" "$proj" "$cwd_du_an" <<'PYW' 2>>"$LOG" || true
+import sys
+sys.path.insert(0, sys.argv[1])
+try:
+    import viec_state as vst
+except Exception:
+    sys.exit(0)
+proj, cwd = sys.argv[2], sys.argv[3]
+try:
+    ds = [v for v in vst.trang_thai_viec(cwd) if v["trang_thai"] == "S25"]
+except Exception:
+    ds = []
+for v in ds:
+    print("[%s] S25 %s — %s" % (proj, v["ma"], v["lenh_day"]))
+PYW
   done
 }
 
@@ -747,6 +1342,26 @@ for r in sorted(last.values(),key=lambda x:-x["level"]):
             ic.get(r["level"],"🔴"), r["slug"], dur(r["silence_s"]),
             r.get("label",""), chu, r.get("hint","")))
         continue
+    # KHOÁ BỊ THU HỒI — chủ cũ KHÔNG hề biết (ca đêm 03->04/09: khoá `deploy` bị thu hồi
+    # vì chủ chết, worker đang cần khoá vẫn tưởng mình giữ). Phải là MỆNH LỆNH, nêu ĐÍCH
+    # DANH con mất khoá, kèm sẵn câu xin lại.
+    if r.get("kind")=="khoa-tu-nha":
+        res=r.get("res") or "?"
+        chu=r["slug"]
+        out.append("🔑 KHOÁ '%s' ĐÃ BỊ THU HỒI khỏi %s (%s) → BÁO ĐÍCH DANH %s NGAY LƯỢT NÀY, "
+                   "nó đang tưởng mình còn giữ:\n"
+                   "     SendMessage -> to: \"%s\" · message: «khoá '%s' của mày đã bị watchdog thu hồi "
+                   "(%s). ĐỪNG ghi tiếp khi chưa xin lại: bash ~/.claude/universal-hooks/wlock.sh wait %s "
+                   "--timeout=900 --owner=<slug của mày> --pid=$$ || exit 75»"
+                   %(res, chu, r.get("label",""), chu, chu, res, r.get("label",""), res))
+        continue
+    # W61 — anh Thành Reply CHỮ THƯỜNG vào tin xin phép (hop_quyen_vang_gate đẩy vào): lời anh phải
+    # tới phiên chính, không được dừng ở tin xin phép (ca 19:24 30/10, «rep đéo thấy phản hồi gì»).
+    if r.get("kind")=="loi-anh":
+        out.append("💬 ANH THÀNH NHẮN vào tin xin phép %s của %s: «%s» — %s → TRẢ LỜI ANH NGAY LƯỢT NÀY "
+                   "bằng kênh nhắn riêng anh của dự án (ChicHub: node scripts/task-dev.mjs tin --rieng …), lời thường; lời anh có thể là lệnh "
+                   "mới cho việc đó."%(r.get("res",""), r.get("agent",""), r.get("label",""), r.get("hint","")))
+        continue
     m=r["silence_s"]//60
     pct=(r.get("pct") or "chưa ghi")
     out.append("%s %s — im %d phút — %s%% \"%s\" — agent: %s — %s"%(
@@ -762,7 +1377,12 @@ PYA
     # 3 lớp chống sinh trùng: (1) cờ tắt còn hiệu lực -> im; (2) khoá chính còn
     # chủ sống -> im; (3) khoá SINH (mkdir, nguyên tử) chặn 2 lệnh ensure chạy
     # song song cùng nohup ra 2 tiến trình trước khi con đầu kịp giữ khoá chính.
-    off_con_hieu_luc && exit 0
+    if off_con_hieu_luc; then
+      co_worker_song_lau || exit 0     # cờ hợp lệ và không ai đang chạy -> im, đúng chốt ngày
+      rm -f "$FLAG_OFF" 2>/dev/null
+      log "LƯỚI AN TOÀN: cờ tắt đã $((CO_TUOI/60)) phút mà VẪN có worker sống -> bỏ cờ, bật lại con canh"
+      send_telegram "🔧 Watchdog TỰ BẬT LẠI: cờ tắt ghi lúc $((CO_TUOI/60)) phút trước nhưng vẫn còn worker đang chạy — không ai canh thì khoá bị thu hồi oan (ca 04/09: mù 8,5 tiếng, 7 lượt mất khoá). Chốt ngày thật thì chờ worker sạch rồi hãy stop."
+    fi
     if [ -d "$LOCK" ] && kill -0 "$(cat "$LOCK/pid" 2>/dev/null)" 2>/dev/null; then exit 0; fi
     SPAWN="$CLAUDE_HOME/worker-watchdog.spawn.lock"
     if ! mkdir "$SPAWN" 2>/dev/null; then
@@ -789,7 +1409,25 @@ PYA
     echo "Đã bật watchdog (PID $(cat "$LOCK/pid" 2>/dev/null)). Log: $LOG"
     ;;
   stop)
-    ngay_vn > "$FLAG_OFF"
+    # NGÀY CÔNG VIỆC đang chốt, KHÔNG phải ngày trên đồng hồ lúc chạy lệnh.
+    # WHY (04/09/2026): lượt chốt-ngày của 03/09 chạy lúc 10:31 SÁNG 04/09 -> cờ đóng dấu
+    # `2026-09-04` -> `off_con_hieu_luc` thấy "cùng ngày, còn hiệu lực" -> `ensure` từ chối
+    # bật suốt phần còn lại của ngày. Log thật:
+    #   [2026-09-04 10:31:02] Watchdog TẮT bằng lệnh stop (chốt ngày 2026-09-04)
+    #   [2026-09-04 19:03:42] ===== Watchdog KHỞI ĐỘNG (PID 9165) =====   <- 8,5 tiếng sau, bật TAY
+    # Mù 8 tiếng rưỡi, và 7/8 lượt khoá bị thu hồi oan hôm nay rơi đúng khoảng đó.
+    # Cùng họ bệnh với `wseq.sh:45`: đo cái ĐẠI DIỆN (đồng hồ) thay cái THẬT (ngày đang chốt).
+    NGAY_CHOT=""
+    for _a in "$@"; do case "$_a" in --ngay=*) NGAY_CHOT="${_a#*=}" ;; esac; done
+    [ -n "$NGAY_CHOT" ] || NGAY_CHOT=$(ngay_vn)
+    if [ "$NGAY_CHOT" = "$(ngay_vn)" ]; then
+      echo "$NGAY_CHOT" > "$FLAG_OFF"
+    else
+      # Chốt MUỘN cho một ngày ĐÃ QUA: cờ vô nghĩa (hết hiệu lực ngay lúc ghi) mà lại bịt
+      # miệng `ensure` cả ngày hôm nay. Chỉ tắt tiến trình, KHÔNG ghi cờ.
+      rm -f "$FLAG_OFF" 2>/dev/null
+      log "stop --ngay=$NGAY_CHOT (chốt muộn cho ngày đã qua, hôm nay $(ngay_vn)) -> KHÔNG ghi cờ tắt"
+    fi
     p=$(cat "$LOCK/pid" 2>/dev/null)
     [ -n "$p" ] && kill "$p" 2>/dev/null
     # WHY: vòng lặp đang nằm trong `sleep INTERVAL` nên trap TERM chỉ chạy khi
@@ -809,9 +1447,13 @@ PYA
     else
       echo "✅ Con canh đã tắt hẳn (PID ${p:-không có})."
     fi
-    echo "Đã TẮT watchdog. Cờ tắt $FLAG_OFF ghi ngày $(ngay_vn) — chỉ có hiệu lực HẾT HÔM NAY."
-    echo "Sang ngày mới con canh tự dựng lại. Muốn bật ngay: $0 start"
-    log "Watchdog TẮT bằng lệnh stop (chốt ngày $(ngay_vn)), cờ tắt hết hiệu lực khi sang ngày mới"
+    if [ -f "$FLAG_OFF" ]; then
+      echo "Đã TẮT watchdog. Cờ tắt $FLAG_OFF ghi ngày $NGAY_CHOT — chỉ có hiệu lực HẾT HÔM NAY."
+      echo "Sang ngày mới con canh tự dựng lại. Muốn bật ngay: $0 start"
+    else
+      echo "Đã TẮT watchdog cho ngày $NGAY_CHOT (đã qua) — KHÔNG ghi cờ tắt, lượt ensure kế tiếp sẽ dựng lại."
+    fi
+    log "Watchdog TẮT bằng lệnh stop (chốt ngày $NGAY_CHOT)"
     ;;
   status)
     if [ -d "$LOCK" ] && kill -0 "$(cat "$LOCK/pid" 2>/dev/null)" 2>/dev/null; then
@@ -934,6 +1576,11 @@ except Exception: print("(không có gì)")' | sed 's/^/   /'
     grep 'CẢNH BÁO' "$LOG" 2>/dev/null | sed 's/^/   /'
     ket "$(grep -q 'CẢNH BÁO.*w180' "$LOG" 2>/dev/null && echo 1 || echo 0)" \
         "kêu w180 nguội 50 phút"
+    grep -A4 'DRY-RUN' "$LOG" 2>/dev/null | sed 's/^/   /'
+    ket "$(grep -q 'DRY-RUN.*Trợ lý hệ thống DuAnThu: thợ W180 im' "$LOG" 2>/dev/null \
+           && ! grep -q 'Worker w180\|agent CŨNG\|\[DuAnThu\]' "$LOG" 2>/dev/null \
+           && grep -q '^- Anh cần làm gì:' "$LOG" 2>/dev/null && echo 1 || echo 0)" \
+        "W61: tin canh gọi «thợ W180», gạch đầu dòng, không slug / chữ agent / ngoặc dự án"
     : > "$LOG"
     echo "41|Vừa ghi" > "$PROGRESS_ROOT/$PROJ/w181.progress"
     check_worker "$PROJ" w181 "$PROGRESS_ROOT/$PROJ/w181.progress" >/dev/null 2>&1
@@ -948,6 +1595,12 @@ except Exception: print("(không có gì)")' | sed 's/^/   /'
     [ "$ROT" -eq 0 ] || exit 1
     exit 0
     ;;
+  dem-deploy)
+    # Soi tại chỗ: đang có MẤY BẢN DỰNG thật + cửa nào kêu. Không gửi Telegram,
+    # không ghi tệp trạng thái -> dùng để tái hiện/nghiệm thu cách đếm.
+    DEPLOY_DEM_THU=1 bat_deploy_song_song
+    ;;
+
   once)
     one_cycle
     echo "Đã quét 1 vòng — theo dõi ${TRACKED:-0} worker. Xem log: $LOG"

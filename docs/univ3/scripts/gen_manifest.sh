@@ -12,6 +12,7 @@ OUT="MANIFEST.txt"
 # — bootstrap xoá/không copy chúng) + loại rác; sort để diff ổn định.
 find . -type f \
   ! -path "./.git/*" \
+  ! -path "./.git" \
   ! -name "$OUT" \
   ! -name ".DS_Store" \
   ! -path "*/__pycache__/*" \

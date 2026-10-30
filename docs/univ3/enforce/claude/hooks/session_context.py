@@ -14,6 +14,7 @@ Design rules:
   - Fail open: any error -> emit nothing, never break the session.
 """
 import json
+import re
 import os
 import shlex
 import sys
@@ -25,8 +26,15 @@ import sys
 # BỊ NUỐT — tức bốn luật đã dày công dựng cổng enforce lại không hề vào context phiên nào.
 # Đo lệnh: `echo '{"cwd":"<dự án>"}' | python3 session_context.py` -> chỉ thấy #1..#6.
 # 16.000 ký tự ~ 4k token/phiên: đắt hơn, nhưng rẻ hơn nhiều so với mất luật.
-MAX_CHARS = 16000
+# 09/10/2026 (Etsy W140) — HẠ 16000 -> 8000 sau khi ĐO nhật ký phiên thật: Claude Code CẤT
+# chữ hook dài ra tệp và chỉ cho model xem 2 KB đầu ("<persisted-output> Output too large
+# (15.7KB) … Preview (first 2KB)"). Đo toàn bộ nhật ký ChicHub: dài nhất KHÔNG bị cất = 9.050
+# ký tự, ngắn nhất bị cất = 15,0 KB. Tức trần 16000 cũ khiến spine 15.7KB chỉ vào được 2 KB —
+# luật §3..§18 không phiên nào nhìn thấy. Dưới 9.000 mới chắc nạp trọn; dài hơn thì dùng bản
+# nạp nén (REL_NAP) và để bản đầy đủ làm nơi tra.
+MAX_CHARS = 8000   # chừa ~1.000 cho dòng cảnh báo cũ/phình đi kèm, tổng vẫn < 9.050
 
+REL_NAP = os.path.join("docs", "SESSION_SPINE-NAP.md")           # bản nén nạp trọn mỗi phiên (nếu dự án có)
 REL_OVERRIDE = os.path.join("docs", "SESSION_SPINE.md")          # project-specific, NGOÀI univ3
 REL_TEMPLATE = os.path.join("docs", "univ3", "SPINE.md")         # generic template (published, univ3)
 
@@ -64,7 +72,8 @@ def candidate_spines() -> list:
         roots.append(proj)
     roots.append(os.getcwd())
 
-    paths = [os.path.join(r, REL_OVERRIDE) for r in roots]
+    paths = [os.path.join(r, REL_NAP) for r in roots]
+    paths += [os.path.join(r, REL_OVERRIDE) for r in roots]
     paths += [os.path.join(r, REL_TEMPLATE) for r in roots]
     paths.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "SPINE.md"))
     return paths
@@ -80,7 +89,18 @@ def load_spine() -> str:
     except Exception:
         return ""
     if len(text) > MAX_CHARS:
-        text = text[:MAX_CHARS] + "\n\n[... spine truncated — rút gọn SPINE.md ...]"
+        # WHY in đường dẫn: bị cắt mà không chỉ chỗ đọc tiếp thì phần sau coi như mất.
+        text = (text[:MAX_CHARS] + "\n\n[... spine bị cắt ở %d ký tự — ĐỌC TIẾP bằng Read: %s · "
+                "muốn nạp trọn thì làm bản nén docs/SESSION_SPINE-NAP.md ≤ %d ký tự ...]"
+                % (MAX_CHARS, path, MAX_CHARS))
+    if path.endswith(REL_NAP):
+        full = path[: -len(REL_NAP)] + REL_OVERRIDE
+        try:
+            if os.path.getmtime(full) > os.path.getmtime(path) + 60:
+                text += ("\n\n⚠️ `%s` sửa SAU bản nạp — luật mới có thể chưa vào bản nén: "
+                         "đọc bản đầy đủ khi việc đụng luật, và cập nhật `%s`." % (REL_OVERRIDE, REL_NAP))
+        except OSError:
+            pass
     return text
 
 
@@ -167,9 +187,55 @@ def stale_warning() -> str:
     )
 
 
+# ── W140 09/10/2026 — CỔNG CHỐNG PHÌNH (chỉ nhắc, không chặn) ─────────────────────────
+# Chữ nạp mỗi phiên vượt trần thì bị CẮT (MEMORY.md > 25 KB: 4 bài cuối không vào — đo
+# 09/10/2026) hoặc bị CẤT ra tệp (chữ hook > ~9.050 ký tự). Phình dần từng dòng nên không
+# ai thấy; nhắc ngay đầu phiên lúc vừa vượt, kèm cách sửa. Đổi trần bằng biến môi trường.
+TRAN_PHINH = (
+    ("CLAUDE.md", int(os.environ.get("UNIV3_TRAN_CLAUDE_MD", "16000")),
+     "dời kiến thức nền sang docs/ (giữ 1 dòng chỉ đường), không xoá luật có cổng trỏ tới"),
+    ("AGENTS.md", int(os.environ.get("UNIV3_TRAN_AGENTS_MD", "24000")),
+     "AGENTS.md sinh từ SPINE univ3 — gọn ở nguồn rồi sync"),
+)
+TRAN_MEMORY_BYTE = int(os.environ.get("UNIV3_TRAN_MEMORY_BYTE", "22000"))
+
+
+def canh_bao_phinh() -> str:
+    try:
+        root = project_root()
+        dong = []
+        for ten, tran, cach in TRAN_PHINH:
+            p = os.path.join(root, ten)
+            if os.path.exists(p):
+                n = len(open(p, encoding="utf-8").read())
+                if n > tran:
+                    dong.append("`%s` %d ký tự > trần %d — %s." % (ten, n, tran, cach))
+        slug = re.sub(r"[^A-Za-z0-9]", "-", os.path.abspath(root))
+        mem = os.path.join(os.path.expanduser("~/.claude/projects"), slug, "memory", "MEMORY.md")
+        if os.path.exists(mem):
+            b = os.path.getsize(mem)
+            if b > TRAN_MEMORY_BYTE:
+                dong.append("mục lục bộ nhớ %d byte > trần %d (Claude Code cắt ở 25 KB, bài cuối "
+                            "không vào) — rút mô tả mỗi dòng, giữ đường dẫn bài; bài mâu thuẫn dời "
+                            "sang tệp «bài đã thay», không xoá." % (b, TRAN_MEMORY_BYTE))
+        if not dong:
+            return ""
+        return "\n\n⚠️ CHỐNG PHÌNH (chữ nạp mỗi phiên sắp/đã bị cắt):\n- " + "\n- ".join(dong)
+    except Exception:
+        return ""
+
+
 def main() -> None:
     try:
-        json.loads(sys.stdin.read() or "{}")  # drain stdin; payload unused
+        data = json.loads(sys.stdin.read() or "{}")
+    except Exception:
+        data = {}
+    # W140: mở phiên / mở lại / /clear / NÉN ngữ cảnh -> quên «đã in đủ» của nhac_gon, để lượt
+    # kế tiếp các lời nhắc tĩnh in ĐỦ lại (chữ in đủ trước đó có thể đã bị nén mất).
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import nhac_gon
+        nhac_gon.xoa_phien(data)
     except Exception:
         pass
 
@@ -181,6 +247,7 @@ def main() -> None:
         "## Universal Rules — xương sống (luôn áp dụng phiên này)\n\n"
         + spine
         + stale_warning()
+        + canh_bao_phinh()
     )
     json.dump(
         {

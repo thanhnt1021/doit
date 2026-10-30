@@ -1,0 +1,9 @@
+{
+  "name": "sep-viec-pdf",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@playwright/test": "1.60.0",
+    "marked": "18.0.9"
+  }
+}

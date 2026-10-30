@@ -64,6 +64,7 @@ Repo SSOT: `git@github.com:thanhnt1021/univ3.git` (PRIVATE, tài khoản `thanhn
 - Xung đột lúc `push` (worker khác vừa push) → script **DỪNG**, không tự resolve. Báo rồi hỏi.
 - **Vùng tạm gắn định danh project — CẤM lấy phần tử đầu tiên khi bung ký tự đại diện.** `/tmp/sync-uni-state/` dùng CHUNG cả máy: `cat /tmp/sync-uni-state/*/clone.txt | head -1` ra clone của project KHÁC (25/8 đã chép đè lên việc dở của `vevoi`). Cần clone của mình → `sync-uni.sh clone`. Clone mang dấu `.git/univ3-owner`; `push`/`pull` lệch dấu → exit 7. Hook `sync_state_owner_enforce.py` chặn tất định mọi lệnh GHI trỏ sang vùng project khác.
 - Sau `pull`: `git add docs/univ3 AGENTS.md` — **CẤM `git add -A`**.
+- **`check` in khối «⚠ HỎI ANH: dự án này chưa có bot/nhóm nhận việc»** (dự án thiếu `docs/bot-nhan-viec.json`, hoặc đã chọn «để sau») → main hỏi anh bằng AskUserQuestion 3 lựa chọn (a) dựng ngay theo skill `bot-nhan-viec` · (b) để sau · (c) không cần, rồi GHI lựa chọn bằng `sync-uni.sh bot-nhan-viec khong-can|de-sau` (dựng xong: `… da-co --bot @ten --nhom "Tên nhóm"`). Chọn (c) hoặc đã có → lần sau im; (b) → lần sync sau hỏi lại. Khối hỏi không chặn check/pull.
 
 ## §File-Ownership — file này CỦA AI, push ĐI ĐÂU?
 
@@ -99,6 +100,123 @@ Decision tree khi commit: file có trong MANIFEST → loại 1 (bắt buộc chi
 Hệ quả bắt buộc với hook: hook **không được `ask`** trong ngày làm việc — chỉ `allow` kèm
 nhắc, hoặc `deny` cho thứ làm mất dữ liệu / mất việc của người khác. Cần người quyết →
 đưa vào lượt duyệt buổi sáng, đừng chặn giữa chừng.
+
+## §Tin-gửi-người-vận-hành — viết bằng NGÔN NGỮ CỦA HỌ, không phải của lập trình viên
+
+**Ca thật 07/09/2026.** Một worker gửi tin vào nhóm *Hệ thống Fulfill TheChic* (Phương, My,
+Hạnh — **không ai là lập trình viên**), phần nghiệp vụ viết rất tốt, nhưng cuối tin ghi:
+*"Chi tiết đầy đủ … nằm ở tệp trong kho mã nguồn: `docs/handoff/DON-NUOT-MON-…md`"*.
+Founder: *"mày nhắc tới tệp kho mã nguồn làm gì? chỉ 1 mình tao là Dev hiểu thôi."*
+Team **không mở được kho mã nguồn** → câu đó vô dụng với người đọc, lại làm tin trông rối.
+
+**LUẬT.** Mọi tin gửi ra ngoài cho **người vận hành** (nhóm Telegram của team, email cho
+sup/xưởng, tin cho khách) **CẤM** chứa:
+đường dẫn tệp mã nguồn (`docs/…`, `src/…`, đuôi `.md` `.ts` `.py` `.sh` `.json`) · mã commit ·
+tên nhánh (`origin/main`) · `file.ts:123` · tên hàm · tên bảng / cột CSDL ·
+các chữ *kho mã nguồn, repo, commit, branch, build, deploy, BUILD_ID, migration, schema*.
+
+**Cần đưa chi tiết thì:** dán thẳng bảng/danh sách vào tin · gửi **tệp đính kèm**
+(`sendDocument`) · hoặc viết *"cần bản đầy đủ thì nhắn lại nhóm, em gửi"*.
+**Cần chỉ chỗ:** đưa **link bấm được** (`fulfill.thechic.site/...`), không đưa đường dẫn tệp.
+**Cần báo đã sửa xong:** nói bằng **hiện tượng người dùng thấy** ("từ giờ đơn thiếu món sẽ
+hiện cảnh báo đỏ"), không nói commit/build/deploy.
+**TUYỆT ĐỐI KHÔNG** bảo người ta tự mở kho mã nguồn.
+
+**KHÔNG áp cho:** nhóm **kỹ thuật** (`--loai=ky-thuat`, `-1003849385640`) và chat riêng của
+founder — tin kỹ thuật ở đó là **đúng chỗ**. Mã đơn `A67-4163738170`, mã hàng/SKU, tên xưởng,
+phần cá nhân hoá **không phải** yếu tố kỹ thuật — team CẦN chúng, cấm cắt.
+
+**KHUÔN TIN NHÓM HỆ THỐNG — P118 (05/10/2026, cổng tất định `tin_nhom_khuon.py`).** Anh Thành:
+*"Tin nhắn … lúc nào cũng quá dài dòng"* + *"lần sau gửi vào như này mà chỉ gửi ảnh thì rất khó nói
+chuyện. cần có rõ ràng câu hỏi 1, 3 option là 1A, 1B, 1C, câu hỏi 2 2 option là 2A, 2B... có cả chữ
+trên ảnh chứ"* (ca gốc: tin Task-05102026-02 xin duyệt = album 5 ảnh, chữ chỉ "Duyệt hoặc Cần sửa").
+- **Một lối gửi duy nhất:** `node scripts/task-dev.mjs tin --ma Task-ddmmyyyy-NN …` — máy chủ ghép
+  tin từ từng ô, tự trả lời nối vào tin gốc của việc. Bắn thẳng Telegram vào nhóm Hệ thống bị chặn.
+- **Khuôn:** dòng đầu `[Task-ddmmyyyy-NN] tiêu đề ≤ 70` · `Đã làm:` (hoặc `Hỏi:`) · `Xem ở:` ·
+  `Cần làm: **tên người** — làm gì` · ≤ 1 dòng phụ · dòng cuối `Xem thêm chi tiết trong này: <link thẻ>`
+  (máy tự gắn). Thân ≤ 6 dòng, ≤ 600 ký tự, 1 link (không tính link thẻ), ≤ 3 ảnh đi cùng chữ.
+- **Tin HỎI / XIN DUYỆT:** câu hỏi **đánh số** `1.`, `2.` (mỗi câu một dòng), mỗi lựa chọn mang mã
+  `1A · 1B · 1C`, `2A · 2B` để người trả lời gõ "1B, 2A". **Mọi ảnh kèm phải có chữ ghi trên ảnh**
+  (số ảnh + mã lựa chọn / số câu, vd "1A · bản trước") — khai `--nhan-anh`, máy chủ in dải chữ lên ảnh.
+  Thiếu câu đánh số, thiếu mã lựa chọn, ảnh thiếu chữ → cổng chặn.
+
+**NGƯỜI GỬI LÀ MÁY — CẤM MẠO DANH NGƯỜI THẬT.** Ca thật 24/09/2026: một worker gửi tin hỏi
+chị Phương, mở đầu *"Chị Phương ơi, em Thành đây"*, xưng "em" suốt bài, kết *"em làm theo đúng
+ý chị"* — Dev là người thật và **không hề viết tin đó** (phải gỡ 4 tin, gửi lại bản đúng giọng).
+Tin do máy soạn thì máy **tự xưng là trợ lý hệ thống**, gọi người nhận bằng tên và vai của họ:
+*"Trợ lý hệ thống ChicHub xin hỏi chị Phương…"*, nói rõ **câu hỏi do máy đặt thay mặt đội kỹ
+thuật** và **câu trả lời sẽ được chuyển cho Dev quyết**. **CẤM** ký tên / nhập vai bất kỳ người
+thật nào trong công ty, **kể cả Dev**. Lý do: người nhận tưởng đang nói chuyện với người thật
+thì mọi cam kết trong tin bị hiểu là **lời hứa của người đó** — họ sắp việc, hẹn xưởng, trả lời
+khách theo lời hứa đó, còn người bị mượn tên thì không biết gì.
+
+**NHẮC TÊN AI THÌ VIẾT ĐẬM TÊN NGƯỜI ĐÓ** (Dev chốt 24/09/2026): `**Phương**`, `**chị Hạnh**`,
+`**My**` — kể cả khi tên nằm giữa câu. Nhóm chạy hàng chục tin mỗi ngày, ai cũng lướt nhanh;
+tên in đậm để người có phần trong tin nhận ra ngay là đang hỏi mình mà trả lời, khỏi tin trôi.
+Áp cho **mọi loại tin**: tin hỏi, tin báo đã sửa xong, tin giải thích.
+
+**TINH TUÝ CÁCH GỬI TIN — chuẩn chung mọi dự án (chưng cất 08/10/2026 từ dự án chạy thật).**
+Các mục trên là ca gốc của một dự án; dưới đây là phần áp cho MỌI dự án có tin gửi người (nhóm
+chat vận hành, đối tác, Dev). Mã nhóm/tên người/đường lệnh cụ thể thuộc cấu hình từng dự án.
+- **Ngắn + ẢNH khoanh đỏ đúng chỗ đang nói.** Thân tin ≤ 6 dòng; chi tiết để trên thẻ việc.
+  Mặc định đính kèm là **ẢNH** (infographic / ảnh chụp có khoanh + chữ ghi trên ảnh); **PDF chỉ khi**
+  tài liệu dài nhiều trang **hoặc Dev nói rõ "PDF"** (ca thật: luật một trang gửi kèm PDF bị chửi
+  "không phải lúc nào cũng pdf"). Tài liệu gửi người là infographic, không phải tường chữ (§Tài-liệu-gửi-người).
+- **Mỗi tin gắn MÃ VIỆC + LINK THẺ VIỆC** (dòng đầu mã, dòng cuối link "xem thêm chi tiết") và
+  trả lời nối vào tin gốc của việc đó — người đọc bấm một lần là thấy toàn cảnh, tin không trôi.
+- **Mọi tin có lựa chọn → câu đánh số + mã lựa chọn, KHÔNG nút bấm — trả lời bằng Reply gõ mã.** Câu `1.`, `2.`;
+  lựa chọn `1A · 1B`, `2A · 2B`; dòng cuối tin bắt buộc «↩ Trả lời (Reply) tin này, gõ mã: 1A hoặc 1B» (gõ
+  "1B, 2A" là đủ, mã + chữ thêm = bổ sung). Dev chốt 08/10/2026 bỏ hẳn nút phiếu chọn inline (nút lag, nhãn
+  dài bị cắt «…», nút "Bổ sung" không rõ gõ ở đâu). Máy đọc Reply ghi vào thẻ, thả ❤ + Reply nối «Đã ghi: 1A».
+  Khuôn đầy đủ + mẫu «một luồng · hai cửa · một trạng thái»: skill **ui-ux** `references/quy-trinh-va-tin.md`.
+- **Tin "chỉ cần biết" cũng phải được XÁC NHẬN.** Dòng cuối xin Reply `1A Đã đọc / 1B Chưa rõ` (hoặc `OK`); "Đã đọc" →
+  thẻ việc **tự chuyển Xong**. Người nhận trả lời tiếp vào thẻ đã Xong → thẻ **tự mở lại** về "cần
+  làm" và báo bên xử lý (không để câu trả lời nằm im trong thẻ đóng).
+- **Người trả lời phải thấy câu trả lời đã được nhận**: thả một dấu đã-nhận (vd ❤) lên tin hỏi + tin
+  trả lời ngay khi ghi vào thẻ, rồi mới thi công.
+- **Tin RIÊNG cho Dev: dòng đầu mang nhãn `🔴 Cần trả lời` hoặc `🟢 Chỉ để biết`**, gom thành **một
+  tin mỗi phiên** (tin + ảnh), không tin thử nghiệm, không tin lặp, không bắn nhiều tin lẻ.
+- **Báo lại lời người khác → chép NGUYÊN VĂN «…» trước, diễn giải sau**, động từ đúng mức:
+  "sẽ hỏi" ≠ "đồng ý" ≠ "đã làm". Ca thật (3 lần/1 ngày): đối tác viết «sẽ báo dev thêm» bị báo
+  lại thành «đã đồng ý bật» → Dev quyết trên một lời hứa không có.
+- **Không hỏi lại điều đã có người quyết.** Người đúng vai đã trả lời mã lựa chọn trên thẻ → làm theo,
+  không hỏi Dev lần nữa. Thật sự cần Dev chọn → hỏi NGAY bằng cơ chế hỏi của harness, mỗi lựa chọn
+  có ví dụ cụ thể (ảnh/số/tên màn) — cấm để danh sách "chờ anh quyết" bằng chữ rồi bỏ đó.
+- **Việc Dev phải làm tay (máy bị cổng chặn xoá) → đưa ĐÚNG MỘT lệnh chạy tệp `.sh` có sẵn** (vd
+  `bash scripts/don-thu-muc-tam.sh`); thiếu thì viết thêm vào tệp đó. **Cấm** dán chuỗi `rm …` rời
+  bắt Dev chép tay.
+- **Xong việc người dùng nhìn thấy → tự gửi tin**, không "soạn sẵn chờ duyệt"; việc chỉ Dev dùng thì
+  không gửi nhóm (ghi sổ đã-gửi để cổng khỏi nhắc).
+
+**Cổng tất định:** `enforce/claude/hooks/tin_van_hanh_gate.py` (PreToolUse · Bash) — chặn cứng
+lệnh gửi Telegram vào nhóm vận hành khi nội dung còn dính các cụm trên, in ra đúng cụm bị bắt
+và câu thay thế. Cửa thoát dùng-một-lần: `cua_thoat.py mo tin-van-hanh "<lý do>"`.
+
+## §Tài-liệu-gửi-người — INFOGRAPHIC, không phải trang toàn chữ
+
+**Ca thật 08/10/2026.** Cùng một ngày: 2 ảnh hướng dẫn Flowdy (sơ đồ bước đánh số + icon + giờ, ít
+chữ) được anh Thành khen; PDF hỏi Merchize (1C) 2 trang toàn bảng chữ song ngữ bị chửi: *"nhìn trông
+kinh … đéo có hình minh hoạ infographic visual gì cả đéo ai mà hiểu … fix root cause"*. Gốc bệnh: thợ
+viết Markdown cho lập trình viên rồi in thẳng ra PDF.
+
+**LUẬT.** Mọi tài liệu gửi **NGƯỜI** — đối tác, xưởng, team vận hành, anh Thành — dạng **PDF, ảnh,
+hay .md đính kèm** đều phải là **infographic**:
+- Có **sơ đồ**: bước đánh số và/hoặc luồng đúng ✅ / sai ❌, **icon** đầu mỗi ý, khối màu phân vai.
+- **Ít chữ**: mỗi ý một dòng ngắn; ≤ 420 chữ/trang. **Đủ thông tin**: không bớt ý nào của bản gốc.
+- Hỏi thì có **khối câu hỏi đánh số** (Q1/Q2, mỗi lựa chọn mang mã 1A · 1B).
+- Xuất **PNG từng trang + PDF**; khung dọc 1080×1600 đọc rõ trên điện thoại.
+- Tệp **.md** gửi người: **nhúng ảnh infographic ở đầu tệp**, ý ngắn có icon, bảng nhỏ «Thứ xin · Vì sao
+  · Ví dụ», câu hỏi đặt riêng một khối; không có đoạn văn trơn > 300 ký tự.
+- Gửi ra ngoài công ty: không tên hệ thống nội bộ, không khoá, không dữ liệu khách thật (dùng số giả).
+
+**Làm thế nào (dự án có sẵn mẫu):** chép `docs/templates/infographic-tai-lieu.html` → sửa nội dung →
+`node docs/templates/xuat-infographic.mjs <tệp.html> <thư-mục-ảnh> <tệp.pdf>` (ra PNG + PDF, báo trang
+tràn, tự chạy cổng). Dự án chưa có mẫu thì dựng theo đúng các khối trên.
+
+**Cổng tất định:** `docs/templates/kiem-infographic.py <tệp…>` — PDF: mỗi trang khối hình (màu đậm / nền
+màu nhạt trên phần có mực) ≥ 0,35 và ≤ 420 chữ; .md: có ảnh nhúng ở 15 dòng đầu, không đoạn văn trơn >
+300 ký tự; ảnh: khối hình ≥ 0,35. Đo 08/10: PDF 1C cũ 0,14–0,16 (rớt), bản infographic 0,47–0,61 (đạt).
+Gắn sẵn vào `scripts/task-dev.mjs tin --tep` — PDF rớt cổng là không gửi.
 
 ## §Goal Protocol (tóm tắt — chi tiết `rules/DOCS.md`)
 

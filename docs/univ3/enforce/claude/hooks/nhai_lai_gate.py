@@ -30,11 +30,22 @@ CƠ CHẾ (3 sự kiện, cùng file):
   UserPromptSubmit  phân loại lượt founder theo NGƯỠNG dưới đây -> ghi cờ
                     /tmp/claude_hooks/<sid>_nhai_lai.json + chèn KHUÔN để main
                     biết phải viết gì.
-  PreToolUse Agent  main thả worker THI CÔNG: cờ đang bật + transcript CHƯA có
-                    khối NHẠI LẠI hợp lệ (kể từ lúc cờ bật) -> deny.
+  PreToolUse Agent  main thả worker THI CÔNG -> deny khi cờ đang bật và (a) lượt
+                    CHƯA CHẠY MỘT LỆNH ĐỌC NÀO, hoặc (b) khối NHẠI LẠI thiếu
+                    phần khuôn, hoặc (c) khối nhại chứa câu rác "không mơ hồ".
                     Worker CHỈ ĐỌC (điều tra/đếm/verify) -> CHO QUA thẳng, xem
                     `chi_doc_thuan()` — sửa 28/08/2026, lý do ghi ngay tại hàm đó.
-  Stop              NHẠI KHI CHƯA TRA GÌ -> block (thêm 29/08/2026, xem dưới).
+  Stop              NHẠI KHI CHƯA TRA GÌ -> block. Từ 03/09/2026 chỉ còn là LƯỚI
+                    SAU CÙNG (chỗ chặn chính đã dời lên PreToolUse, xem dưới).
+
+VÌ SAO DỜI PHÉP KIỂM "CHƯA TRA GÌ" LÊN PreToolUse (03/09/2026):
+  Bản 29/08 gắn phép kiểm đó vào `Stop` — tức chặn SAU khi chữ đã hiện lên màn
+  founder, worker thì main đã thả xong từ đời nào. Đo sáng 03/09: main viết 7 khối
+  NHẠI LẠI cho 7 việc NGAY LƯỢT ĐẦU, chưa chạy một lệnh đọc code nào, cổng
+  `PreToolUse` vẫn cho thả worker (nhánh đó chỉ soi "đủ 4 phần khuôn chưa").
+  Founder nguyên văn: *"tao tin là cái fix này của mày vô dụng. nó sẽ tiếp tục ngu.
+  nên tao cần cái fix mà THỰC DỤNG."*
+  -> phép kiểm `_bang_chung_tra()` nay chạy Ở CẢ HAI nhánh; `Stop` giữ làm lưới.
 
 CỔNG "CHƯA TRA GÌ MÀ ĐÃ NHẠI" (nhánh Stop) — ĐO TRƯỚC KHI DỰNG, báo cáo W02 §1.2:
   · 12 khối NHẠI LẠI hợp lệ main viết ngày 28/08; **9/12 = 75% viết khi CHƯA CHẠY
@@ -123,12 +134,27 @@ TMPDIR = "/tmp/claude_hooks"
 LOG_TMP = "/tmp/claude_hooks/da-ro-khong-can-nhai.log"
 LOG_BEN = os.path.expanduser("~/.claude/logs/da-ro-khong-can-nhai.log")
 
-CUA_THOAT = "da-ro-khong-can-nhai"
+CUA_THOAT = "da-ro-khong-can-nhai"   # CHỈ dùng ở PreToolUse (description lệnh Agent)
+TEN_CONG = "nhai-lai"                # tầng Stop: cửa thoát khai bằng TỆP CỜ (cua_thoat.py)
+try:
+    import cua_thoat as CT
+except Exception:
+    CT = None
 TRAN_PHUT = 90          # cờ quá hạn -> thôi chặn (van an toàn)
 MIN_KHOI = 180          # khối nhại ngắn hơn = chưa có thao tác cụ thể
 MAX_TRANSCRIPT = 400_000  # chỉ đọc đuôi transcript -> hook nhẹ, không quét 16MB
 
 AGENT_TOOLS = {"Agent", "Task"}
+# 07/09/2026 (W01): `SendMessage` là ĐƯỜNG VÒNG — giao việc thi công cho worker ĐANG CHẠY
+# không đi qua `Agent` nên cổng này chưa từng nổ. Bằng chứng: settings.json đăng ký
+# PreToolUse matcher='Agent' duy nhất + `nhanh_tool()` trả 0 khi tool_name ngoài AGENT_TOOLS.
+# KHÔNG chặn bừa mọi SendMessage (điều phối sống bằng nó) — chỉ chặn tin GIAO VIỆC MỚI,
+# nhận diện bằng module dùng chung `giao_viec_moi.py` (một định nghĩa duy nhất).
+MSG_TOOLS = {"SendMessage"}
+try:
+    from giao_viec_moi import la_giao_viec_moi
+except Exception:                      # thiếu module -> fail-open, không chặn oan
+    la_giao_viec_moi = None
 
 KHUON = """\
 KHUÔN NHẠI LẠI (bắt buộc — 4 dòng, dán vào câu trả lời cho founder TRƯỚC khi thả worker):
@@ -138,8 +164,11 @@ KHUÔN NHẠI LẠI (bắt buộc — 4 dòng, dán vào câu trả lời cho fo
   · Tôi hiểu: <ai> đứng ở <màn nào> → <bấm/rê vào ĐÍCH DANH cái gì: tên nút, tên cột,
     mã thẻ, mã đơn> → nhìn thấy <kết quả cụ thể>.
   · CHƯA CHẮC: <chỗ mình không dám khẳng định — nêu 2 cách hiểu, nói mình chọn cách nào>.
-    (Thật sự không có chỗ nào mơ hồ thì ghi "không có chỗ nào mơ hồ".)
   · Sai chỗ nào?
+
+CHỈ NHẠI MỤC THẬT SỰ CÓ 2 CÁCH HIỂU. Mục đã rõ thì CẮT HẲN khỏi khối rồi đi thi công —
+giao 7 việc mà 5 việc rõ thì khối nhại chỉ có 2 mục. CẤM viết dòng rỗng kiểu "không có
+chỗ nào mơ hồ": cổng chặn thẳng (03/09/2026 — xem RE_CAU_RAC).
 
 Thiếu bất kỳ phần nào (nguyên văn trong ngoặc kép · thao tác đích danh · CHƯA CHẮC ·
 "sai chỗ nào?") → cổng `nhai_lai_gate.py` chặn lúc thả worker.
@@ -354,6 +383,21 @@ RE_NHAN_CHUACHAC = re.compile(r"chua ?chac|khong ?chac")
 RE_NHAN_MOI = re.compile(r"sai ?ch[o] ?nao|sai ?[o] ?dau")
 RE_TRICH = re.compile(r"\"[^\"]{15,}\"|“[^”]{15,}”|«[^»]{15,}»")
 
+# CÂU RÁC — mục CHƯA CHẮC viết ra chỉ để lấp chỗ trống (thêm 03/09/2026).
+# BỆNH ĐO ĐƯỢC: khuôn cũ (dòng KHUÔN bản trước + SESSION_SPINE.md:52) DẠY chính câu
+# này — "không có chỗ mơ hồ thì ghi 'không có chỗ nào mơ hồ'". Sáng 03/09 main giao 7
+# việc thì 5/7 mục viết đúng câu đó, founder phải đọc 5 lần vô nghĩa. Nguyên văn:
+# *"đéo có gì mơ hồ thì nhắc lại ăn cặc à??"*
+# SỬA: mục không mơ hồ thì CẮT HẲN khỏi khối, không viết dòng rỗng. So khớp trên chuỗi
+# ĐÃ bo_dau() -> bắt cả bản không dấu / viết hoa.
+# Bắt "khong ... mo ho" trong CÙNG MỘT MỆNH ĐỀ (<=20 ký tự, không vượt dấu câu) ->
+# phủ mọi biến thể đo được: "không có chỗ nào mơ hồ" · "không có chỗ mơ hồ" · "không có
+# gì mơ hồ" · "không mơ hồ". Chặn khoảng cách để câu THẬT ("không rõ founder muốn A hay
+# B, chỗ mơ hồ là …") không bị vơ oan.
+RE_CAU_RAC = re.compile(
+    r"khong[^.,;\n]{0,20}?mo\s*ho"
+    r"|khong[^.,;\n]{0,20}?chua\s*chac\b")
+
 
 def khuon_hop_le(text: str) -> tuple:
     """Trả (True/False, danh sách phần còn thiếu)."""
@@ -378,6 +422,17 @@ def iso_sang_epoch(s: str) -> float:
     except Exception:
         return 0.0
 
+
+
+# Nhận diện LỜI CHẶN của Stop-hook quay lại transcript. Đặt canonical ở `nghi_truoc_gate`
+# (xem WHY đầy đủ ở đó). Import lỗi -> trả False = giữ nguyên hành vi cũ, thà chặn oan còn
+# hơn giấu vi phạm thật.
+try:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from nghi_truoc_gate import la_phan_hoi_hook as _la_phan_hoi_hook
+except Exception:
+    def _la_phan_hoi_hook(o):
+        return False
 
 def gom_text_main(transcript: str, tu_epoch: float) -> str:
     """Gom mọi text do MAIN viết kể từ mốc tu_epoch. Chỉ đọc đuôi file -> nhẹ."""
@@ -440,10 +495,219 @@ def nhanh_prompt(data: dict) -> int:
 
 # ── nhánh PreToolUse ────────────────────────────────────────────────────────
 
+# ============================================================================
+# P104 (15/09/2026) — C6 "TRA-TRƯỚC-HỎI-SAU" (matcher AskUserQuestion, +1 dòng đăng ký
+# settings.json — O1.4, không có gate nào trước đó ở matcher này) + C7a "PHIẾU-PHẢI-
+# ĐỐI-ĐÍCH — khuôn brief + vế MODEL D29" (matcher Agent, A17 chọn tệp này vì KHÔNG
+# thuộc vùng P103 §7). Nguồn: docs/ticket/P104-siet-loi-noi-cua-main-15092026.md.
+# Mỗi nhánh chỉ CHẶN sau khi qua cổng chứng minh G2 — chưa qua thì chỉ đếm-ghi-log.
+# Cờ tắt khẩn chung: UNIV3_P104_TAT=1.
+# ============================================================================
+P104_TRANG_THAI = os.path.join(os.path.dirname(os.path.abspath(__file__)), "p104_trang_thai.json")
+P104_LOG = os.path.join(TMPDIR, "p104_nhanh.log")
+
+
+def _p104_bat(ten_nhanh: str) -> bool:
+    if os.environ.get("UNIV3_P104_TAT") == "1":
+        return False
+    try:
+        with open(P104_TRANG_THAI, encoding="utf-8") as f:
+            st = json.load(f)
+        return bool(st.get(ten_nhanh, {}).get("bat", False))
+    except Exception:
+        return False
+
+
+def _p104_ghi_log(ten_nhanh, noi_dung, che_do):
+    try:
+        with open(P104_LOG, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"luc": time.strftime("%Y-%m-%d %H:%M:%S"), "nhanh": ten_nhanh,
+                                 "che_do": che_do, "noi_dung": str(noi_dung)[:300]},
+                                ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
+
+def _p104_moc_luot(transcript: str) -> float:
+    """Epoch của PROMPT THẬT gần nhất — mốc bắt đầu lượt hiện tại (khác `co.get('ts')`,
+    vốn chỉ tồn tại khi cờ nhại-lại cũ đã mở; C6/C7a chạy ĐỘC LẬP với cờ đó)."""
+    try:
+        sz = os.path.getsize(transcript)
+        with open(transcript, "r", encoding="utf-8", errors="replace") as f:
+            if sz > MAX_TRANSCRIPT:
+                f.seek(sz - MAX_TRANSCRIPT)
+                f.readline()
+            dong = f.readlines()
+    except Exception:
+        return 0.0
+    moc = 0.0
+    for l in dong:
+        try:
+            d = json.loads(l)
+        except Exception:
+            continue
+        if d.get("isMeta"):
+            continue
+        msg = d.get("message") or {}
+        if msg.get("role") != "user":
+            continue
+        c = msg.get("content", "")
+        if isinstance(c, list) and any(isinstance(b, dict) and b.get("type") == "tool_result" for b in c):
+            continue
+        moc = iso_sang_epoch(str(d.get("timestamp", "")))
+    return moc
+
+
+# ── C6 ──────────────────────────────────────────────────────────────────────
+RE_P104_C6_MIEN = re.compile(
+    r"mật khẩu|password|credential|api.?key|token\b|quyết định|\bscope\b|phạm vi"
+    r"|duyệt phiếu|\bgo\b|business|nghiệp vụ|chốt (?:giá|tên|logic)", re.IGNORECASE)
+# W107 (P104-C6, 15/09/2026) — MỞ RỘNG có đo: 49 ca oan trên bộ mẫu đóng băng
+# c9e9b9df89aeedbc, sau khi vá lỗ Bash-tầm-thường (RE_BASH_NOI_THEM ở trên, hạ 49->36)
+# soi thủ công hết 36 câu còn lại — KHÔNG câu nào hỏi một FACT tra được (kiểu ca9-C6:
+# "web hiện có tính năng X không anh?"); TẤT CẢ đều là 1 trong 2 loại không lệnh nào
+# tra ra được: (a) QUYẾT ĐỊNH/ƯU TIÊN/ĐỊNH NGHĨA nghiệp vụ ("xử sao", "đi đường nào",
+# "giữ hay bỏ", "ai xử/cầm", "khi nào nên nổ") — chỉ founder biết, không phải thiếu điều
+# tra; (b) XIN PHÉP một hành động không đảo ngược/ chờ bên ngoài (đẩy code lên web, đụng
+# dữ liệu đơn thật, chờ xưởng cấp mã) — luật buộc PHẢI hỏi, không phải lỗi thiếu tra.
+# Khuôn dưới đây bắt bằng CHỮ đo được từ chính 36 câu đó — không suy diễn nghĩa; ca9-C6
+# (câu hỏi FACT dạng "có ... không anh?") vẫn KHÔNG khớp khuôn này (đã kiểm 4 câu FACT
+# đối chứng, xem lệnh chạy khi thi công) -> ca dương vẫn bị chặn nguyên vẹn.
+RE_P104_C6_MIEN_QD = re.compile(
+    r"xử\s+(sao|thế nào|ra sao)"
+    r"|làm\s+(gì|sao|thế nào|cách nào)"
+    r"|(đi\s+)?(đường|hướng)\s+nào|theo\s+hướng\s+nào"
+    r"|giữ\s+hay\s+(bỏ|hoàn)"
+    r"|\b(khi|lúc)\s+nào\b"
+    r"|\bai\s+(xử|cầm|xác nhận|được|làm)\b"
+    r"|cho\s+(lên|chạy|sửa|phép)\b.{0,20}không|chịu\b.{0,20}không"
+    r"|được\s+không\s*\??\s*$|cho\s+máy\s+tự|để\s+tôi\s+bấm"
+    r"|hiện\s+hết\s+hay|tới\s+đâu\b|vào\s+đâu\s*\??\s*$"
+    r"|\bnào\s+nữa\b|cách\s+nào\b|muốn\s+(gì|thế nào)|báo\s+ai\b"
+    r"|gọi\s+là\b|thế\s+nào\s*\??\s*$", re.IGNORECASE)
+
+
+def _p104_c6_cau_hoi(ti: dict) -> str:
+    qs = ti.get("questions") or []
+    return " | ".join(str(q.get("question", "")) for q in qs if isinstance(q, dict))
+
+
+def soi_c6(data: dict):
+    """C6 — AskUserQuestion khi lượt 0 lệnh điều tra và câu hỏi không khớp khuôn miễn.
+    Trả về câu hỏi vi phạm, hoặc None nếu sạch (tái dùng NGUYÊN `_bang_chung_tra` +
+    `CONG_CU_TRA` sẵn có của cổng nhại-lại — một nguồn định nghĩa "đã tra")."""
+    ti = data.get("tool_input") or {}
+    cau_hoi = _p104_c6_cau_hoi(ti)
+    if not cau_hoi:
+        return None
+    if RE_P104_C6_MIEN.search(cau_hoi) or RE_P104_C6_MIEN_QD.search(cau_hoi):
+        return None
+    transcript = str(data.get("transcript_path") or "")
+    if not transcript or not os.path.exists(transcript):
+        return None
+    moc = _p104_moc_luot(transcript)
+    da_tra = _bang_chung_tra(transcript, moc)
+    if da_tra and da_tra != "khong-doc-duoc":
+        return None
+    return cau_hoi
+
+
+# ── C7a ─────────────────────────────────────────────────────────────────────
+RE_P104_VAI_PHIEU = re.compile(r"vi[ếe]t phi[ếe]u|challenge phi[ếe]u|ph[ảa]n bi[ệe]n phi[ếe]u", re.IGNORECASE)
+RE_P104_DICH = re.compile(r"^ĐÍCH:", re.IGNORECASE | re.MULTILINE)
+RE_P104_THU_PHAM = re.compile(r"^THỦ PHẠM", re.IGNORECASE | re.MULTILINE)
+RE_P104_THI_CONG = re.compile(r"thi c[ôo]ng", re.IGNORECASE)
+
+
+def soi_c7a(data: dict):
+    """C7a — Agent thả vai viết-phiếu thiếu khuôn ĐÍCH/THỦ PHẠM, hoặc lệch model (D29).
+    Trả về (loai, ly_do) hoặc None. `loai` in {"khuon","model"}."""
+    ti = data.get("tool_input") or {}
+    if str(ti.get("subagent_type") or "") not in ("ki-su", "tho-xay"):
+        return None
+    prompt = str(ti.get("prompt") or "")
+    desc = str(ti.get("description") or "")
+    model = str(ti.get("model") or "")
+    ca = prompt + " " + desc
+    la_vai_phieu = bool(RE_P104_VAI_PHIEU.search(ca))
+    la_thi_cong = (not la_vai_phieu) and bool(RE_P104_THI_CONG.search(ca))
+    if la_vai_phieu:
+        thieu = []
+        if not RE_P104_DICH.search(prompt):
+            thieu.append("ĐÍCH:")
+        if not RE_P104_THU_PHAM.search(prompt):
+            thieu.append("THỦ PHẠM (kể cả main):")
+        if thieu:
+            return ("khuon", "brief thiếu trường: " + ", ".join(thieu))
+    # W102 (09/10/2026): bỏ luật cũ «việc phiếu phải Fable» (SL14-L08). Anh Thành chốt
+    # mặc định MỌI việc chỉ Opus Medium, Fable chỉ khi brief có `ANH-CHO-FABLE:`.
+    # Luật một bản ở `model_opus.py` — cổng sống là subagent_background_enforce CỔNG 5.
+    if la_vai_phieu or la_thi_cong:
+        try:
+            from model_opus import soi_model
+        except Exception:
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            from model_opus import soi_model
+        ly_do = soi_model(ti)
+        if ly_do:
+            return ("model", ly_do)
+    return None
+
+
 def nhanh_tool(data: dict) -> int:
     if data.get("agent_id"):          # bất biến 1: worker gọi -> cho qua
         return 0
-    if str(data.get("tool_name", "")) not in AGENT_TOOLS:
+    ten_tool = str(data.get("tool_name", ""))
+
+    # ── P104 C6 — ĐỘC LẬP với cờ nhại-lại cũ (AskUserQuestion không đi qua nó) ──
+    if ten_tool == "AskUserQuestion":
+        vi_pham = soi_c6(data)
+        _p104_ghi_log("C6", vi_pham, "bat" if _p104_bat("C6") else "dem-log") if vi_pham else None
+        if vi_pham and _p104_bat("C6"):
+            print(json.dumps({"hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": (
+                    "⛔ P104-C6 — TRA TRƯỚC, HỎI SAU. Lượt này 0 lệnh điều tra mà đã hỏi:\n"
+                    '  "%s"\n'
+                    "SỬA: tra 5 nhóm nguồn trước (Read/Grep/Bash/local·DB·SSH·log·sổ lệnh), "
+                    "hoặc nếu câu này THẬT SỰ chỉ founder trả lời được thì ghi 1 dòng vì sao "
+                    "rồi hỏi lại.\n"
+                    "Không phải lời trên -> mở cờ `UNIV3_P104_TAT=1` chỉ khi khẩn cấp."
+                ) % vi_pham[:300],
+            }}, ensure_ascii=False))
+        return 0
+
+    # ── P104 C7a — brief viết-phiếu thiếu ĐÍCH/THỦ PHẠM, hoặc lệch model (D29) ──
+    if ten_tool == "Agent":
+        vi_pham_c7a = soi_c7a(data)
+        if vi_pham_c7a:
+            loai, ly_do_c7a = vi_pham_c7a
+            _p104_ghi_log("C7a", ly_do_c7a, "bat" if _p104_bat("C7a") else "dem-log")
+            if _p104_bat("C7a"):
+                print(json.dumps({"hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "deny",
+                    "permissionDecisionReason": (
+                        "⛔ P104-C7a — PHIẾU-PHẢI-ĐỐI-ĐÍCH.\n%s\n"
+                        "SỬA: %s\n"
+                        "Không phải lời trên -> mở cờ `UNIV3_P104_TAT=1` chỉ khi khẩn cấp."
+                    ) % (ly_do_c7a,
+                         "thêm 2 trường `ĐÍCH:`/`THỦ PHẠM (kể cả main):` vào brief"
+                         if loai == "khuon" else "thả lại đúng model theo lệnh founder"),
+                }}, ensure_ascii=False))
+                return 0
+
+    ly_do_msg = ""
+    if ten_tool in MSG_TOOLS:
+        ti_msg = data.get("tool_input") or {}
+        if la_giao_viec_moi is None:
+            return 0
+        la_giao, ly_do_msg = la_giao_viec_moi(str(ti_msg.get("message", "")),
+                                              str(ti_msg.get("summary", "")))
+        if not la_giao:
+            return 0                  # điều phối thường -> KHÔNG chặn (cấm nghẽn điều phối)
+    elif ten_tool not in AGENT_TOOLS:
         return 0
     sid = str(data.get("session_id") or "nosid")
     try:
@@ -456,6 +720,11 @@ def nhanh_tool(data: dict) -> int:
         return 0                      # cờ quá hạn -> cho qua
 
     ti = data.get("tool_input") or {}
+    if ten_tool in MSG_TOOLS:
+        # SendMessage mang việc trong `message`; `summary` đóng vai description.
+        ti = {"description": str(ti.get("summary", "")),
+              "prompt": str(ti.get("message", "")),
+              "subagent_type": ""}
     noi_dung = " ".join(str(ti.get(k, "")) for k in ("description", "prompt", "subagent_type"))
 
     # Worker CHỈ ĐỌC -> cho chạy thẳng (nhại lại là bước 3, không phải bước 1).
@@ -479,7 +748,92 @@ def nhanh_tool(data: dict) -> int:
     transcript = str(data.get("transcript_path") or "")
     if not transcript or not os.path.exists(transcript):
         return 0                      # bất biến 3: không đọc được -> cho qua
-    ok, thieu = khuon_hop_le(gom_text_main(transcript, ts))
+
+    # ── (1) CHƯA TRA GÌ MÀ ĐÃ THẢ WORKER THI CÔNG -> deny (dời lên 03/09/2026) ──
+    # WHY: phép kiểm này vốn chỉ gắn ở nhánh `Stop` (29/08) = chặn SAU khi chữ đã hiện
+    # lên màn founder và worker đã thả xong -> vô dụng. Sáng 03/09 main viết 7 khối
+    # NHẠI LẠI cho 7 việc ngay lượt đầu, CHƯA CHẠY MỘT LỆNH ĐỌC NÀO, cổng vẫn cho thả.
+    # Founder: *"tao tin là cái fix này của mày vô dụng. nó sẽ tiếp tục ngu. nên tao cần
+    # cái fix mà THỰC DỤNG."* Dùng CHUNG `_bang_chung_tra()` với nhánh Stop -> một định
+    # nghĩa "đã tra" duy nhất, không đẻ luật thứ hai. Worker CHỈ ĐỌC đã được thả trước
+    # đó ở trên (chi_doc_thuan) nên KHÔNG khoá chết: muốn tra vẫn tra được.
+    if not _bang_chung_tra(transcript, ts):
+        ghi_log(f"{time.strftime('%F %T')} sid={sid} ly_do_co={co.get('ly_do')} "
+                f"chan_pretool_chua_tra_gi | {str(ti.get('description',''))[:80]}")
+        # P090 (14/09/2026) — CHẶN XONG PHẢI GHI VIỆC LẠI, KHÔNG THÌ VIỆC BỐC HƠI.
+        # Trước bản này nhánh deny vứt luôn `ti` (brief gốc) và chỉ ghi 80 ký tự
+        # `description` vào log; sáng 14/09 tám lượt bị chặn -> hàng chờ 0 vé -> founder:
+        # *"thả ra rồi giết, sau đấy quên con mẹ mày task luôn"*. Một nguồn duy nhất là
+        # `worker_queue.ve_khi_chan()` — cấm ghi vé bằng đường thứ hai ở đây.
+        # ĐIỀU KIỆN CHẶN BÊN TRÊN KHÔNG ĐỔI MỘT KÝ TỰ: khối này chỉ GHI SỔ và DỰNG CHỮ.
+        khoi_ve = ""
+        try:
+            import worker_queue as _WQ
+            _, khoi_ve = _WQ.ve_khi_chan(
+                str(data.get("cwd") or os.getcwd()), ti,
+                "cổng NHẠI LẠI chặn — lượt chưa có bằng chứng tra", "nhai_lai_gate")
+        except BaseException:
+            khoi_ve = ""                  # fail-open: không vé thì thôi, vẫn deny y cũ
+        print(json.dumps({"hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": (
+                ("⛔ CHƯA TRA GÌ MÀ ĐÃ ĐỊNH GIAO VIỆC THI CÔNG QUA `SendMessage` — "
+                 f"lượt này không có một lệnh đọc nào.\n(nhận diện: {ly_do_msg})\n\n"
+                 if ten_tool in MSG_TOOLS else
+                 "⛔ CHƯA TRA GÌ MÀ ĐÃ ĐỊNH THẢ WORKER THI CÔNG — lượt này không có "
+                 "một lệnh đọc nào.\n\n") +
+                f"Lượt founder thuộc diện PHẢI dùng khuôn: {co.get('ly_do', '?')} "
+                "(SESSION_SPINE §6). NHẠI LẠI LÀ BƯỚC 3, KHÔNG PHẢI BƯỚC 1.\n"
+                "LÀM: (1) thả worker TRINH SÁT khai «VÙNG: CHỈ ĐỌC» trong brief — cổng "
+                "cho qua thẳng — hoặc tự chạy Read/Grep/Bash kiểm code thật → "
+                "(2) có dữ kiện rồi mới viết khối NHẠI LẠI, lúc đó chỉ còn hỏi thứ CHỈ "
+                "FOUNDER biết → (3) founder gật → (4) mới thả worker thi công.\n"
+                "Tính là ĐÃ TRA: Read/Grep/Glob/Bash/BashOutput/WebFetch/WebSearch/"
+                "NotebookRead (trừ lệnh Bash tầm thường echo|cd|pwd|sleep|true|clear|"
+                "mkdir|touch|export) hoặc worker đã TRẢ kết quả về.\n"
+                f"Thật sự không tra được gì → `{CUA_THOAT}: <lý do ≥15 ký tự>`."
+                # P090: ĐIỀU KIỆN THẬT phải nói ra bằng chữ. Bản cũ chỉ liệt kê tên công
+                # cụ được tính, KHÔNG nói phạm vi đo -> main tưởng "cả phiên đã đọc là
+                # đủ" và tái phạm 3 lượt liền sáng 14/09. Phép đo là
+                # `_bang_chung_tra(transcript, ts)`: quét transcript TỪ MỐC CỜ `ts` của
+                # lượt này, nên lệnh đọc của lượt TRƯỚC không tính.
+                + ("\n\n➜ LÀM NGAY: chạy MỘT lệnh Read/Grep/Bash đọc thật TRONG CÙNG "
+                   "LƯỢT NÀY, NGAY TRƯỚC lời gọi Agent — rồi gọi lại Agent y nguyên "
+                   "brief cũ.\n"
+                   "   (Phạm vi đo là LƯỢT HIỆN TẠI tính từ mốc cờ, KHÔNG phải cả phiên: "
+                   "lệnh đọc của lượt trước không được tính.)")
+                + khoi_ve
+            ),
+        }}, ensure_ascii=False))
+        return 0
+
+    text_main = gom_text_main(transcript, ts)
+
+    # ── (2) khối nhại chứa CÂU RÁC "không có chỗ nào mơ hồ" -> deny (03/09/2026) ──
+    # WHY: chính khuôn cũ dạy viết câu này; 5/7 mục sáng 03/09 viết đúng nó, founder
+    # phải đọc 5 lần vô nghĩa: *"đéo có gì mơ hồ thì nhắc lại ăn cặc à??"*
+    m_rac = RE_CAU_RAC.search(bo_dau(text_main))
+    if m_rac:
+        ghi_log(f"{time.strftime('%F %T')} sid={sid} chan_pretool_cau_rac: "
+                f"{m_rac.group(0)[:60]}")
+        print(json.dumps({"hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": (
+                "⛔ KHỐI NHẠI LẠI CÓ CÂU RÁC — bỏ dòng «"
+                + m_rac.group(0).strip() + "» đi.\n\n"
+                "MỤC NÀO KHÔNG MƠ HỒ THÌ CẮT HẲN KHỎI KHỐI, không viết ra. Founder đọc "
+                "dòng đó không lấy được thông tin nào (03/09/2026: *\"đéo có gì mơ hồ "
+                "thì nhắc lại ăn cặc à??\"* — 5/7 mục sáng đó viết đúng câu này).\n"
+                "Chỉ nhại NHỮNG MỤC THẬT SỰ CÓ 2 CÁCH HIỂU; việc đã rõ thì đi thi công "
+                "luôn. Giao 7 việc mà 5 việc rõ → khối nhại chỉ có 2 mục."
+            ),
+        }}, ensure_ascii=False))
+        return 0
+
+    # ── (3) thiếu phần khuôn -> deny (nguyên bản 27/08/2026) ──
+    ok, thieu = khuon_hop_le(text_main)
     if ok:
         return 0
 
@@ -504,7 +858,11 @@ def nhanh_tool(data: dict) -> int:
     return 0
 
 
-# ── nhánh Stop: CHƯA TRA GÌ MÀ ĐÃ NHẠI ──────────────────────────────────────
+# ── nhánh Stop: CHƯA TRA GÌ MÀ ĐÃ NHẠI (LƯỚI SAU CÙNG) ──────────────────────
+# 03/09/2026: chỗ chặn CHÍNH đã dời lên `nhanh_tool` (PreToolUse Agent) — nhánh này
+# chỉ còn bắt ca main viết khối nhại rồi DỪNG mà không thả worker nào (PreToolUse
+# không bao giờ bắn). Hàm `_bang_chung_tra()` dưới đây nay CHUNG cho cả hai nhánh:
+# sửa định nghĩa "đã tra" ở đây là sửa cho cả hai, cố ý không tách đôi.
 # Bằng chứng tra cứu = lời gọi công cụ ĐỌC HỆ THỐNG trong CÙNG lượt. Cố ý KHÔNG tính
 # `Write/Edit/TodoWrite/SendMessage` (tham số do main tự gõ, không mang tin mới về thế
 # giới) và KHÔNG tính `Agent` đã thả mà CHƯA có kết quả trả về (thả xong chưa đọc thì
@@ -512,8 +870,17 @@ def nhanh_tool(data: dict) -> int:
 CONG_CU_TRA = {"Read", "Grep", "Glob", "Bash", "BashOutput", "WebFetch", "WebSearch",
                "NotebookRead"}
 # Lệnh Bash TẦM THƯỜNG — không mang lại dữ kiện nào (ghi tiến độ, tạo thư mục, đổi chỗ).
+# W107 (P104-C6, 15/09/2026): BUG đã đo — `.match()` chỉ neo ĐẦU chuỗi nên một lệnh
+# NHIỀU DÒNG/NHIỀU CÂU LỆNH bắt đầu bằng "cd " hoặc "echo " (kiểu đổi thư mục rồi làm
+# việc thật ở dòng sau) bị chấm TRÀN LAN thành "tầm thường" dù phần SAU mới là điều tra
+# thật — đo được 13/49 ca oan của C6 (bộ mẫu đóng băng c9e9b9df89aeedbc) đều rơi vào
+# đúng khuôn này (lệnh Bash thật có `cd <thư mục>` rồi xuống dòng chạy lệnh đọc dữ liệu).
+# THUỐC: chỉ coi là tầm thường khi CẢ CÂU LỆNH (sau khi cắt trắng hai đầu) chỉ có ĐÚNG một
+# câu — không xuống dòng, không nối thêm `&&`/`;`/`|` — nghĩa là verb tầm thường đó là
+# TOÀN BỘ việc làm, không phải bước mở đầu của một chuỗi lệnh dài hơn.
 RE_BASH_TAM_THUONG = re.compile(
     r"^\s*(echo|cd|pwd|sleep|true|clear|mkdir|touch|export|:)\b", re.I)
+RE_BASH_NOI_THEM = re.compile(r"[\n;]|&&|\|")
 MAX_CHAN_STOP = 1        # chặn tối đa 1 lần/lượt rồi thả — không treo founder
 
 
@@ -551,7 +918,7 @@ def _bang_chung_tra(transcript: str, tu_epoch: float) -> str:
                     continue
                 if ten == "Bash":
                     lenh = str((x.get("input") or {}).get("command") or "")
-                    if RE_BASH_TAM_THUONG.match(lenh):
+                    if RE_BASH_TAM_THUONG.match(lenh) and not RE_BASH_NOI_THEM.search(lenh.strip()):
                         continue
                 return ten
         # worker ĐÃ TRẢ kết quả -> tính là đã tra (dữ kiện thật đã về tay)
@@ -561,6 +928,50 @@ def _bang_chung_tra(transcript: str, tu_epoch: float) -> str:
                         and x.get("tool_use_id") in da_tha:
                     return "Agent (worker đã trả kết quả)"
     return ""
+
+
+# ── API TRA CỨU CHO CỔNG KHÁC (W18 10/09/2026) ──────────────────────────────
+# WHY: hai cổng ĐÁ NHAU, khoá cứng lượt trả lời (P089 §Debate Log O1.6). Cổng hàng chờ
+# (`worker_queue.khoi_tha_ngay` -> `ve_de_sau_gate` hook `Stop`) ÉP *"thả NGAY trong lượt
+# này rồi mới được trả lời founder"*, còn cổng này CẤM thả cho tới khi founder gật khối
+# NHẠI LẠI. Không thả thì cổng kia chặn kết lượt, thả thì cổng này deny -> sáng 10/09/2026
+# nổ ba lần trong một phiên, lần nào cũng phải mở cửa thoát mới đi tiếp được.
+# CHỐT (manager, 10/09/2026): `nhai_lai_gate` THẮNG — thả nhầm một việc hiểu sai ý founder
+# đắt hơn nhiều so với thả chậm vài phút. Hàm dưới đây là cửa để cổng hàng chờ HỎI trước
+# khi ép; nó CHỈ ĐỌC (cờ + transcript), KHÔNG đổi một ly điều kiện chặn của cổng này.
+def dang_no(sid: str, transcript: str = "") -> str:
+    """Lượt `sid` có đang NỢ khối NHẠI LẠI không — "" nghĩa là KHÔNG nợ (cho ép thả).
+
+    Trả về chuỗi lý do (máy đọc được) khi còn nợ. Fail-open theo hướng "" ở mọi lỗi:
+    không cờ / cờ quá hạn / sid rỗng -> không nợ, cổng hàng chờ ép như cũ.
+
+    Cố ý KHÔNG tự tính lại "đã tra hay chưa" và "khuôn đủ hay chưa" bằng luật thứ hai:
+    dùng đúng `_bang_chung_tra()` + `khuon_hop_le()` mà nhánh `PreToolUse` đang dùng, nên
+    câu trả lời của hàm này luôn khớp với cái cổng thật sự sẽ làm.
+    """
+    if not sid:
+        return ""
+    try:
+        with open(duong_dan_co(sid), "r", encoding="utf-8") as f:
+            co = json.load(f)
+    except Exception:
+        return ""                      # bất biến 2: không cờ -> không nợ
+    ts = float(co.get("ts", 0))
+    if time.time() - ts > TRAN_PHUT * 60:
+        return ""                      # cờ quá hạn -> van an toàn, không nợ
+    ly_do = str(co.get("ly_do") or "?")
+    if not transcript or not os.path.exists(transcript):
+        # Không soi được khối nhại -> coi như CÒN NỢ. Hướng fail này là hướng AN TOÀN của
+        # quyết định O1.6: cùng lắm cổng hàng chờ nhắc mềm thay vì ép, không mất việc nào
+        # (vé vẫn nằm nguyên trong sổ), và cờ tự hết hạn sau TRAN_PHUT phút.
+        return "đang trong diện phải nhại lại (%s)" % ly_do
+    text = gom_text_main(transcript, ts)
+    ok, thieu = khuon_hop_le(text)
+    if ok:
+        return ""                      # đã nhại đủ khuôn -> hết nợ, cổng hàng chờ ép được
+    if not _bang_chung_tra(transcript, ts):
+        return "chưa tra gì (%s) — nhại lại là bước 3" % ly_do
+    return "khối NHẠI LẠI còn thiếu: %s" % ", ".join(thieu)
 
 
 def nhanh_stop(data: dict) -> int:
@@ -575,15 +986,21 @@ def nhanh_stop(data: dict) -> int:
             dong = f.readlines()[-1500:]
     except Exception:
         return 0
-    # mốc lượt = prompt THẬT gần nhất của founder
+    # Mốc lượt = prompt THẬT gần nhất của founder, HOẶC lời chặn gần nhất của Stop-hook —
+    # lấy cái MUỘN hơn. WHY: chữ nằm trước lời chặn đã bị cổng chấm rồi; tính lại từ prompt
+    # founder là chấm lại đúng câu cũ, founder đọc lặp (ca 04/09, ba lần một tin).
     moc = 0.0
     for l in dong:
         try:
             d = json.loads(l)
         except Exception:
             continue
-        if d.get("type") == "user" and not d.get("isMeta") and not d.get("isSidechain") \
+        if d.get("isSidechain"):
+            continue
+        if d.get("type") == "user" and not d.get("isMeta") \
                 and isinstance((d.get("message") or {}).get("content"), str):
+            moc = iso_sang_epoch(str(d.get("timestamp", ""))) or moc
+        elif _la_phan_hoi_hook(d):
             moc = iso_sang_epoch(str(d.get("timestamp", ""))) or moc
     if not moc:
         return 0                       # không đọc được mốc -> cho qua
@@ -593,9 +1010,6 @@ def nhanh_stop(data: dict) -> int:
     ok, _ = khuon_hop_le(text)
     if not ok:
         return 0                       # không có khối nhại hợp lệ -> không phải việc cổng này
-    if CUA_THOAT in bo_dau(text) and re.search(
-            re.escape(CUA_THOAT) + r"\s*:\s*(.{15,})", text, re.I | re.S):
-        return 0                       # cửa thoát có lý do -> cho qua
     if _bang_chung_tra(transcript, moc):
         return 0                       # đã tra -> nhại lúc này là ĐÚNG THỨ TỰ
 
@@ -616,6 +1030,10 @@ def nhanh_stop(data: dict) -> int:
         except Exception:
             pass
         return 0                       # fail-open: chặn 1 lần rồi thôi
+    # CỬA THOÁT — TỆP CỜ do main mở bằng lệnh; câu gửi founder sạch, không ký hiệu.
+    if CT is not None and CT.lay(TEN_CONG):
+        ghi_log("%s sid=%s cua_thoat_tep_co" % (time.strftime("%F %T"), sid))
+        return 0
     ghi_log("%s sid=%s chan_stop_chua_tra_gi lan=%d" % (time.strftime("%F %T"), sid, n))
     print(json.dumps({"decision": "block", "suppressOutput": True, "reason": _viet_lai(
         "⛔ CHƯA TRA GÌ MÀ ĐÃ NHẠI LẠI — lượt này không có một lệnh đọc nào.\n"
@@ -624,13 +1042,21 @@ def nhanh_stop(data: dict) -> int:
         "LÀM: thả worker TRINH SÁT chỉ đọc (brief khai «VÙNG: CHỈ ĐỌC», cổng cho qua "
         "thẳng) hoặc tự chạy Read/Grep/Bash kiểm — có dữ kiện rồi hãy viết khối NHẠI LẠI, "
         "lúc đó chỉ còn hỏi thứ CHỈ FOUNDER biết.\n"
-        "Thật sự không tra được gì -> `%s: <lý do ≥15 ký tự>`." % CUA_THOAT,
+        "Thật sự không tra được gì -> mở cửa thoát bằng LỆNH (đừng viết ký hiệu vào câu "
+        "gửi founder):\n" + (CT.loi_khuyen(TEN_CONG) if CT else ""),
         sid=sid, transcript=transcript)},
         ensure_ascii=False))
     return 0
 
 
 def main() -> int:
+    # 18/09/2026 — FOUNDER GỠ HẲN CỔNG NHẠI LẠI ("khi nào thắc mắc thì AskUserQuestion").
+    # Tệp GIỮ LẠI vì `dod.py` · `w98_p104_corpus_ca_thu.py` còn import `_bang_chung_tra`,
+    # `soi_c6`, `soi_c7a` từ đây. Chỉ đường chạy-như-hook bị tắt: không bao giờ deny nữa.
+    return 0
+
+
+def _main_cu() -> int:
     try:
         data = json.load(sys.stdin)
     except Exception:

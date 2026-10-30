@@ -151,6 +151,21 @@ if event == "Stop":
             pass
         sys.exit(0)
 
+    # P005 (C-HX 18/10/2026): founder đang VẮNG → KHÔNG ép gọi AskUserQuestion (cổng afk_hoi_inbox_gate sẽ chặn,
+    # hộp hỏi không ai bấm). Câu hỏi đi inbox dự án; gỡ cờ ask-back để không chặn kết lượt lặp lại.
+    try:
+        import afk_trang_thai as _TT
+        _vang = _TT.loi_khi_vang(str(data.get("cwd") or os.getcwd()), transcript_path)
+    except Exception:
+        _vang = ""
+    if _vang:
+        try:
+            os.remove(flag_file)
+        except Exception:
+            pass
+        print(_vang, file=sys.stderr)
+        sys.exit(2)
+
     # Violation: ask-back triggered but AskUserQuestion not used
     # LƯU Ý: exit 2 → harness chỉ feed STDERR về cho Claude; in stdout là mất lý do.
     print(

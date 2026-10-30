@@ -112,6 +112,21 @@ Nhận task → gọi `Agent(run_in_background:true)` với brief tự-chứa �
 1. **Trần 5 worker đồng thời / dự án** (founder chốt 25/8: *"tối đa 4-5 — ưu tiên xong nhanh"*). Vượt → **xếp hàng chờ**, xong một mới thả một. Hook `worker_cap_enforce.py` (PreToolUse `Agent`) đếm worker đang chạy bằng mtime transcript `~/.claude/projects/<dự-án>/*/subagents/agent-*.jsonl` (≤15 phút = đang chạy) và **deny** khi quá trần. Đổi trần: `UNIV3_WORKER_MAX`.
    **Chỉ đếm worker ĐANG LÀM VIỆC**: con **đã trả báo cáo cuối** bị loại khỏi số đếm dù transcript vẫn mới (thông báo nền đánh thức nó trả lời rồi ngủ tiếp). Trước khi sửa, 25/8 xác treo chiếm chỗ làm worker mới bị chặn oan. Hook liệt kê xác treo kèm lệnh **`TaskStop`** — xem §LUẬT SỐ 1.
 2. **Việc mới TRÙNG MẢNG với worker đang chạy → `SendMessage` vào chính worker đó, CẤM spawn mới** — nó đã có ngữ cảnh và không tranh tệp với chính mình. Hook trả `ask` khi phát hiện trùng từ khoá. **Chỉ gộp khi ĐỦ CẢ 3 điều kiện** ở §Trần worker §Cây quyết định — thiếu 1 là mở worker mới / vào hàng chờ.
+   **ĐỊA CHỈ gửi là MÃ ĐỊNH DANH `a…`** (trường `agentId` trả về lúc thả worker, hoặc bảng worker) — **KHÔNG phải chuỗi trong `<task-notification from="…">`: đó là TÊN LOẠI THỢ, gửi vào là trượt hẳn** (`No agent named 'tho-fulfill' is reachable`, tin rơi mất). Hook `worker_dia_chi_gate.py` (PreToolUse `SendMessage`) chặn tất định, danh sách tên loại thợ đọc từ `agents/*.md` + `agentType` trong `*.meta.json`, không viết cứng.
+   **⛔ `SendMessage` KHÔNG PHẢI CỬA SAU ĐỂ NÉ CỔNG.** Giao việc thi công MỚI qua `SendMessage`
+   cho worker đang chạy phải qua **đúng những cổng** mà `Agent` phải qua — trước hết là cổng
+   NHẠI LẠI (`nhai_lai_gate.py`) và cổng "founder hỏi ≠ founder ra lệnh" (`founder_lenh_gate.py`).
+   *Bằng chứng 07/09/2026:* main bị `nhai_lai_gate` chặn đúng khi gọi `Agent` (chưa tra gì),
+   quay sang giao 2 việc mới cho worker đang chạy bằng `SendMessage` — **cổng không nổ**, việc
+   lọt thẳng. Nguyên nhân đo được: `settings.json` đăng ký hai cổng đó với matcher `'Agent'`
+   duy nhất, và trong mã `AGENT_TOOLS = {"Agent","Task"}` trả 0 ngay với mọi tool khác.
+   Founder: *"tao tưởng có hook rồi??? tại sao vẫn mắc lỗi"*.
+   **Cách vá đã áp dụng:** cả hai cổng thêm matcher `SendMessage` + gọi chung
+   `giao_viec_moi.py` — chỉ chặn tin **GIAO VIỆC MỚI** (tiêu đề "THÊM VIỆC / NẠP THÊM /
+   VIỆC n —", hoặc động từ thi công kèm brief ≥ 400 ký tự); tin **điều phối / hỏi trạng thái /
+   trả lời / khai `VÙNG: CHỈ ĐỌC`** vẫn qua thẳng. ⛔ Cấm chặn bừa mọi `SendMessage` — nghẽn
+   điều phối là phản tác dụng.
+
 3. **Một tệp/vùng = một worker tại một thời điểm** (nhất là CSS/JS/template dùng chung). Cần sửa vùng người khác đang giữ → chờ hoặc nhờ chính worker đó.
    **⛔ LUẬT NÀY ĐỨNG TRÊN MỌI NGƯỠNG TẢI.** Điều kiện "chỉ gộp khi worker kia chưa quá 70%" nói về TẢI; điều 3 nói về AN TOÀN cây mã. Trùng vùng mà con kia đã 86% thì **vẫn phải gộp hoặc xếp hàng**, TUYỆT ĐỐI không mở worker mới cho vùng đó.
    *Bài học thật 2026-08-26 (EtsyFulfillChichub, 5 worker chung một cây mã):* điều phối bám ngưỡng 70% nên mở worker mới cho vùng `src/lib/fulfill/` mà worker khác đang giữ ở 86%. Con mới `git add` vơ vét → cuốn phần đang viết dở của con kia vào commit `deeddc1`: `supplier-actions.ts:44` `import { probeSupplierOrderWithRetry }` trong khi `push-verify.ts` chưa export hàm đó → **nhánh main không biên dịch được, lô deploy gãy** (demo/prod thoát vì build ở thư mục trung lập nên không swap), phải vá vội bằng `cafcb38`.
@@ -119,13 +134,13 @@ Nhận task → gọi `Agent(run_in_background:true)` với brief tự-chứa �
    - `enforce/claude/hooks/worker_cap_enforce.py` — đọc VÙNG TỆP THẬT mỗi worker đang ghi (rút `file_path` của Edit/Write và `git add <tệp>` trong transcript của nó) và **deny** khi việc mới đụng vùng đó. Cửa thoát `worker-cap-ok` **chỉ mở cổng vượt trần, KHÔNG mở cổng trùng vùng** — vượt trần chỉ nặng máy, trùng vùng thì gãy build.
    - `enforce/claude/hooks/git_add_scope_enforce.py` — **deny** `git add -A` · `git add .` · `git add -u` · `git commit -a/-am`; bắt add đích danh từng tệp, kèm danh sách tệp đang thay đổi để tự soi.
    - Cổng `tsc --noEmit` **trước khi push** trong script deploy theo lô: chạy trong git worktree tách rời tại đúng commit sắp đẩy (không phải cây làm việc bẩn), gãy thì lô dừng khi **chưa** push đi đâu. Đo thật: bắt đúng lỗi của `deeddc1` trong 40 giây ở local, thay vì gãy sau 2,5 phút build trên VPS.
-   **Hàng chờ có lưu bền** (founder 26/8: *"chặn thì vẫn phải cho vào list chờ để xong còn thả ra"*): mọi việc bị chặn (vượt trần HOẶC trùng vùng) được `enforce/claude/hooks/worker_queue.py` ghi thành vé JSON ở `~/.claude/worker-queue/<dự án>/` **lưu nguyên văn brief**, hiện trên bảng worker, và hook nhắc thả ở đúng ba thời điểm điều phối buộc phải đọc: `SubagentStop` (một con vừa xong), `PreToolUse Agent` (định thả con mới), `UserPromptSubmit`. Hook KHÔNG tự gọi `Agent` được — nó là tiến trình con — nên vòng khép kín là *ghi vé + ép nhìn thấy*, chứ không phải tự thả.
+   **Hàng chờ có lưu bền** (founder 26/8: *"chặn thì vẫn phải cho vào list chờ để xong còn thả ra"*): mọi việc bị chặn (vượt trần HOẶC trùng vùng) được `enforce/claude/hooks/worker_queue.py` ghi thành vé JSON ở `~/.claude/worker-queue/<dự án>/` **lưu nguyên văn brief**, hiện trên bảng worker, và hook nhắc thả ở đúng ba thời điểm điều phối buộc phải đọc: `SubagentStop` (một con vừa xong), `PreToolUse Agent` (định thả con mới), `UserPromptSubmit`. Hook KHÔNG tự gọi `Agent` **trực tiếp** — nó là tiến trình con. **Đính chính 09/09/2026 (P088, O1.1):** hook **gọi được GIÁN TIẾP** — `tu_tha_ve.py` (commit `45e600ff`) dùng tuỳ chọn hook `asyncRewake` (async, chạy nền, exit code 2 → `enqueueTaskNotificationReminder`) để **đánh thức phiên main NGOÀI LƯỢT**, rồi chính main tự gọi `Agent`. Đã đo end-to-end 3 lượt: vé nằm trong hàng chờ tự chạy, không ai gõ gì. Vòng khép kín cho ô "vé thả được ngay" (S02) là **TỰ ĐỘNG HẲN**; *ghi vé + ép nhìn thấy* vẫn đúng cho các loại việc khác (S08/S11/S20/S21/S25 — xem `viec_state.py`, M0 phiếu P088).
 
    **Worker bị dừng GIỮA CHỪNG TỰ quay lại hàng chờ — điều phối KHÔNG được phép "tự nhớ"** (founder 27/8, sau 2 lần quên trong một buổi sáng: *"tại sao nó lại treo????? bố mày đã bảo khi nào có chỗ trống thì phải đưa nó vào chờ mà???"*). Lỗ hổng cũ: hàng chờ chỉ nhận việc ở **cổng vào** (lúc `Agent` bị deny vì trùng vùng/vượt trần); worker **đã chạy rồi mới bị `TaskStop`/kill/chết vì lỗi** thì rơi mất sạch — không vé, không ai nhắc. Ca HGT (W20) nằm chết 2 tiếng, trên bảng chỉ còn dòng ma `58% · ❓ không tìm thấy agent`. Nay `enforce/claude/hooks/worker_relapse.py` quét mỗi lượt `UserPromptSubmit`/`SubagentStop`: agent nào harness đã báo kết thúc mà **chưa trả báo cáo cuối** và **chưa đạt 100%** → **tự dựng lại vé** kèm brief NGUYÊN VĂN, mốc %, nhãn việc đang dở, dấu vết commit/stash để lượt sau chạy tiếp chứ không làm lại từ đầu. Đã trả báo cáo cuối / đã 100% / đã có worker khác đang làm lại cùng slug → **KHÔNG sinh vé** (chống vé rác). Nhắc thả **to dần**: vé chờ ≥ 15 phút mà vùng đã trống thì đầu khối đổi thành `⛔ ĐANG BỎ RƠI VIỆC — THẢ NGAY LƯỢT NÀY`, và mỗi vé mang nhãn `✅ THẢ ĐƯỢC NGAY` / `⏸ còn kẹt`.
    **Brief nguyên văn lấy ở đâu**: `.meta.json` của subagent CHỈ có `agentType/description/toolUseId` — KHÔNG có `prompt`. Phải lần về khối `tool_use` Agent trong transcript phiên cha; và **worker có thể do một worker KHÁC thả ra** (`parentAgentId`, `spawnDepth: 2`) nên phải quét cả transcript của worker mẹ, không chỉ tệp phiên.
    **Nguồn phán sống/chết** = `worker_relapse.ids_ket_thuc()`: đọc **đủ cả** transcript phiên cha (tăng dần, có nhớ đệm) và đọc thêm **bảng danh sách subagent** do harness tự chèn (`<id> · <type> · killed|completed · started …`). Bản cũ chỉ đọc **4 MB cuối** và chỉ bắt `<task-notification>`; đo 27/8: hai ca `TaskStop` thật KHÔNG sinh khối đó, còn thông báo của HGT thì đã trôi khỏi 4 MB cuối sau 2 tiếng → cả hai bị coi là *còn sống mãi mãi*. Hệ quả dây chuyền: xác chiếm chỗ trong trần worker, và bảng vẽ dòng ma. **Trạng thái kết thúc là MỘT CHIỀU** — thấy `running` ở bản ghi sau KHÔNG được gỡ kết luận cũ (khối danh sách bị lặp nguyên văn do prompt cache; gỡ theo `running` làm 6 worker đã xong bị coi là còn chạy).
    **Bảng worker**: dòng của worker đã chết phải nằm ở khối RIÊNG `◆ ĐÃ DỪNG giữa chừng — việc chưa xong, PHẢI THẢ LẠI`, kèm cột `✅ có vé chờ` / `⚠ CHƯA CÓ VÉ`; **CẤM vẽ chung khối "đang chạy"** (thanh %, "sống 2h05" làm founder tưởng việc đang cày). Dòng tiến độ không tìm ra agent nào mà nguội > 30 phút → tự đóng vào `done/` (trước là 120 phút — đủ cho một dòng ma sống 2 tiếng).
-4. **Worker tự dọn tài nguyên nền của mình** khi xong (`http.server`, iOS Simulator, tiến trình nền). Lưới an toàn: `stale-server-reaper.sh`.
+4. **Worker tự dọn tài nguyên nền của mình** khi xong (`http.server`, iOS Simulator, tiến trình nền). Lưới an toàn: `stale-server-reaper.sh` + `don-may.sh` (macOS) — `install.py` tự cắm LaunchAgent `univ3.stale-server-reaper` + `univ3.don-may` 1800 giây/lần; Linux in dòng crontab. Thứ riêng máy của `don-may.sh` khai ở `~/.claude/don-may/cau-hinh.sh` (mẫu `don-may.cau-hinh.example`).
 5. **Cấm mỗi worker tự dựng vòng `until/while ... ps ... sleep`** canh cùng một tài nguyên → dùng khoá dùng chung `templates/deploy_lock.py` (`with deploy_lock("prod", wait=900):`). Khoá theo **TÀI NGUYÊN**, không theo tên script — nên script tên gì cũng bị chặn; khoá tự hết hạn và tự nhả khi chủ chết. Hook trả `ask` cho lệnh vòng canh tự chế.
 
 ## §Cây-mã-chung — khi nào worktree riêng, khi nào sửa thẳng cây chung
@@ -194,6 +209,34 @@ Nhận task → gọi `Agent(run_in_background:true)` với brief tự-chứa �
 - **Cảnh báo ghi TÊN TÀI NGUYÊN, không ghi mô tả chủ khoá.** `wlock.sh` từng nhồi nguyên chuỗi *"PID 1234 còn sống"* vào bản ghi rồi đóng băng; hàng giờ sau bảng vẫn giục đi kill một cái xác. Người in tự gọi `worker_state.chu_khoa(res)`.
 - **Chống tái phát bằng lệnh chạy được**, không bằng lời hứa: `bash ~/.claude/universal-hooks/worker-watchdog.sh tu-kiem` · `python3 ~/.claude/universal-hooks/worker_state.py --tu-kiem` · `python3 ~/.claude/universal-hooks/worker_board.py --tu-kiem`. Sửa hệ canh mà không chạy đủ ba lệnh này = chưa xong việc.
 
+### §Sổ-cái-VIỆC (M0-M2, phiếu P088, 09/09/2026) — khác tầng với `worker_state.py`
+
+`worker_state.py` (mục trên) trả trạng thái **WORKER** (khoá, lô deploy, tiến trình). `viec_state.py`
+(`~/.claude/universal-hooks/viec_state.py`) trả trạng thái **VIỆC** — kể cả việc CHƯA thành worker (vé
+hàng chờ) và việc đã xong mà chưa dọn (xác treo `S12`, cháu chết không báo cáo `S25`). Root cause chữa:
+trạng thái một việc rải trên 6+ cuốn sổ, không nơi nào trả lời "việc này đang ở đâu, ai phải đẩy, đẩy bằng
+lệnh gì" trong MỘT câu.
+
+- **Một hàm, chín nguồn, GỌI LẠI không TÍNH LẠI**: `trang_thai_viec(cwd)` hỏi lại đúng module chủ của từng
+  nguồn (`worker_queue`, `worker_state`, `worker_cap_enforce.running_workers`, `worker_chau.canh_bao`,
+  `deploy_ban_giao_gate.quet`) — cấm parse lại tệp vé, cấm `git log` tính lại, cấm quét `spawnDepth` lần
+  hai. Mỗi bản ghi có đúng 5 trường: `ma · trang_thai (S00-S28) · ai_day · lenh_day · im_bao_lau`.
+- **Ngân sách hot-path**: `ve_de_sau_gate.py` (chặn `Stop` mỗi lượt) gọi `trang_thai_viec(nang=False,
+  sieu_nhe=True)` — bỏ hai nguồn đo được là NẶNG (`worker_chau.quet()` ~1,7 giây quét sâu transcript cháu;
+  `deploy_ban_giao_gate.quet()` ~0,1 giây chạy `git log`) và cả hai nguồn vừa (`cho_cai_da_xong`/
+  `ve_deploy`, ~45ms cộng lại) — giữ đúng nguồn nặng nhất-đáng-giá-nhất (`running_workers`, cho `S12`,
+  ~75ms). `--json`/`--ban-do`/`tu_tha_ve.py` polling nền dùng `nang=True` (đầy đủ, không chặn lượt).
+- **`TaskStop` tự động (S12) đi qua CỔNG CHỨNG MINH M5**, không phải mặc định bật — xem mục "Vì sao TRƯỚC
+  ĐÂY không có hook tự kill" bên trên. Cài ở `tu_tha_ve.py`; tắt khẩn `UNIV3_TU_THA_TASKSTOP_TAT=1`.
+- **Con canh tự chạy lô deploy (demo + prod)**: `worker-watchdog.sh::p088_tu_dong_deploy()`, mặc định
+  **TẮT** (`UNIV3_WATCHDOG_AUTO_DEPLOY=1` để bật — cờ an toàn, founder tự bật sau khi soát code). Chỉ GỌI
+  `scripts/deploy-batch.sh run` theo đúng cách một người gõ tay đã làm — **không sửa** script deploy. Gap
+  đã biết (chưa giải quyết trong lượt 09/09): `deploy-batch.sh` chạy cổng parity prod≡demo SAU KHI đã
+  promote prod, không phải TRƯỚC như lý tưởng — xem Debate Log phiếu P088 mục O2.1 trước khi bật cờ.
+- **Nhả khoá theo VIỆC** (không đợi 45 phút cứng): `worker-watchdog.sh::tu_nha_khoa()` thêm nhánh — khoá
+  `deploy`/`build` còn chủ sống nhưng `chain.log` đã ghi lô (sau mốc acquire) XONG và `ps` không còn tiến
+  trình build/deploy thật → nhả ngay (đệm 120 giây). Ngưỡng 45 phút GIỮ NGUYÊN làm lưới cuối.
+
 ## §QA-tập-trung — tách THI CÔNG khỏi KIỂM THỬ (bắt buộc khi nhiều worker cùng đụng UI)
 
 > Bài học thật (2026-08-24): 4 worker UI chạy song song, brief con nào cũng ghi "verify bằng iOS Simulator, test 1 device rộng + 1 device vừa" → **5 device booted cùng lúc, 708 tiến trình CoreSimulator, load average 566, còn ~63MB RAM trống**, máy founder gần đơ. Lỗi KHÔNG nằm ở việc dùng simulator mà ở chỗ **mỗi worker tự boot một con**.
@@ -220,7 +263,18 @@ KHÔNG đổi: verify UI mobile vẫn **BẮT BUỘC** bằng Safari trong iOS S
   - **Tệp dùng chung tầng trên = vùng `dung-chung`, ai đụng cũng chặn nhau**: tệp nằm thẳng trong hộp
     chứa (`src/lib/db.ts`, `src/lib/datetime.ts`, `src/types/*`, `src/app/globals.css`, layout gốc,
     `packages/<gói>`). Đây mới là chỗ đáng chặn.
-  - **Vùng của việc MỚI không suy bừa từ chữ trong brief.** Thứ tự: (a) brief tự khai dòng
+  - **Vùng của việc MỚI KHÔNG suy từ chữ trong brief — brief phải KHAI theo khuôn.**
+    Từ 07/09/2026 (founder chốt qua AskUserQuestion: *"Bắt brief khai vùng theo khuôn cố định,
+    cấm đoán hẳn"*) mọi brief mở đầu bằng ba dòng:
+    `GHI: <đường dẫn sẽ ghi, cách nhau bằng khoảng trắng>` · `ĐỌC: <chỗ chỉ đọc>` ·
+    `TÀI NGUYÊN: <db-dev · db-that · dev-3000 · prisma · build>`.
+    Thiếu dòng `GHI:` → **cổng chặn ngay** kèm ví dụ dán được (vé đã nằm hàng chờ từ trước
+    khuôn mới vẫn thả lại được — tương thích ngược). Thuần đọc → `GHI: -`; không giành tài
+    nguyên → `TÀI NGUYÊN: -`. Dòng `ĐỌC:` **không bao giờ** tính là tranh chấp.
+    Nhánh "suy vùng từ văn xuôi" đã BỎ HẲN: trong một buổi 07/09 nó bắt phải vá bốn lần
+    (khai giữa dòng · dòng lệnh CHẠY bị tính là GHI · thư mục nhật ký gộp với thư mục hook ·
+    phần VÍ DỤ nhắc tên thư mục worker khác đang giữ) — lần thứ tư chặn oan đúng brief đi vá nó.
+  - *(lịch sử, đã gỡ)* Thứ tự cũ: (a) brief tự khai dòng
     `VÙNG: <đường dẫn sẽ ghi>` → tin tuyệt đối; (b) không khai → rút đường dẫn trong brief nhưng **bỏ
     những dòng nêu ví dụ / dặn "KHÔNG đụng"**; (c) không suy được → **cho qua**, không chặn oan.
     Việc chỉ sửa công cụ trong `~/.claude/universal-hooks/` mang vùng riêng `tools/univ3`, **không bao
@@ -348,6 +402,17 @@ Ngưỡng RAM chặn build phải lấy từ **số đo đỉnh thật** (mỗi 
 4. **Rubric viết TRƯỚC khi spawn** (đã có ở Re-take loop) → chấm theo checklist.
 5. **Phản biện đối kháng**: việc quan trọng → spawn agent thứ 2 độc lập nhiệm vụ BÁC BỎ; sống sót mới tin.
 
+## §Tự-đính-chính — worker ĐƯỢC bác chẩn đoán của người giao, và phải soi lại lời khai của CHÍNH MÌNH
+> Chiều ngược của §Chống MÕM: trên kia là điều phối kiểm worker; ở đây là worker kiểm NGƯỜI GIAO và kiểm CHÍNH NÓ.
+> Ca thật 04/09/2026 — ba lần worker tự sửa lại mình, cả ba đều cứu việc: ① bác giả thuyết *"worker nặng bị cắt vì quá tải"* (đo 53 nhật ký: con chạy TRỌN lớn hơn con bị cụt) → khỏi dựng cổng theo giả thuyết sai; ② bác chẩn đoán *"chỗ giữ không tự nhả khi worker xong"* (phần nhả vốn chạy đúng; sai thật ở *"không đo được thì buông vùng"*); ③ tự nhận đã khai sai *"không đẻ chặn oan mới"* rồi tìm ra đúng một chặn oan do bản vá của mình và vá tiếp. Cả ba đều do người giao viết tay vào từng brief — brief sau quên là mất, nên thành luật.
+
+1. **Bác chẩn đoán của người giao là ĐÚNG VIỆC, không phải cãi.** Người giao đoán sai là chuyện thường. Bác phải kèm bằng chứng đo được (`file:dòng`, output lệnh) — bác suông không tính.
+2. **Trước khi đóng, soi lại chính báo cáo sắp gửi**: câu nào khẳng định mà chưa có bằng chứng → đi kiểm rồi mới gửi, ghi rõ *đã kiểm gì, kết quả ra sao*.
+3. **Khai sai thì tự đính chính, CẤM im.** Thấy lời khai trước của mình sai → nói thẳng trong báo cáo cuối: sai chỗ nào, bản sửa ra sao. Sửa lén còn tệ hơn khai sai.
+4. **Cấm dựng cổng / viết code theo giả thuyết CHƯA chứng minh.** Giả thuyết bị bác → báo rõ *"đã bác + số đo"*, không cứ thế làm tiếp theo brief.
+
+> Bản rút gọn cho worker nằm ở `agents/tho-fulfill.md` và `agents/Tho-xay.md` (đó mới là tệp worker thật sự nạp).
+
 ## LUẬT SỐ 1 — Worker ĐANG LÀM VIỆC = BẤT KHẢ XÂM PHẠM · worker ĐÃ TRẢ BÁO CÁO = KILL NGAY
 
 > Bài học thật (2026-08-25, founder nổi giận, nhắc nhiều lần): trên màn hình còn đứng
@@ -384,14 +449,23 @@ lượt cuối là khối `text` không kèm `tool_use` = đã trả kết quả
 Khi phát hiện xác treo nó in thẳng danh sách kèm câu **"DỌN NGAY … `TaskStop` từng con"**. Nhờ vậy trần 5
 không còn bị xác chiếm chỗ chặn oan worker mới.
 
-### Vì sao KHÔNG có hook tự kill (đã cân nhắc, chọn "chỉ nhắc")
+### Vì sao TRƯỚC ĐÂY không có hook tự kill — và điều kiện đã đổi (09/09/2026, P088 Q5)
 - **Không có cách kill riêng một worker từ hook.** Đo thật: cả phiên 42 subagent nhưng `pgrep claude` chỉ ra
   **1 tiến trình `claude`** — subagent chạy trong cùng tiến trình cha. Hook mà `kill` thì giết cả phiên founder.
-- **Kill nhầm worker đang làm việc còn tệ hơn để xác treo**: mất việc dở, mất ngữ cảnh, phải làm lại từ đầu.
-  Dấu hiệu `text` có một khe hở vài giây (Stop hook có thể ép worker làm tiếp ngay sau khối `text`) — một
-  con robot tự kill sẽ đua với khe hở đó, còn coordinator đọc báo cáo rồi mới kill thì không.
-- Cái giá thật của xác treo là **chiếm chỗ trong trần** — chỗ đó đã được sửa tất định ở hook. Phần còn lại
-  (bấm `TaskStop`) là một thao tác một dòng của coordinator, không đáng đánh đổi rủi ro giết nhầm.
+  Điều này **vẫn đúng** — `TaskStop` tự động (dưới đây) đi qua đúng cơ chế `asyncRewake` đánh thức MAIN rồi
+  main tự gọi tool `TaskStop`, không phải hook tự `kill` tiến trình hệ điều hành.
+- **Dấu hiệu "text không kèm tool_use" đã bị LOẠI BỎ 28/08/2026** vì gây kill oan 2 worker "vừa nói vừa làm"
+  (đo trên 728 transcript: sai 12.137/12.529 khoảnh khắc — `worker_cap_enforce.py:48-77`). Đoạn "Cổng tất
+  định đi kèm" phía trên mô tả tín hiệu ĐÃ BỊ LOẠI — câu "lượt cuối là khối text không kèm tool_use = đã trả
+  kết quả" là **hoá thạch**, không dùng làm điều kiện tắt được nữa.
+- ⭐ **Founder chốt Q5 (09/09/2026, phiếu P088): "PHẢI CHẮC CHẮN NÓ CHẾT" — máy ĐƯỢC PHÉP tự `TaskStop`, với
+  điều kiện đã qua CỔNG CHỨNG MINH bằng số (M5), không phải lời hứa.** Nguồn DUY NHẤT: harness xác nhận
+  kết thúc cho đúng `agentId` (`worker_relapse.ids_ket_thuc()`, qua `viec_state.py`/`worker_cap_enforce.
+  running_workers()` — cấm suy từ hình dạng nội dung). Đo 2 lần cách nhau ≥ 60 giây, cùng kết quả mới hành
+  động (M0 luật số 4). Cài ở `tu_tha_ve.py::s12_xac_nhan_hai_lan()`; đối chứng âm đo được 09/09 = 0 (33/33
+  worker đã đóng nhận đúng, 1 worker sống + 4 ca khó K1-K4 dựng transcript giả lập đều KHÔNG bị chấm nhầm —
+  chi tiết `docs/ticket/P088-...md` §M5, Debate Log). **Đối chứng âm khác 0 → cấm bật**, quay về "chỉ nhắc".
+- **Founder ra lệnh DỪNG một việc → hành động ĐẦU TIÊN trong lượt là `TaskStop` đúng agentId** (P103 H5, 15/09/2026): `SendMessage` chỉ dùng để dặn việc TIẾP THEO, không phải lệnh dừng — nó chỉ tới worker ở lượt gọi công cụ kế tiếp (độ trễ harness), còn `TaskStop` gần-tức-thì. Cổng ép: `worker_dia_chi_gate.py` — tin `SendMessage` chứa mệnh lệnh dừng (`DỪNG`/`STOP`/`dừng ngay`) tới đúng một agentId mà lượt đó CHƯA gọi `TaskStop` cho id ấy → `deny` (10/10/2026 đổi từ `ask`: hộp xin quyền làm đứng luồng khi founder vắng máy), kèm câu lối ra "gọi TaskStop trước".
 
 ## Quy tắc
 - Main giữ context MỎNG: chỉ giữ rubric + kết luận từng worker; chi tiết nặng để worker gánh.

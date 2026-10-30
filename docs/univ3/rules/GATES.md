@@ -24,6 +24,17 @@ Gom mọi "cổng" phải qua: verify trước khi báo xong · an toàn hành �
 - "Không có cách nào biết" hầu như luôn SAI với trạng thái hệ thống — gần như luôn có 1 lệnh để biết. Thật sự không check được → **hỏi user**.
 - Phân biệt: **fact kiểm chứng được → CHECK** (không hỏi, không đoán); **quyết định của user → HỎI**. Cả hai đều KHÔNG đoán thay.
 
+**E. XONG = NGƯỜI DÙNG LÀM ĐƯỢC TRÊN BẢN THẬT (không phải "mã đã lên bản thật")**
+- Chuẩn gốc `FULL_PRODUCT_BUILD_v4.1.md`: §1.5 gate Build/Deploy (*"Mở được URL, data không mất, không leak key"* — thiếu database/backend vẫn chỉ là Prototype), §9.9 (*"để một agent testing ĐỘC LẬP verify — đừng chỉ tin unit test do chính agent viết code tự nhuộm xanh"*), §13.2 (*"App chạy local; flow chính hoàn thành được"*).
+- **Một việc Dev giao = một sản phẩm nhỏ DÙNG ĐƯỢC.** Brief phải có tiêu chí giao hàng bằng lời người dùng: **ai · vào màn nào · làm được động tác gì**. "Sửa tệp X, build xanh" KHÔNG phải tiêu chí.
+- Cuối báo cáo, thợ khai ĐÚNG MỘT DÒNG máy đọc được:
+  `MUC-KIEM: da-thu-ban-that — <ai thử, thử trên bản nào, thấy gì>` ·
+  `MUC-KIEM: chi-may-chay-thu — <thiếu chính xác cái gì> :: nhờ <ai, đúng vai> vào thử` ·
+  `MUC-KIEM: khong-kiem-duoc — <thiếu gì> :: nhờ <ai, đúng vai> vào thử`.
+- Khai hai mức sau → việc mang trạng thái **CHỜ NGƯỜI DÙNG XÁC NHẬN**: KHÔNG được gọi là xong với Dev, vào sổ VIỆC CHO NGƯỜI (`nghiem_thu_gate.them_cho_nguoi`, mã `XN-<W##>`) để bảng worker nhắc lại, và tin gửi nhóm BẮT BUỘC có câu nói thẳng chưa ai thử được + nhờ đích danh người đúng vai thử hộ. Đóng khi có xác nhận: `nghiem_thu_gate.py cho-nguoi --xong XN-<W##>`.
+- **Việc dính VAI (thiết kế, phụ trách shop, quản lý, xử lý đơn…) kiểm bằng TÀI KHOẢN THỬ của đúng vai đó trên bản thật** — bộ tài khoản thử chỉ tài khoản quản trị của Dev nhìn thấy. Tự thử chạy được rồi MỚI nhắn nhóm nhờ người dùng thật xác nhận lại.
+- Cổng tất định: `tin_nhom_trung_thuc_gate.py` (chặn ở 3 chỗ: đóng việc · nói "xong" · gửi tin nhóm vận hành). Ca gốc 29/09/2026: tin khoe "đã lên bản cả nhà đang dùng" trong khi ảnh chụp trên máy chạy thử và không ai thử bằng tài khoản đúng vai.
+
 _Lý do: báo "xong" mà chưa chạy là bẫy tốn kém nhất — user deploy tiếp dựa trên lời tuyên bố sai. Phán trạng thái sai (vd "bạn chưa đổi mật khẩu" khi đã đổi) vừa sai vừa mất niềm tin. Check tốn 1 giây; đoán sai tốn niềm tin._
 
 ## §Action-Safety — Reversibility × Blast radius (trước MỌI hành động có hậu quả)

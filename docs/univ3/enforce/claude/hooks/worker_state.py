@@ -47,6 +47,10 @@ WLOCK_ROOT = os.environ.get("WLOCK_ROOT", os.path.join(CLAUDE_HOME, "worker-lock
 DEPLOY_ROOT = os.environ.get("UNIV3_DEPLOY_QUEUE_ROOT",
                              os.path.join(CLAUDE_HOME, "deploy-queue"))
 PROGRESS_ROOT = os.environ.get("UNIV3_PROGRESS_ROOT", "/tmp/claude-bg-progress")
+# Gốc transcript agent (`<tasks>/a*.output` là symlink sang jsonl của agent). CÙNG biến
+# môi trường mà `worker-watchdog.sh` dùng -> hai bên không thể trỏ hai chỗ khác nhau.
+TASKS_ROOT = os.environ.get("WATCHDOG_TASKS_ROOT",
+                            "/private/tmp/claude-%s" % os.getuid())
 
 # Chờ bao lâu SAU KHI thứ mình chờ đã xong thì coi là bất thường.
 # WHY ngưỡng theo VIỆC chứ không theo phút cứng: đo thật ngày 27/8, một lượt lô
@@ -300,21 +304,202 @@ def build_dang_chay():
 
 # ------------------------ 4. tệp tiến độ ----------------------------------
 
+def moc_lon_nhat(noi_dung: str):
+    """(pct:int|None, nhãn:str) — MỐC % LỚN NHẤT trong TOÀN BỘ các dòng `NN|nhãn` hợp
+    khuôn của một tệp `.progress`, KHÔNG PHẢI dòng ĐẦU. (None, "") nếu không dòng nào
+    hợp khuôn.
+
+    W37 09/09/2026 (`docs/bang-chung/S12-so-khong-biet-da-bam-tat-09092026.md` §"Ca thứ
+    ba"): tệp tiến độ THEO KHUYẾN NGHỊ ghi ĐÈ (1 dòng), nhưng vẫn có worker ghi NỐI (nhiều
+    dòng cộng dần) — ca thật W36: 8 dòng từ `10|nhận việc` tới `100|xong`. Đọc dòng ĐẦU
+    (`.readline()`/`splitlines()[0]`) ra 10% -> kết luận oan "bị dừng giữa chừng", tự dựng
+    lại vé cho việc đã xong. Luật bằng chữ dặn worker ghi đè là XÁC SUẤT; bộ đọc chịu được
+    CẢ HAI kiểu ghi là TẤT ĐỊNH — sửa ở gốc đọc, không chỉ dặn worker nhớ luật.
+    """
+    tot = None
+    for dong in (noi_dung or "").splitlines():
+        pct_s, sep, nhan_s = dong.partition("|")
+        if not sep:
+            continue
+        try:
+            pct_n = int(pct_s.strip())
+        except (TypeError, ValueError):
+            continue
+        if tot is None or pct_n >= tot[0]:      # bằng nhau -> dòng SAU thắng (mới hơn)
+            tot = (pct_n, nhan_s.strip())
+    return tot if tot else (None, "")
+
+
 def tien_do(project, slug):
-    """`NN|nhãn` worker tự ghi + mtime — đọc lại tại thời điểm gọi."""
+    """`NN|nhãn` worker tự ghi + mtime — đọc lại tại thời điểm gọi.
+
+    Lấy MỐC LỚN NHẤT trong toàn bộ tệp (`moc_lon_nhat`), không phải dòng đầu — xem WHY ở
+    đó. Không dòng nào hợp khuôn (tệp lạ, không có `|`) -> lùi về dòng đầu như bản cũ, để
+    không đổi hành vi với input không phải `NN|nhãn`.
+    """
     f = os.path.join(PROGRESS_ROOT, project, "%s.progress" % slug)
     m = _mtime(f)
     if m is None:
         return None
-    dong = _doc(f).splitlines()
-    dong = dong[0] if dong else ""
-    pct, _, nhan = dong.partition("|")
+    noi_dung = _doc(f)
+    pct_n, nhan = moc_lon_nhat(noi_dung)
+    if pct_n is None:
+        dong = noi_dung.splitlines()
+        dong = dong[0] if dong else ""
+        pct, _, nhan = dong.partition("|")
+    else:
+        pct = str(pct_n)
     return {"slug": slug, "pct": pct.strip(), "nhan": nhan.strip(),
             "mtime": m, "im_giay": int(max(0, time.time() - m)), "tep": f}
 
 
+# ── HOẠT ĐỘNG THẬT CỦA THỢ — ĐỊNH NGHĨA DUY NHẤT CỦA "IM LẶNG" (W23 10/09/2026) ──────
+# WHY: bản cũ đo "im lặng" bằng mtime của TỆP MỐC. Thợ chạy MỘT lệnh dài (bộ kiểm thử,
+# ssh, build) thì không có gì để ghi -> tệp mốc đứng im -> con canh hô đỏ "im lặng 1 giờ"
+# NGAY TRONG CÙNG MỘT TIN NHẮN đã tự in "agent còn chạy 3 phút trước" (ca thật 10/09).
+# Hai vế đá nhau vì đọc hai đồng hồ khác nhau. Từ nay CHỈ MỘT đồng hồ:
+#     im lặng = bây giờ − max(mtime tệp mốc, mtime transcript agent)
+# Transcript được harness ghi mỗi lượt gọi công cụ -> thợ còn gọi lệnh là còn nhúc nhích.
+def _transcript_cua(project, slug, max_age_giay=None):
+    """mtime transcript MỚI NHẤT của agent đang ghi vào `<slug>.progress`; None nếu không có.
+
+    Nhận diện agent theo ĐÚNG cách `worker-watchdog.sh scan_agents` làm: trong tệp
+    `<tasks>/a*.output` có nhắc đường dẫn `claude-bg-progress/<project>/<slug>.progress`.
+    """
+    import glob
+    han = int(os.environ.get("WATCHDOG_MAX_AGE_MIN", "180")) * 60 if max_age_giay is None \
+        else int(max_age_giay)
+    bay_gio = time.time()
+    can = "claude-bg-progress/%s/%s.progress" % (project, slug)
+    tot = None
+    for f in glob.glob(os.path.join(TASKS_ROOT, "*", "*", "tasks", "a*.output")):
+        m = _mtime(f)
+        if m is None or (bay_gio - m) > han:
+            continue
+        if tot is not None and m <= tot:
+            continue                       # đã có tệp mới hơn -> khỏi đọc tệp này
+        try:
+            with open(f, encoding="utf-8", errors="replace") as fh:
+                noi = fh.read(2 * 1024 * 1024)
+        except OSError:
+            continue
+        if can in noi:
+            tot = m
+    return tot
+
+
+def hoat_dong_cuoi(project, slug, amt=None):
+    """Epoch lần NHÚC NHÍCH cuối CÓ THẬT của thợ = max(mtime tệp mốc, mtime transcript).
+
+    `amt` = mtime transcript người gọi ĐÃ đo sẵn (con canh quét cả lô một lượt) — truyền
+    vào để khỏi quét lại; KHÔNG truyền thì tự quét. Cả hai đường ra CÙNG một con số.
+    """
+    m = _mtime(os.path.join(PROGRESS_ROOT, project, "%s.progress" % slug))
+    a = amt if amt is not None else _transcript_cua(project, slug)
+    try:
+        a = int(a) if a is not None else None
+    except (TypeError, ValueError):
+        a = None
+    cac = [x for x in (m, a) if x]
+    return max(cac) if cac else None
+
+
+def im_giay_that(project, slug, amt=None, bay_gio=None):
+    """Số GIÂY im lặng THẬT. None = chưa có dấu vết nào để đo (KHÔNG phải 'im 0 giây')."""
+    h = hoat_dong_cuoi(project, slug, amt=amt)
+    if h is None:
+        return None
+    return int(max(0, (bay_gio if bay_gio is not None else time.time()) - h))
+
+
+# ── MỐC TIẾN ĐỘ PHẢI SỐNG QUA LẦN TẮT MÁY (P094 mục 6.1) ────────────────────────────
+# Mọi trạng thái khác đã nằm trên đĩa BỀN (vé + brief, sổ lệnh, tiêu chí khoá, sổ nghiệm
+# thu); riêng mốc `%` của thợ nằm ở `/tmp/claude-bg-progress` -> reboot là mất, mở lại bảng
+# mù mốc. Nhân đôi sang thư mục bền theo đúng luật "backup 2 nơi", và khi `/tmp` trống thì
+# KÉO VỀ. Không đổi khuôn brief, không bắt thợ ghi hai lần: hook tự soi gương lúc đọc.
+BEN_ROOT = os.path.expanduser(os.environ.get("UNIV3_PROGRESS_BEN", "~/.claude/bg-progress"))
+PROGRESS_MAC_DINH = "/tmp/claude-bg-progress"
+
+
+def _ben_root():
+    """Nơi lưu bền — TỰ CÔ LẬP khi đang chạy hộp cát.
+
+    WHY: bộ ca thử ép `UNIV3_PROGRESS_ROOT` vào thư mục tạm nhưng không ai ép nơi bền; lấy
+    thẳng `~/.claude/bg-progress` là hộp cát GHI RA SỔ THẬT rồi kéo tệp thật về hộp cát —
+    đúng thứ đã làm ca `w23_ca_thu` CA3b im lặng oan lúc thi công P094.
+    """
+    ep = os.environ.get("UNIV3_PROGRESS_BEN")
+    if ep:
+        return os.path.expanduser(ep)
+    if PROGRESS_ROOT.rstrip("/") != PROGRESS_MAC_DINH:
+        return PROGRESS_ROOT.rstrip("/") + "-ben"
+    return BEN_ROOT
+
+
+def _viec_da_dong(nhanh_tam, nhanh_ben, slug):
+    """Việc `slug` đã được bảng ĐÓNG chưa (có tệp trong `done/` ở một trong hai nhánh).
+
+    Soi CẢ HAI nhánh vì sau lần tắt máy `/tmp` trắng: `done/` bên `/tmp` chưa kịp được kéo
+    về thì chỉ bên bền mới còn dấu vết đóng việc.
+    """
+    import glob as _g
+    for d in (os.path.join(nhanh_tam, "done"), os.path.join(nhanh_ben, "done")):
+        if _g.glob(os.path.join(d, "*__%s__*.progress" % slug)) \
+                or os.path.exists(os.path.join(d, slug + ".progress")):
+            return True
+    return False
+
+
+def dong_bo_moc(project):
+    """Soi gương hai chiều tệp mốc của `project`. Trả (số tệp đẩy đi, số tệp kéo về)."""
+    import shutil
+    day = keo = 0
+    tam = os.path.join(PROGRESS_ROOT, project)
+    ben = os.path.join(_ben_root(), project)
+    if tam == ben:
+        return 0, 0
+    for goc, dich, la_day in ((tam, ben, True), (ben, tam, False)):
+        if not os.path.isdir(goc):
+            continue
+        for thu, _dirs, teps in os.walk(goc):
+            for t in teps:
+                if not t.endswith(".progress"):
+                    continue
+                f = os.path.join(thu, t)
+                rel = os.path.relpath(f, goc)
+                g = os.path.join(dich, rel)
+                # VIỆC ĐÃ ĐÓNG THÌ KHÔNG KÉO NGƯỢC VỀ (W88 14/09/2026). Đo thật trên máy
+                # founder: thư mục sống còn 2 tệp, chạy MỘT lượt bảng ra lại 25 — `don_dep`
+                # dời tệp sang `done/` bên `/tmp` nhưng bản gốc bên bền vẫn nằm đó, lượt sau
+                # chiều kéo về chép ngược lại. Tệp mốc của thợ chết thành BẤT TỬ, và chính
+                # những dòng mồ côi ấy là thứ `worker_board.dong_bo_so` đem đi tiêu số
+                # (17 số trong ba giây tối 14/09). Chiều kéo về sinh ra để cứu mốc khi `/tmp`
+                # trắng sau reboot, KHÔNG phải để lật lại quyết định đóng việc.
+                if not la_day and os.path.dirname(rel) == "" \
+                        and _viec_da_dong(tam, ben, t[:-len(".progress")]):
+                    continue
+                try:
+                    mf = os.stat(f).st_mtime
+                    mg = os.stat(g).st_mtime if os.path.exists(g) else -1
+                    if mg >= mf:
+                        continue
+                    os.makedirs(os.path.dirname(g), exist_ok=True)
+                    shutil.copy2(f, g)
+                except OSError:
+                    continue
+                if la_day:
+                    day += 1
+                else:
+                    keo += 1
+    return day, keo
+
+
 def worker_dang_chay(project):
     """Slug của mọi worker CÒN tệp tiến độ dở dang (chưa bị dọn sang `done/`)."""
+    try:
+        dong_bo_moc(project)               # P094 mục 6.1 — mốc sống qua lần tắt máy
+    except Exception:
+        pass
     d = os.path.join(PROGRESS_ROOT, project)
     ra = []
     try:
@@ -368,8 +553,23 @@ def cho_cai_da_xong(project, thua_giay=None):
                 moc, ma_lo = t, v.get("lo", "")
 
         # --- tín hiệu 1b: có vé xếp hàng wlock mà khoá đã trống / chủ đã chết ---
+        # W146 06/09/2026 (phiếu P-GO-KET-DIEU-PHOI-06092026, Đ3/AC7) — TRƯỚC bản vá
+        # này chỉ xét ĐÚNG hai tên `("deploy", "build")` -> worker xếp hàng chờ một
+        # tài nguyên `tai-nguyen/*` (kho dữ liệu thử, máy chủ thử…) hay bất kỳ khoá nào
+        # khác thì HÀM NÀY MÙ (ca W144 chờ `db-dev` 41 phút không ai thấy). Nay quét
+        # MỌI tên khoá/hàng-chờ có thật trên đĩa (đọc lại tại thời điểm gọi — cùng
+        # triết lý "không cache" của cả file), không hard-code danh sách.
         res_trong = ""
-        for res in ("deploy", "build"):
+        res_ung_vien = set(("deploy", "build"))
+        try:
+            for _t in os.listdir(WLOCK_ROOT):
+                if _t.endswith(".q"):
+                    res_ung_vien.add(_t[:-2])
+                elif _t.endswith(".lock"):
+                    res_ung_vien.add(_t[:-5])
+        except OSError:
+            pass
+        for res in sorted(res_ung_vien):
             cho_res = [q for q in hang_cho(res) if q["owner"] == slug]
             if not cho_res:
                 continue
@@ -420,12 +620,23 @@ def khoa_chu_da_chet():
 
 
 def tien_do_nguoi(project, nguoi_giay=None):
-    """Worker còn tệp tiến độ mà tệp không nhích quá lâu (nghi treo)."""
+    """Worker NGUỘI THẬT — không nhúc nhích quá lâu (nghi treo).
+
+    W23 10/09/2026: đo bằng `im_giay_that` (max tệp mốc / transcript), KHÔNG bằng mtime
+    tệp mốc nữa. Thợ chạy một lệnh dài là tệp mốc đứng im mà thợ vẫn sống — xem WHY dài ở
+    `hoat_dong_cuoi`.
+    """
     han = NGUOI_GIAY if nguoi_giay is None else int(nguoi_giay)
     ra = []
     for slug in worker_dang_chay(project):
         td = tien_do(project, slug)
-        if td and td["pct"] != "100" and td["im_giay"] >= han:
+        if not td or td["pct"] == "100":
+            continue
+        im = im_giay_that(project, slug)
+        if im is None:
+            continue
+        td["im_giay"] = im               # ghi đè bằng con số ĐÚNG ĐỊNH NGHĨA
+        if im >= han:
             ra.append(td)
     return ra
 
@@ -441,17 +652,42 @@ def cau_hanh_dong(project):
     ra = []
     treo = cho_cai_da_xong(project)
     if treo:
-        nhom = {}
+        # W146 06/09/2026 — Đ3: tách hai loại. Có MÃ LÔ (deploy/build gắn `chain.log`)
+        # thì câu cũ vẫn đúng. KHÔNG có mã lô (worker chờ một TÀI NGUYÊN như
+        # `tai-nguyen/db-dev` — ca W144, xem worker_state.py:372) thì câu "đang chờ lô
+        # (không rõ mã)" vô nghĩa; phải nêu TÊN TÀI NGUYÊN + (nếu còn dấu) TÊN người đã
+        # giữ trước đó, đúng yêu cầu founder "nói đích danh ai chờ ai vì tài nguyên gì".
+        nhom_lo, rieng_res = {}, []
         for t in treo:
-            nhom.setdefault((t["lo"], t["xong_luc"]), []).append(t)
-        for (ma_lo, moc), ds in sorted(nhom.items(), key=lambda x: -x[0][1]):
+            if t["lo"]:
+                nhom_lo.setdefault((t["lo"], t["xong_luc"]), []).append(t)
+            else:
+                rieng_res.append(t)
+        for (ma_lo, moc), ds in sorted(nhom_lo.items(), key=lambda x: -x[0][1]):
             ra.append(
                 "⛔ %s đang chờ lô %s — lô này ĐÃ XONG lúc %s, khoá đã nhả, "
                 "không còn build nào chạy (thừa %s) → CẦN CAN THIỆP: đánh thức "
                 "%s bằng SendMessage ngay"
-                % (" · ".join(d["so"] for d in ds), ma_lo or "(không rõ mã)",
+                % (" · ".join(d["so"] for d in ds), ma_lo,
                    gio(moc), tuoi(max(d["thua_giay"] for d in ds)),
                    " · ".join(d["so"] for d in ds)))
+        for t in rieng_res:
+            k = chu_khoa(t["res"])
+            if k is not None and k["canh_pid"] and not k["song"]:
+                # Còn dấu trên đĩa (chủ đã chết mà chưa nhả) -> NÊU ĐÍCH DANH cả hai.
+                ai_giu = ("chủ cũ '%s' (PID %s) ĐÃ CHẾT nhưng khoá chưa nhả"
+                          % (k["owner"], k["pid"]))
+                cach_go = ("đánh thức %s bằng SendMessage; nếu khoá vẫn còn kẹt: "
+                           "`bash ~/.claude/universal-hooks/wlock.sh release %s "
+                           "--owner=%s --force`" % (t["so"], t["res"], k["owner"]))
+            else:
+                # Khoá đã nhả sạch (dir đã bị xoá) -> KHÔNG có cách nào tra ra chủ cũ
+                # từ đĩa nữa (wlock không lưu lịch sử) — nói thật, không bịa tên.
+                ai_giu = "khoá ĐÃ NHẢ, không còn ai giữ (không tra được ai đã giữ trước)"
+                cach_go = "đánh thức %s bằng SendMessage — không còn gì để chờ nữa" % t["so"]
+            ra.append(
+                "⛔ %s đang chờ tài nguyên '%s' — %s (thừa %s) → CẦN CAN THIỆP: %s"
+                % (t["so"], t["res"], ai_giu, tuoi(t["thua_giay"]), cach_go))
     for k in khoa_chu_da_chet():
         ra.append(
             "⛔ khoá %s còn dấu của '%s' nhưng chủ PID %s ĐÃ CHẾT → CẦN CAN "
@@ -617,6 +853,40 @@ def _tu_kiem():
            isinstance(build_that(), list),
            "%d tiến trình build/deploy đang chạy thật trên máy này"
            % len(build_that()))
+
+        # ---- ca (e): W146 06/09/2026 (Đ3/AC7, ca W144 chờ 41 phút không ai thấy) ---
+        # Worker xếp hàng chờ một TÀI NGUYÊN (không phải "deploy"/"build") mà chủ khoá
+        # cũ đã CHẾT — trước bản vá worker_state.py:372 chỉ xét đúng hai tên cứng nên
+        # hàm này MÙ với mọi `tai-nguyen/*`.
+        print("\nCA (e) — worker chờ TÀI NGUYÊN (không phải deploy/build), chủ cũ đã chết:")
+        res_e = "tai-nguyen__db-dev"
+        ld_e = os.path.join(WLOCK_ROOT, "%s.lock" % res_e)
+        os.makedirs(ld_e, exist_ok=True)
+        pid_chet_e = _pid_chac_chan_chet()
+        xong_e = bay_gio - 45 * 60
+        for ten, gt in (("owner", "w143"), ("pid", str(pid_chet_e)),
+                        ("since", str(int(xong_e))), ("project", proj),
+                        ("note", "giữ tai-nguyen__db-dev")):
+            with open(os.path.join(ld_e, ten), "w", encoding="utf-8") as f:
+                f.write(gt)
+        qd_e = os.path.join(WLOCK_ROOT, "%s.q" % res_e)
+        os.makedirs(qd_e, exist_ok=True)
+        with open(os.path.join(qd_e, "0001-w144"), "w", encoding="utf-8") as f:
+            f.write("\x1f".join(["w144", str(os.getpid()), proj,
+                                  "chờ tai-nguyen__db-dev", str(xong_e - 60)]))
+        p_e = os.path.join(PROGRESS_ROOT, proj, "w144.progress")
+        with open(p_e, "w", encoding="utf-8") as f:
+            f.write("60|Chờ dựng kho thử\n")
+        os.utime(p_e, (xong_e - 60, xong_e - 60))
+        treo_e = cho_cai_da_xong(proj)
+        ca("(e) bắt được w144 chờ tài nguyên tai-nguyen__db-dev (chủ cũ đã chết)",
+           any(t["so"] == "w144" and t["res"] == res_e for t in treo_e),
+           "thấy: %s" % [(t["so"], t["res"]) for t in treo_e])
+        cau_e = cau_hanh_dong(proj)
+        ca("(e) câu chữ nêu ĐÍCH DANH cả hai worker (w144 chờ, w143 giữ) + tên tài nguyên",
+           any("w144" in c and "w143" in c and res_e in c and "CẦN CAN THIỆP" in c
+               for c in cau_e),
+           [c for c in cau_e if "w144" in c and res_e in c][:1])
     finally:
         build_dang_chay = build_that
         shutil.rmtree(goc, ignore_errors=True)
@@ -639,10 +909,34 @@ def _pid_chac_chan_chet():
     return p.pid
 
 
+def _in_moc_tat_ca(project):
+    """`slug<TAB>NN<TAB>nhãn<TAB>mtime<TAB>im_giây` cho MỌI tệp mốc của một dự án.
+
+    W23 10/09/2026 — VÌ SAO CÓ LỆNH NÀY: trước đây bốn nơi tự đọc `.progress` bằng bốn
+    cách (`worker_board.doc_tien_do` dòng ĐẦU · `worker-watchdog.sh` `head -1` ·
+    `bg-progress.sh` `head -1` · `worker_state.moc_lon_nhat` MỐC LỚN NHẤT). Tệp ghi NỐI
+    nhiều dòng thì bốn nơi ra bốn con số khác nhau cho CÙNG một thợ. Nay hai script shell
+    gọi lệnh này (một lần cho cả lô, không phải mỗi tệp một lần) -> chỉ còn MỘT bộ đọc.
+    """
+    bay_gio = time.time()
+    for slug in worker_dang_chay(project):
+        td = tien_do(project, slug)
+        if not td:
+            continue
+        im = im_giay_that(project, slug, bay_gio=bay_gio)
+        print("%s\t%s\t%s\t%s\t%s" % (slug, td["pct"], td["nhan"], td["mtime"],
+                                        "" if im is None else im))
+    return 0
+
+
 if __name__ == "__main__":
     import sys
     if "--tu-kiem" in sys.argv:
         raise SystemExit(_tu_kiem())
+    if "--doc-moc" in sys.argv:
+        _du = [a for a in sys.argv[1:] if not a.startswith("-")]
+        raise SystemExit(_in_moc_tat_ca(_du[0] if _du else
+                                        os.path.basename(os.getcwd().rstrip("/"))))
     du_an = None
     for a in sys.argv[1:]:
         if not a.startswith("-"):

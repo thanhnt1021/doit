@@ -117,15 +117,21 @@ gh repo create "$GH_OWNER/$NAME" --private --source=. --remote=origin --push >/d
 # 4) Pages project + deploy (headless, token)
 echo "==> Pages project + deploy..."
 pnpm dlx wrangler pages project create "$NAME" --production-branch=main >/dev/null 2>&1 || true
+# WHY: tên <name>.pages.dev có thể đã thuộc người khác → Cloudflare cấp tên khác (ca oha → oha-65v.pages.dev);
+# tự ghép "$NAME.pages.dev" sẽ trỏ CNAME sang site của người khác. Phải đọc subdomain thật từ API.
+PAGES_HOST=$(cf "$API/accounts/$CF_ACCOUNT_ID/pages/projects/$NAME" \
+  | python3 -c 'import sys,json;d=json.load(sys.stdin);print((d.get("result") or {}).get("subdomain") or "")' 2>/dev/null || true)
+[ -n "$PAGES_HOST" ] || { echo "Không đọc được subdomain Pages của project $NAME — DỪNG, không đoán (kiểm lại token/tên project)."; exit 1; }
+echo "    Pages host: $PAGES_HOST"
 pnpm dlx wrangler pages deploy public --project-name="$NAME" --branch=main --commit-dirty=true 2>&1 | grep -iE 'Success|Deployment complete|http' | tail -2
 
 # 5) Custom domain + DNS CNAME (API)
 echo -n "==> Custom domain $DOMAIN: "
 cf -X POST "$API/accounts/$CF_ACCOUNT_ID/pages/projects/$NAME/domains" --data "{\"name\":\"$DOMAIN\"}" | ok
 SUB="${DOMAIN%.$CF_ZONE_NAME}"
-echo -n "==> DNS CNAME $SUB -> $NAME.pages.dev: "
+echo -n "==> DNS CNAME $SUB -> $PAGES_HOST: "
 cf -X POST "$API/zones/$CF_ZONE_ID/dns_records" \
-  --data "{\"type\":\"CNAME\",\"name\":\"$SUB\",\"content\":\"$NAME.pages.dev\",\"proxied\":true}" | ok
+  --data "{\"type\":\"CNAME\",\"name\":\"$SUB\",\"content\":\"$PAGES_HOST\",\"proxied\":true}" | ok
 
 # 6) Info file
 cat > CLOUDFLARE_PAGES_SETUP.md <<MD
@@ -135,7 +141,7 @@ cat > CLOUDFLARE_PAGES_SETUP.md <<MD
 |---|---|
 | Account ID | \`$CF_ACCOUNT_ID\` |
 | Pages project | \`$NAME\` (direct-upload) |
-| URL | \`$NAME.pages.dev\` / \`$DOMAIN\` |
+| URL | \`$PAGES_HOST\` / \`$DOMAIN\` |
 | GitHub repo | \`$GH_OWNER/$NAME\` |
 | D1 | $( [ "$USE_D1" = 1 ] && echo "\`$NAME-db\` id \`$DBID\`, binding \`DB\`" || echo "không" ) |
 
@@ -145,4 +151,4 @@ git add -A; git -c user.email=bot@local -c user.name=new-site commit -q -m "docs
 
 echo ""
 echo "XONG: https://$DOMAIN  (DNS/SSL custom domain có thể mất 1-2 phút để Active)"
-echo "      https://$NAME.pages.dev  (chạy ngay)"
+echo "      https://$PAGES_HOST  (chạy ngay)"

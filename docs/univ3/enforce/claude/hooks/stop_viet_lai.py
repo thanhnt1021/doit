@@ -52,6 +52,16 @@ _CHUNG = (
     "giữ nguyên, không nhắc lại.\n"
     "  · Mở đầu thẳng bằng câu đã sửa."
 )
+# P103 H2 (loại hỏng #11, founder 15/09): cổng chặn vì MỘT HÀNH ĐỘNG chưa làm (vd ghi vé
+# qua lệnh CLI) không có "câu bị bắt" nào để viết lại — chữ `_CHUNG` ở trên chỉ đúng khi
+# bị bắt một CÂU. Áp `_CHUNG` cho ca hành động khiến main hiểu nhầm là "viết lại cả lượt"
+# rồi in nguyên văn tin cũ lần hai. Nhánh riêng, main LÀM hành động rồi chỉ in một dòng.
+_HANH_DONG = (
+    "\n\n\U0001F4CE CHẶN VÌ HÀNH ĐỘNG CHƯA LÀM — founder ĐÃ ĐỌC bản vừa rồi:\n"
+    "  · KHÔNG có câu nào để sửa — làm ĐÚNG hành động nêu ở lối ra trên (vd chạy lệnh CLI "
+    "ghi vé), rồi chỉ in MỘT DÒNG xác nhận kết quả.\n"
+    "  · CẤM in lại nguyên văn tin vừa bị chặn, CẤM chào lại, CẤM tóm tắt lại."
+)
 _BANG = ("\n  · CẤM in lại khối bảng worker (```◆ Worker đang chạy…```) lần thứ hai "
          "trong cùng lượt — lượt này đã in rồi, in lại là founder đọc hai lần.")
 
@@ -129,16 +139,19 @@ def xoa_dau(sid):
             pass
 
 
-def them(ly_do, van_ban=None, sid=None, transcript=None):
+def them(ly_do, van_ban=None, sid=None, transcript=None, hanh_dong=False):
     """Đính khối chỉ dẫn vào cuối thông điệp chặn của MỘT cổng `Stop` bất kỳ.
 
     `van_ban`    = nguyên văn lượt trả lời vừa bị chặn (cổng nào có sẵn thì truyền vào).
     `transcript` = đường dẫn transcript; thiếu `van_ban` thì tự bóc tin assistant cuối.
     `sid`        = session id, để nhớ "lượt này đã in bảng" qua nhiều lần chặn.
+    `hanh_dong`  = True khi cổng chặn vì một HÀNH ĐỘNG chưa làm (không có câu để viết lại
+                   — vd ve_de_sau_gate đòi chạy lệnh CLI ghi vé). Mặc định False = giữ
+                   nguyên hành vi cũ (viết lại câu bị bắt) cho MỌI caller khác — không đổi.
     """
     if van_ban is None and transcript:
         van_ban = van_ban_cuoi(transcript)
-    ra = (ly_do or "").rstrip() + _CHUNG
+    ra = (ly_do or "").rstrip() + (_HANH_DONG if hanh_dong else _CHUNG)
     if _da_in_bang(van_ban, sid):
         ra += _BANG
     return ra
@@ -188,6 +201,16 @@ def _tu_kiem():
 
     ca.append(("9. van_ban=None không nổ", isinstance(them("⛔ A"), str)))
     ca.append(("10. ly_do=None không nổ", isinstance(them(None), str)))
+
+    # P103 H2 (loại hỏng #11) — nhánh hanh_dong=True: KHÔNG được đòi "viết lại câu bị
+    # bắt" (không có câu nào), PHẢI đòi làm hành động rồi in một dòng, KHÔNG in cả tin.
+    r7 = them("⛔ VIỆC HOÃN KHÔNG CÓ VÉ", van_ban="một câu bình thường", sid=sid + "-hd",
+              hanh_dong=True)
+    ca.append(("11. hanh_dong=True: có khối CHẶN VÌ HÀNH ĐỘNG", "CHẶN VÌ HÀNH ĐỘNG" in r7))
+    ca.append(("12. hanh_dong=True: KHÔNG đòi viết lại câu bị bắt", "câu bị bắt" not in r7))
+    ca.append(("13. hanh_dong=True: đòi CẤM in lại nguyên văn", "CẤM in lại nguyên văn" in r7))
+    r8 = them("⛔ B", van_ban="x", sid=sid + "-hd2")
+    ca.append(("14. hanh_dong mặc định False: giữ nguyên nhánh cũ", "câu bị bắt" in r8))
 
     n = sum(1 for _, ok in ca if ok)
     for ten, ok in ca:

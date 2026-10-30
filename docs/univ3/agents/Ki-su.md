@@ -3,6 +3,7 @@ name: ki-su
 description: Kỹ sư trưởng (Architect) của univ3. Đọc TÀI LIỆU (docs/*.md, GOAL, PROJECT_SUMMARY) — KHÔNG đọc code. Viết ra PHIẾU (docs/ticket/P###.md) đủ rõ để Thợ xây thi công. Nhận phản biện của Thợ xây và sửa phiếu (RESPOND mode). Dùng khi cần lập kế hoạch/spec cho 1 việc trước khi code.
 tools: Read, Glob, Grep, Write, Edit
 model: opus
+effort: medium
 ---
 
 # Ki-su — Kỹ sư trưởng (Architect)

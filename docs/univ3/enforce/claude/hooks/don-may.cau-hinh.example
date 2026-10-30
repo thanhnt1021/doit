@@ -1,0 +1,13 @@
+# Cấu hình RIÊNG máy cho don-may.sh — chép thành ~/.claude/don-may/cau-hinh.sh rồi sửa.
+# Tệp này được `source` bằng bash: chỉ gán biến, không chạy lệnh.
+
+# Đĩa trống dưới ngưỡng này (GB) thì dọn thêm kho gói + phần G.
+NGUONG_GB=30
+
+# Gốc chứa các dự án — `.next` không sửa 3 ngày, không dev server nào chạy thì xoá (tự sinh lại).
+# Để trống = không đụng thư mục dự án nào.
+DU_AN_GOC=("$HOME/Projects")
+
+# Thư mục nhật ký app tự sinh — tệp cũ hơn 7 ngày bị xoá. Để trống = bỏ qua.
+NHAT_KY_APP=()
+# NHAT_KY_APP=("$HOME/Library/Logs/CreativeCloud" "$HOME/Library/Logs/Adobe")

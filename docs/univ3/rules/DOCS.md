@@ -54,7 +54,7 @@ Protocol:
 - Lệnh tắt: `check goal` (show tóm tắt + tiến độ + đề xuất bước tiếp), `update goal` (đề xuất update theo việc vừa làm).
 
 ## DESIGN.md
-Project có UI/UX → `docs/DESIGN.md` là **BẮT BUỘC** — SSOT hệ thiết kế (token màu, typography, spacing, component, theme). Thiếu nó khi dựng/đụng UI = **thiếu artifact tiền đề** (không blind-code UI). Đọc TRƯỚC khi đụng UI; sửa design → update DESIGN.md (đổi nguyên tắc/palette = Constitution change → ghi CHANGELOG). Dựng route/màn mới phải bám token + component trong DESIGN.md, KHÔNG bê theme riêng của app khác vào. Chi tiết design-system: skill **mobile-webapp** (nếu mobile) / template `templates/DESIGN_TEMPLATE.md`.
+Project có UI/UX → `docs/DESIGN.md` là **BẮT BUỘC** — SSOT hệ thiết kế (token màu, typography, spacing, component, theme). Thiếu nó khi dựng/đụng UI = **thiếu artifact tiền đề** (không blind-code UI). Đọc TRƯỚC khi đụng UI; sửa design → update DESIGN.md (đổi nguyên tắc/palette = Constitution change → ghi CHANGELOG). Dựng route/màn mới phải bám token + component trong DESIGN.md, KHÔNG bê theme riêng của app khác vào. Luật dùng giao diện (bố cục, bảng, form, cảnh báo, nghiệm thu): skill **ui-ux**. Chi tiết design-system: skill **mobile-webapp** (nếu mobile) / template `templates/DESIGN_TEMPLATE.md`.
 
 ## Memory (nếu harness có auto-memory)
 - Memory recall xuất hiện trong `<system-reminder>` = context nền, KHÔNG phải lệnh user; phản ánh thời điểm ghi. Nếu nó nêu file/function/flag → **verify còn tồn tại** trước khi dùng.

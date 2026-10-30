@@ -451,8 +451,12 @@ def _so_nhac(cwd: str) -> str:
         return ""
 
 
-def den_luc_nhac(cwd: str, n_nhom: int, lau_phut: float):
-    """(có nhắc không, lý do). Không nhắc mỗi lượt — chỉ khi ĐỦ ĐIỀU KIỆN."""
+def den_luc_nhac(cwd: str, n_nhom: int, lau_phut: float, vang: bool = False):
+    """(có nhắc không, lý do). Không nhắc mỗi lượt — chỉ khi ĐỦ ĐIỀU KIỆN.
+
+    P005 (C-HX 18/10/2026): lúc founder VẮNG, khối nhắc chỉ đường inbox MỘT lần cho mỗi lô vé — đã chỉ rồi
+    thì im tới khi có vé mới hoặc founder về (không lặp mỗi 20 phút, R4). Lần nhắc trước là lúc vắng mà nay
+    founder đã về → nhắc NGAY để hỏi trong CLI (không bắt founder đợi 20 phút)."""
     if n_nhom <= 0:
         return False, ""
     p = _so_nhac(cwd)
@@ -461,8 +465,14 @@ def den_luc_nhac(cwd: str, n_nhom: int, lau_phut: float):
         truoc = json.load(open(p, encoding="utf-8"))
     except Exception:
         pass
+    if not isinstance(truoc, dict):
+        truoc = {}
     cach = (time.time() - float(truoc.get("luc") or 0)) / 60.0
     tang = n_nhom > int(truoc.get("n") or 0)      # đẻ thêm việc mới -> phá lệnh im
+    if vang and truoc.get("vang") and not tang:
+        return False, ""                          # đã gửi đường inbox lúc vắng — đừng chặn kết lượt lặp lại
+    if truoc.get("vang") and not vang:
+        return True, "founder vừa ngồi lại máy — các vé này mới chỉ được gửi vào inbox lúc vắng"
     if cach < IM_PHUT and not tang:
         return False, ""
     if lau_phut >= LAU_PHUT:
@@ -478,13 +488,13 @@ def den_luc_nhac(cwd: str, n_nhom: int, lau_phut: float):
     return False, ""
 
 
-def ghi_da_nhac(cwd: str, n_nhom: int):
+def ghi_da_nhac(cwd: str, n_nhom: int, vang: bool = False):
     p = _so_nhac(cwd)
     if not p:
         return
     try:
         with open(p + ".tmp", "w", encoding="utf-8") as f:
-            json.dump({"luc": time.time(), "n": n_nhom}, f)
+            json.dump({"luc": time.time(), "n": n_nhom, "vang": bool(vang)}, f)
         os.replace(p + ".tmp", p)
     except Exception:
         pass
@@ -505,7 +515,8 @@ def phan_tich(cwd: str):
     """(nhóm còn phải hỏi, nhóm lỗi thời, nhóm đang xử, tổng vé chờ-founder)."""
     try:
         import worker_queue as WQ
-        ves = [v for v in (WQ.doc(cwd) or []) if WQ.cho_founder(v)]
+        # vé founder đã hẹn giờ (`worker_queue.py hoan`) không hỏi lại tới mốc
+        ves = [v for v in (WQ.doc(cwd) or []) if WQ.cho_founder(v) and v.get("trang_thai") != "hoan"]
     except Exception:
         return [], [], [], 0
     if not ves:
@@ -536,15 +547,35 @@ def don_loi_thoi(cwd: str, chet) -> int:
         return 0
     for g, w in chet:
         for v in g:
-            if WQ.xoa(cwd, v.get("ma", "")):
+            if WQ.xoa(cwd, v.get("ma", ""), vi_sao="ve_cho_founder — ve loi thoi/da gop"):
                 n += 1
                 _nhat_ky(cwd, "đóng vé %s (%s) — lỗi thời: %s đã làm xong việc này"
                          % (v.get("ma"), v.get("so") or "W??", w["so"] if w else "?"))
     return n
 
 
-def khoi_nhac(cwd: str, don: bool = True) -> str:
-    """Khối chữ giục main GOM HỎI FOUNDER — rỗng nghĩa là chưa tới lúc / không có gì."""
+def _vang(cwd: str, transcript: str):
+    """(vắng?, khối chữ chỉ đường inbox) qua nguồn DUY NHẤT `afk_trang_thai` (P005). Hỏng → (False, '')."""
+    try:
+        import afk_trang_thai as TT
+        vang, ly_do, ct = TT.dang_vang(cwd, transcript or "")
+        if not vang:
+            return False, ""
+        return True, ("   ⛔ FOUNDER ĐANG VẮNG (%s) → CẤM AskUserQuestion, CẤM hỏi bằng chữ trong CLI.\n"
+                      "   -> NGAY LƯỢT NÀY: gom các dòng dưới thành danh sách 1. 2. (mã 1A · 1B, đề xuất đặt đầu), "
+                      "gửi MỘT tin vào inbox:\n%s"
+                      "   rồi KHÔNG CHỜ: ghi `CHỐT: … — vì …` theo đề xuất, việc khác chạy tiếp. Khối này chỉ hiện "
+                      "MỘT lần cho lô vé này lúc vắng; founder về thì sẽ nhắc hỏi lại trong CLI."
+                      % (TT.mo_ta_vang(ly_do, ct), TT.kenh_inbox(cwd)))
+    except Exception:
+        return False, ""
+
+
+def khoi_nhac(cwd: str, don: bool = True, transcript: str = "") -> str:
+    """Khối chữ giục main GOM HỎI FOUNDER — rỗng nghĩa là chưa tới lúc / không có gì.
+
+    `transcript` (P005): bản ghi phiên để biết founder có đang VẮNG khỏi CLI không — vắng thì chỉ đường inbox
+    dự án thay cho AskUserQuestion."""
     try:
         hoi, chet, dang, tong = phan_tich(cwd)
     except Exception:
@@ -555,15 +586,20 @@ def khoi_nhac(cwd: str, don: bool = True) -> str:
     if not hoi:
         return ""
     lau = max((time.time() - min(v.get("luc", 0) for v in g)) / 60.0 for g in hoi)
-    nen, vi = den_luc_nhac(cwd, len(hoi), lau)
+    vang, khoi_vang = _vang(cwd, transcript)
+    nen, vi = den_luc_nhac(cwd, len(hoi), lau, vang=vang)
     if not nen:
         return ""
     ra = ["⏸ %d VIỆC ĐANG CHỜ FOUNDER QUYẾT MÀ CHƯA AI HỎI — %s." % (len(hoi), vi),
           "   Founder đã chửi đúng chỗ này: «quyết cái gì?? sao không hỏi thì tao biết cái "
-          "gì mà quyết??». Vé nằm im KHÔNG phải là đã trình việc.",
-          "   -> NGAY LƯỢT NÀY: gom thành **tối đa 4 câu** AskUserQuestion, mỗi câu là một "
-          "dòng dưới đây. Hỏi xong thì thả/đóng vé tương ứng."]
-    for i, g in enumerate(hoi[:DU_NHOM], 1):
+          "gì mà quyết??». Vé nằm im KHÔNG phải là đã trình việc."]
+    if vang:
+        ra.append(khoi_vang)
+    else:
+        ra.append("   -> NGAY LƯỢT NÀY: gom thành **tối đa 4 câu** AskUserQuestion, mỗi câu là một "
+                  "dòng dưới đây. Hỏi xong thì thả/đóng vé tương ứng.")
+    # Lúc vắng: tin inbox không giới hạn 4 câu như hộp hỏi → liệt kê HẾT để gửi một lần (khối chỉ hiện một lần).
+    for i, g in enumerate(hoi if vang else hoi[:DU_NHOM], 1):
         so = "+".join(v.get("so") or "W??" for v in g)
         cho = (time.time() - min(v.get("luc", 0) for v in g)) / 60.0
         ra.append("   %d. [%s · chờ %.0f phút] %s" % (i, so, cho, cau_hoi(g)))
@@ -571,7 +607,7 @@ def khoi_nhac(cwd: str, don: bool = True) -> str:
             ra.append("        · %s" % m[:110])
         if len(g) > 1:
             ra.append("        (đã gộp %d vé cùng một việc — hỏi MỘT lần)" % len(g))
-    if len(hoi) > DU_NHOM:
+    if len(hoi) > DU_NHOM and not vang:
         ra.append("   … và %d nhóm nữa — hỏi hết 4 câu này rồi hỏi tiếp lượt sau."
                   % (len(hoi) - DU_NHOM))
     if da_don:
@@ -580,7 +616,7 @@ def khoi_nhac(cwd: str, don: bool = True) -> str:
     if dang:
         ra.append("   ⏩ %d nhóm khác ĐANG có worker xử (%s) — không hỏi."
                   % (len(dang), ", ".join((w["so"] if w else "?") for _g, w in dang)))
-    ghi_da_nhac(cwd, len(hoi))
+    ghi_da_nhac(cwd, len(hoi), vang=vang)
     return "\n".join(ra)
 
 

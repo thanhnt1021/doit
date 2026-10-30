@@ -1,0 +1,58 @@
+{
+  "C1": {
+    "bat": true,
+    "co_mau": 346,
+    "so_oan": 0,
+    "bo_mau_sha256": "c9e9b9df89aeedbc",
+    "ly_do": "0-oan/346 mẫu âm (bộ mẫu đóng băng c9e9b9df89aeedbc) + đạt ca dương -- BẬT"
+  },
+  "C2": {
+    "bat": true,
+    "co_mau": 346,
+    "so_oan": 0,
+    "bo_mau_sha256": "c9e9b9df89aeedbc",
+    "ly_do": "0-oan/346 mẫu âm (bộ mẫu đóng băng c9e9b9df89aeedbc) + đạt ca dương -- BẬT"
+  },
+  "C3": {
+    "bat": true,
+    "co_mau": 0,
+    "so_oan": 0,
+    "bo_mau_sha256": "c9e9b9df89aeedbc",
+    "ly_do": "33 câu 'chốt' thật (tổng khớp khuôn TRƯỚC miễn trừ) trên bộ mẫu đóng băng c9e9b9df89aeedbc — 0 câu còn lại SAU miễn trừ hẹp (W105) + ca6 dương vẫn chặn -- GIỮ BẬT theo đánh giá người đọc W105/W106 (script --bat-neu-dat tự tính sẽ ra n=0 -> không đạt điều kiện máy 'n>0', giới hạn ĐÃ BIẾT của bộ tự-bật — không áp cho C3, W107 khôi phục nguyên trạng, KHÔNG tự đảo quyết định người đọc)"
+  },
+  "C4": {
+    "bat": true,
+    "co_mau": 346,
+    "so_oan": 0,
+    "bo_mau_sha256": "c9e9b9df89aeedbc",
+    "ly_do": "0-oan/346 mẫu âm (bộ mẫu đóng băng c9e9b9df89aeedbc) + đạt ca dương -- BẬT"
+  },
+  "C5": {
+    "bat": true,
+    "co_mau": 346,
+    "so_oan": 0,
+    "bo_mau_sha256": "c9e9b9df89aeedbc",
+    "ly_do": "0-oan/346 mẫu âm (bộ mẫu đóng băng c9e9b9df89aeedbc) + đạt ca dương -- BẬT"
+  },
+  "C6": {
+    "bat": true,
+    "co_mau": 84,
+    "so_oan": 0,
+    "bo_mau_sha256": "c9e9b9df89aeedbc",
+    "ly_do": "0-oan/84 mẫu âm (bộ mẫu đóng băng c9e9b9df89aeedbc) + đạt ca dương -- BẬT"
+  },
+  "C7a": {
+    "bat": true,
+    "co_mau": 4,
+    "so_oan": 0,
+    "bo_mau_sha256": "c9e9b9df89aeedbc",
+    "ly_do": "0-oan/4 mẫu âm (bộ mẫu đóng băng c9e9b9df89aeedbc) + đạt ca dương -- BẬT"
+  },
+  "C7b": {
+    "bat": true,
+    "co_mau": 21,
+    "so_oan": 0,
+    "bo_mau_sha256": "c9e9b9df89aeedbc",
+    "ly_do": "0-oan/21 mẫu âm (bộ mẫu đóng băng c9e9b9df89aeedbc) + đạt ca dương -- BẬT"
+  }
+}

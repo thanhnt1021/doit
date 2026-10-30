@@ -1,8 +1,8 @@
 #!/bin/bash
 # Ký lại (build + cài lại) app iOS native.
-# Từ 02/09/2026 dùng team TRẢ PHÍ GYNRKXCZPQ (Huu Anh Nguyen), ký THỦ CÔNG bằng hồ sơ
+# Dùng team TRẢ PHÍ GYNRKXCZPQ (Huu Anh Nguyen), ký THỦ CÔNG bằng hồ sơ
 # "Thanh Dev fun" / "Thanh Dev com" — chứng chỉ + hồ sơ hết hạn 2027-09-01, tức 1 NĂM
-# ký lại 1 lần (không còn 7 ngày như team miễn phí cũ Q27B6K3LNC).
+# ký lại 1 lần.
 # Đọc registry ~/.claude/ios-apps-registry.json (do skill ios-native-app ghi khi build app mới).
 #   bash resign.sh          # ký lại TẤT CẢ app
 #   bash resign.sh <name>   # ký lại 1 app theo "name"

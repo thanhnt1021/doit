@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """PreToolUse(Bash) soft-gate: project đã lớn mà VẪN CHƯA CÓ docs/GOAL.md
-(hoặc docs/PROJECT_SUMMARY.md) thì hỏi 1 câu lúc `git commit`.
+(hoặc docs/PROJECT_SUMMARY.md) thì nhắc lúc `git commit`.
 
 WHY cần hook riêng — các gate hiện có chỉ kiểm CHẤT LƯỢNG file đã tồn tại, không
 ai chặn SỰ VẮNG MẶT của file: `goal_tracking_enforce.py:55-57` gặp `goal_path is
@@ -10,11 +10,12 @@ chỉ "stale" khi summary ĐÃ có. Luật markdown cũng chỉ nói "nếu proj
 model nhớ, mà model quên. Hook này lấp đúng lỗ đó.
 
 WHY PreToolUse chứ không SessionStart: SessionStart chỉ in text, model vẫn quên;
-PreToolUse có `permissionDecision` là cổng tất định, user thấy tận mắt rồi mới đi tiếp.
-WHY không đặt ở git pre-commit: pre-commit không HỎI được, chỉ chặn -> đẻ phản xạ
+PreToolUse đẩy lời nhắc (additionalContext) vào đúng nhịp commit, tất định mỗi lần.
+WHY không đặt ở git pre-commit: pre-commit không nhắc được, chỉ chặn -> đẻ phản xạ
 `--no-verify`, hỏng luôn mọi gate khác.
-WHY "ask" chứ không "deny": thiếu tài liệu không phải lỗi sai kỹ thuật, chặn cứng sẽ
-kẹt việc gấp; ask cho user tự quyết mà vẫn không quên.
+WHY "allow + nhắc" chứ không "deny"/"ask": thiếu tài liệu không phải lỗi sai kỹ thuật,
+chặn cứng sẽ kẹt việc gấp; "ask" bật hộp xin quyền làm đứng phiên khi anh vắng máy
+(26/08 đổi mã sang allow, 11/10/2026 sửa chú thích cho khớp).
 
 Fail-open: mọi lỗi -> exit 0 (cho qua), không bao giờ vỡ phiên.
 """
@@ -123,8 +124,8 @@ def main() -> None:
         reason = (
             f"Project đã {commits} commit nhưng còn thiếu tài liệu nền:\n"
             + "\n".join(missing)
-            + "\n\nTạo rồi commit, hoặc xác nhận bỏ qua để commit luôn.\n"
-            + f"Không muốn bị hỏi nữa cho project này: `touch {REL_SKIP_MARK}`."
+            + "\n\nCommit vẫn chạy; nên tạo bổ sung trong lượt sau.\n"
+            + f"Không muốn bị nhắc nữa cho project này: `touch {REL_SKIP_MARK}`."
         )
     except Exception:
         sys.exit(0)
